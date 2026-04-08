@@ -1,0 +1,25 @@
+---
+import BentoCard from "./BentoCard.astro";
+
+// Matches Braydon's deterministic rotation/offset pattern
+const stickers = [
+  { src: "/that_conf_sticker.png", width: 80,  rotation: -8, yOffset: 12 },
+  { src: "/c3_conf_sticker.png",   width: 96,  rotation: 12, yOffset: -8 },
+  { src: "/lotr_sticker.png",      width: 130, rotation: -5, yOffset: 15 },
+  { src: "/cyc_sticker.png",       width: 160, rotation: 10, yOffset: -10 },
+];
+---
+
+<BentoCard height="h-[220px]" hideOverflow={false}>
+  <h2 class="mb-2 font-medium">Scrapbook</h2>
+  <div class="absolute top-0 h-[220px] w-full overflow-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_2px)] [background-size:14px_14px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_50%,black_40%,transparent_100%)]"></div>
+  <div class="bg-secondary w-full rounded-3xl p-6">
+    <div class="-mt-8 grid h-full w-full grid-cols-4 items-center gap-4">
+      {stickers.map((s) => (
+        <div class="flex items-center justify-center" style={`transform: rotate(${s.rotation}deg) translateY(${s.yOffset}px);`}>
+          <img width={s.width} src={s.src} draggable={false} alt="" />
+        </div>
+      ))}
+    </div>
+  </div>
+</BentoCard>

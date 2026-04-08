@@ -1,0 +1,61 @@
+---
+import BentoCard from "./BentoCard.astro";
+
+// Top 4 entries from Braydon's changelog collection (sorted by publishedAt desc).
+// Use noon UTC to avoid timezone off-by-one issues when formatting to local date.
+const changelogItems = [
+  { title: "Wikipedia-Style Link Previews", publishedAt: "2026-01-01T12:00:00Z" },
+  { title: "Table of Contents with Animated Indicator", publishedAt: "2025-12-31T12:00:00Z" },
+  { title: "New Stats Page", publishedAt: "2025-12-30T12:00:00Z" },
+  { title: "Interactive Code Playgrounds!", publishedAt: "2025-11-15T12:00:00Z" },
+];
+
+const getTopPosition = (index: number) => {
+  const basePosition = -30;
+  const spacing = 60;
+  return `${basePosition + index * spacing}px`;
+};
+
+const formatDate = (dateStr: string) =>
+  new Date(dateStr).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+---
+
+<BentoCard height="h-[276px]" linkTo="/changelog" class="group">
+  <div class="border-px absolute left-1/2 top-0 h-full w-2 -translate-x-1/2 transform border-x border-[#A5AEB8]/10 bg-[#D6DADE]/35"></div>
+  <!-- Timeline -->
+  <div class="relative">
+    <div class="absolute left-0 right-0 top-0 transition-transform duration-500 ease-in-out group-hover:-translate-y-6">
+      {changelogItems.map((item, index) => (
+        <div
+          class:list={["absolute", index % 2 === 1 ? "right-0" : "left-0"]}
+          style={`top: ${getTopPosition(index)};`}
+        >
+          <span
+            class:list={[
+              "absolute top-[27px] hidden h-px w-[20px] bg-border-primary md:inline-block",
+              index % 2 === 1 ? "left-[-20px]" : "right-[-20px]",
+            ]}
+          ></span>
+          <div class="z-10 inline-block w-[160px] space-y-px rounded-xl border border-border-primary bg-white px-3 py-2.5 text-xs">
+            <p class="overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-text-secondary">
+              {item.title}
+            </p>
+            <time datetime={item.publishedAt}>{formatDate(item.publishedAt)}</time>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+  <!-- Gradient overlay -->
+  <div class="absolute inset-0 h-full w-full bg-gradient-to-t from-white to-transparent"></div>
+  <div class="z-10 grid h-full grid-cols-2 grid-rows-2 items-end gap-8">
+    <div class="col-1 row-start-2">
+      <h2 class="mb-2 font-medium">Changelog</h2>
+      <p class="text-text-secondary">Here's what's new on my site</p>
+    </div>
+  </div>
+</BentoCard>

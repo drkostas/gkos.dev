@@ -1,0 +1,36 @@
+---
+import BentoCard from "./BentoCard.astro";
+
+const softwareData = [
+  { title: "Raycast", imgSrc: "/raycast_logo.png" },
+  { title: "Arc", imgSrc: "/arc_logo.png" },
+  { title: "VSCode", imgSrc: "/vscode_logo.png" },
+  { title: "mymind", imgSrc: "/mymind_logo.png" },
+  { title: "Obsidian", imgSrc: "/obsidian_logo.png" },
+];
+---
+<BentoCard linkTo="/toolbox" height="md:h-[304px] lg:h-[300px]">
+  <div class="group-hover:from-bg-white absolute inset-y-0 left-0 z-20 w-1/5 bg-gradient-to-r from-bg-primary to-transparent"></div>
+  <div class="group-hover:from-bg-white absolute inset-y-0 right-0 z-20 w-1/5 bg-gradient-to-l from-bg-primary to-transparent"></div>
+  <div class="z-20 text-center">
+    <h2 class="text-base font-medium">Toolbox</h2>
+    <p class="mt-1 text-text-secondary">Check out my favorite tools and spots around the web.</p>
+  </div>
+  <div class="mt-10 flex items-center justify-center gap-3 transition-all duration-500 ease-in-out md:mt-12">
+    {softwareData.map((item, index) => (
+      <div class="group inline-block text-center">
+        <div
+          class:list={[
+            "rounded-[20px] border border-border-primary p-2 transition-all duration-500 group-hover:border-indigo-400",
+            index === 2 ? "delay-0 group-hover:-translate-y-3" : (index === 1 || index === 3) ? "delay-100 group-hover:-translate-y-3" : "delay-200 group-hover:-translate-y-3",
+          ]}
+          style={`width: ${index === 2 ? 130 : 110}px; height: ${index === 2 ? 130 : 110}px;`}
+        >
+          <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;">
+            <img class="h-10 w-10" alt={item.title} src={item.imgSrc} />
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+</BentoCard>

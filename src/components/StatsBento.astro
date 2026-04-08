@@ -1,0 +1,24 @@
+---
+import BentoCard from "./BentoCard.astro";
+
+// Bar heights matching Braydon's StatsBento
+const bars = [35, 52, 45, 68, 58, 82, 75];
+---
+
+<BentoCard>
+  <h2 class="mb-2 text-base font-medium">Site Analytics</h2>
+  <div class="relative flex-1">
+    <!-- Dashed gridlines -->
+    <div class="pointer-events-none absolute bottom-0 left-0 -right-6 top-8">
+      {[0, 25, 50, 75, 100].map((percent) => (
+        <div class="absolute left-0 right-0 border-t border-dashed border-gray-300/60" style={`bottom: ${percent}%;`}></div>
+      ))}
+    </div>
+    <!-- Bars -->
+    <div class="absolute bottom-0 left-0 right-0 flex h-full items-end justify-around gap-1 pb-2">
+      {bars.map((height) => (
+        <div class="w-3 rounded-t bg-indigo-400/70" style={`height: ${height}%;`}></div>
+      ))}
+    </div>
+  </div>
+</BentoCard>

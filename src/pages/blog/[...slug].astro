@@ -1,0 +1,77 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import GridWrapper from "@/components/GridWrapper.astro";
+import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { getCollection, render } from "astro:content";
+
+export async function getStaticPaths() {
+  const posts = await getCollection("blog");
+  return posts
+    .filter((post) => !post.data.draft)
+    .map((post) => ({
+      params: { slug: post.id },
+      props: { post },
+    }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+function formatDate(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+---
+
+<Layout title={`${post.data.title} | Braydon Coyer`}>
+  <article class="relative">
+    <div class="mx-auto max-w-3xl px-4 py-16">
+      <!-- Hero image -->
+      {post.data.imageName && (
+        <GridWrapper>
+          <img
+            class="drama-shadow mb-12 w-full rounded-xl object-cover"
+            src={`/blog/${post.data.imageName}`}
+            alt=""
+          />
+        </GridWrapper>
+      )}
+
+      <!-- Title + metadata -->
+      <GridWrapper>
+        <h1 class="mb-4 text-balance text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl">
+          {post.data.title}
+        </h1>
+        <div class="mb-12 flex items-center space-x-4 font-mono text-sm text-text-secondary">
+          <time datetime={post.data.publishedAt.toISOString()}>
+            {formatDate(post.data.publishedAt)}
+          </time>
+        </div>
+      </GridWrapper>
+
+      <!-- MDX Content -->
+      <div class="wrapper">
+        <div class="prose prose-lg max-w-none prose-p:leading-8 prose-p:text-text-secondary prose-a:text-indigo-600 prose-a:font-medium prose-headings:tracking-tighter prose-headings:font-medium prose-strong:font-medium prose-code:text-sm prose-img:drama-shadow prose-img:rounded-xl">
+          <Content />
+        </div>
+      </div>
+
+      <!-- Related posts placeholder -->
+      <GridWrapper class="mt-16">
+        <div class="border-t border-dashed border-border-primary pt-8">
+          <a
+            href="/blog"
+            class="inline-flex items-center text-sm font-medium text-indigo-600"
+          >
+            ← Back to all posts
+          </a>
+        </div>
+      </GridWrapper>
+    </div>
+
+    <NewsletterSignUpReact client:visible />
+  </article>
+</Layout>

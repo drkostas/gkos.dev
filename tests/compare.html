@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Visual Comparison Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a1a; color: #fff; }
+
+    .controls {
+      position: sticky; top: 0; z-index: 100;
+      background: #2a2a2a; border-bottom: 1px solid #444;
+      padding: 12px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    }
+    .controls label { font-size: 13px; color: #aaa; }
+    .controls select, .controls input[type="range"] { font-size: 13px; }
+    .controls select { background: #333; color: #fff; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; }
+
+    .mode-btns { display: flex; gap: 4px; }
+    .mode-btns button {
+      background: #333; color: #ccc; border: 1px solid #555; padding: 4px 12px;
+      border-radius: 4px; cursor: pointer; font-size: 13px;
+    }
+    .mode-btns button.active { background: #6C47FF; color: #fff; border-color: #6C47FF; }
+
+    .slider-group { display: flex; align-items: center; gap: 8px; }
+    .slider-group input[type="range"] { width: 200px; }
+    .slider-group .val { font-size: 12px; color: #888; min-width: 36px; }
+
+    .compare-area { padding: 24px; }
+
+    /* Side by side mode */
+    .side-by-side { display: flex; gap: 24px; justify-content: center; }
+    .side-by-side .panel { flex: 1; max-width: 50%; }
+    .side-by-side .panel h3 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .side-by-side .panel img { width: 100%; border: 1px solid #333; }
+
+    /* Overlay mode */
+    .overlay-container { position: relative; display: inline-block; margin: 0 auto; }
+    .overlay-container img { display: block; max-width: 100%; }
+    .overlay-container .overlay-img {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    /* Onion skin mode */
+    .onion-container { position: relative; display: inline-block; margin: 0 auto; }
+    .onion-container img { display: block; max-width: 100%; }
+    .onion-container .onion-img {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      object-fit: cover; mix-blend-mode: difference;
+    }
+
+    .center { display: flex; justify-content: center; }
+    .hidden { display: none; }
+
+    .info { text-align: center; padding: 48px; color: #666; }
+    .info p { margin-top: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <div>
+      <label>Page</label><br>
+      <select id="page-select">
+        <option value="home">Home</option>
+        <option value="about">About</option>
+        <option value="blog">Blog</option>
+        <option value="projects">Projects</option>
+        <option value="toolbox">Toolbox</option>
+        <option value="speaking">Speaking</option>
+        <option value="changelog">Changelog</option>
+      </select>
+    </div>
+    <div>
+      <label>Viewport</label><br>
+      <select id="viewport-select">
+        <option value="375w">375px (Mobile)</option>
+        <option value="768w">768px (Tablet)</option>
+        <option value="1024w">1024px (Desktop)</option>
+        <option value="1440w" selected>1440px (Wide)</option>
+      </select>
+    </div>
+    <div>
+      <label>Mode</label><br>
+      <div class="mode-btns">
+        <button data-mode="side-by-side" class="active">Side by Side</button>
+        <button data-mode="overlay">Overlay</button>
+        <button data-mode="onion">Difference</button>
+      </div>
+    </div>
+    <div class="slider-group" id="opacity-group">
+      <label>Opacity</label>
+      <input type="range" id="opacity-slider" min="0" max="100" value="50" />
+      <span class="val" id="opacity-val">50%</span>
+    </div>
+  </div>
+
+  <div class="compare-area">
+    <!-- Side by side -->
+    <div id="mode-side-by-side" class="side-by-side">
+      <div class="panel">
+        <h3>Baseline (Braydon)</h3>
+        <img id="sbs-baseline" alt="baseline" />
+      </div>
+      <div class="panel">
+        <h3>Ours (Astro)</h3>
+        <img id="sbs-ours" alt="ours" />
+      </div>
+    </div>
+
+    <!-- Overlay -->
+    <div id="mode-overlay" class="center hidden">
+      <div class="overlay-container">
+        <img id="overlay-baseline" alt="baseline" />
+        <img id="overlay-ours" class="overlay-img" alt="ours" />
+      </div>
+    </div>
+
+    <!-- Onion skin / difference -->
+    <div id="mode-onion" class="center hidden">
+      <div class="onion-container">
+        <img id="onion-baseline" alt="baseline" />
+        <img id="onion-ours" class="onion-img" alt="ours" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const baselinePath = (page, vp) => `baselines/${page}-${vp}.png`;
+    const oursPath = (page, vp) => `current/${page}-${vp}.png`;
+
+    const pageSelect = document.getElementById("page-select");
+    const vpSelect = document.getElementById("viewport-select");
+    const opacitySlider = document.getElementById("opacity-slider");
+    const opacityVal = document.getElementById("opacity-val");
+    const opacityGroup = document.getElementById("opacity-group");
+
+    let currentMode = "side-by-side";
+
+    function update() {
+      const page = pageSelect.value;
+      const vp = vpSelect.value;
+      const bl = baselinePath(page, vp);
+      const ours = oursPath(page, vp);
+
+      // Side by side
+      document.getElementById("sbs-baseline").src = bl;
+      document.getElementById("sbs-ours").src = ours;
+
+      // Overlay
+      document.getElementById("overlay-baseline").src = bl;
+      document.getElementById("overlay-ours").src = ours;
+
+      // Onion
+      document.getElementById("onion-baseline").src = bl;
+      document.getElementById("onion-ours").src = ours;
+
+      updateOpacity();
+    }
+
+    function updateOpacity() {
+      const val = opacitySlider.value / 100;
+      opacityVal.textContent = opacitySlider.value + "%";
+      document.getElementById("overlay-ours").style.opacity = val;
+      document.getElementById("onion-ours").style.opacity = val;
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll(".mode-btns button").forEach(b => {
+        b.classList.toggle("active", b.dataset.mode === mode);
+      });
+      document.getElementById("mode-side-by-side").classList.toggle("hidden", mode !== "side-by-side");
+      document.getElementById("mode-overlay").classList.toggle("hidden", mode !== "overlay");
+      document.getElementById("mode-onion").classList.toggle("hidden", mode !== "onion");
+      opacityGroup.classList.toggle("hidden", mode === "side-by-side");
+    }
+
+    document.querySelectorAll(".mode-btns button").forEach(btn => {
+      btn.addEventListener("click", () => setMode(btn.dataset.mode));
+    });
+
+    pageSelect.addEventListener("change", update);
+    vpSelect.addEventListener("change", update);
+    opacitySlider.addEventListener("input", updateOpacity);
+
+    update();
+  </script>
+</body>
+</html>
