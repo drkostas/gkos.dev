@@ -1,0 +1,518 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.wrapper {
+  display: grid;
+  grid-template-columns:
+    1fr
+    min(75ch, 100%)
+    1fr;
+}
+
+.blog-container {
+  width: min(65ch, 100%);
+}
+
+.wrapper > * {
+  grid-column: 2;
+}
+
+::selection {
+  background-color: #47a3f3;
+  color: #fefefe;
+}
+
+:root {
+  --sh-class: #0d9488;
+  --sh-identifier: #2252d9;
+  --sh-sign: #334155;
+  --sh-property: #0d9488;
+  --sh-entity: #0885c7;
+  --sh-jsxliterals: #6266d1;
+  --sh-string: #00a99a;
+  --sh-keyword: #7e3ced;
+  --sh-comment: #64758b;
+}
+
+html {
+  min-width: 360px;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee linear infinite;
+  animation-play-state: paused;
+}
+
+iframe {
+  margin-bottom: 2rem;
+}
+
+.drama-shadow {
+  @apply relative shadow-md ring-1 ring-indigo-500/15;
+}
+
+.drama-shadow::after {
+  @apply pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_0_2px_1px_#ffffff4d];
+  content: "";
+}
+
+pre {
+  @apply drama-shadow mb-12 rounded-xl;
+}
+
+.code-frame {
+  @apply flex h-9 items-center justify-between overflow-hidden rounded-t-xl border-b border-[#E2E3E5] bg-white px-4;
+}
+
+.code-frame-content {
+  @apply flex w-full items-center justify-start space-x-3;
+}
+
+.code-frame-filename {
+  @apply max-w-[50%] truncate font-mono text-sm text-slate-400;
+}
+
+.code-container {
+  @apply overflow-auto rounded-b-xl bg-white p-6;
+}
+
+.frame-controls {
+  @apply flex h-full items-center justify-start space-x-1.5;
+}
+
+.frame-control {
+  @apply h-[10px] w-[10px] rounded-full bg-[#E2E3E5];
+}
+
+pre code {
+  @apply py-0.5 leading-7;
+  counter-reset: sh-line-number;
+  letter-spacing: 0.1em;
+  font-size: 15px;
+}
+
+code:not(pre code) {
+  font-size: 15px;
+  font-variant-ligatures: none;
+
+  --sh-class: #0f172a;
+  --sh-identifier: #0f172a;
+  --sh-sign: #0f172a;
+  --sh-property: #0f172a;
+  --sh-entity: #0f172a;
+  --sh-jsxliterals: #0f172a;
+  --sh-string: #0f172a;
+  --sh-keyword: #0f172a;
+  --sh-comment: #0f172a;
+}
+
+code:not(pre code)::before,
+code:not(pre code)::after {
+  content: "`";
+}
+
+pre code .sh__line::before {
+  counter-increment: sh-line-number 1;
+  content: counter(sh-line-number);
+  margin-right: 24px;
+  text-align: right;
+  color: #cccccc;
+  font-size: 14px;
+}
+
+.prose code span {
+  @apply font-medium;
+}
+
+.prose img {
+  @apply m-0;
+}
+
+.prose h2,
+h3,
+h4 {
+  @apply font-medium tracking-tighter !important;
+}
+
+.prose strong {
+  @apply font-medium;
+}
+
+.prose > :first-child {
+  margin-top: 1.25em !important;
+  margin-bottom: 1.25em !important;
+}
+
+pre::-webkit-scrollbar {
+  display: none;
+}
+
+pre {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+input[type="text"],
+input[type="email"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.prose .tweet a {
+  text-decoration: inherit;
+  font-weight: 500;
+}
+
+table {
+  display: block;
+  max-width: fit-content;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.prose .callout > p {
+  margin: 0 !important;
+}
+
+.title {
+  text-wrap: balance;
+}
+
+blockquote p {
+  margin: 0 !important;
+}
+
+.wide-layout {
+  grid-column: 1 / -1;
+}
+
+.wide-layout > * {
+  max-width: min(95vw, 1400px);
+  margin: 0 auto;
+}
+
+.wide-layout button[title="Open in CodeSandbox"] {
+  display: none !important;
+}
+
+.sandpack-highlight {
+  background-color: #fef3c7 !important;
+  border-left: 3px solid #f59e0b !important;
+  margin-left: -1rem !important;
+  padding-left: calc(1rem - 3px) !important;
+}
+
+/* ===========================================
+   Table of Contents - CSS Anchor Positioning
+   =========================================== */
+
+.toc-container {
+  --toc-text-primary: #0f172a;
+  --toc-text-secondary: #5e5f6e;
+  --toc-text-tertiary: #94a3b8;
+  --toc-accent: #6c47ff;
+  --toc-accent-glow: rgba(108, 71, 255, 0.15);
+  --toc-border: #e2e8f0;
+  --toc-transition: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  position: fixed;
+  left: max(1rem, calc((100vw - 1280px) / 2 - 200px));
+  width: 180px;
+  max-height: calc(100vh - 200px);
+  overflow: visible;
+  z-index: 40;
+}
+
+@media (max-width: 1536px) {
+  .toc-container {
+    display: none !important;
+  }
+}
+
+.toc-content {
+  position: relative;
+  padding-left: 20px;
+}
+
+.toc-path-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.toc-path-line {
+  stroke: #cbd5e1;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ===========================================
+   The Animated Dot Indicator
+   =========================================== */
+
+.toc-indicator {
+  position: absolute;
+  left: -3px;
+  width: 7px;
+  height: 7px;
+  background-color: var(--toc-accent);
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 3px var(--toc-accent-glow),
+    0 0 12px var(--toc-accent-glow);
+
+  transition:
+    top 0.4s var(--toc-transition),
+    left 0.4s var(--toc-transition),
+    opacity 0.2s ease;
+
+  opacity: 0;
+}
+
+.toc-indicator--visible {
+  opacity: 1;
+}
+
+@keyframes toc-dot-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px var(--toc-accent-glow),
+      0 0 12px var(--toc-accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px var(--toc-accent-glow),
+      0 0 16px var(--toc-accent-glow);
+  }
+}
+
+.toc-indicator--moving {
+  animation: toc-dot-pulse 0.6s ease-out;
+}
+
+@supports (anchor-name: --toc-active) {
+  .toc-indicator {
+    position-anchor: --toc-active;
+    top: anchor(center);
+    transform: translateY(-50%);
+  }
+}
+
+/* ===========================================
+   Section Label
+   =========================================== */
+
+.toc-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--toc-text-tertiary);
+  margin-bottom: 16px;
+  padding-left: 0;
+}
+
+/* ===========================================
+   TOC Links - Typography & Hierarchy
+   =========================================== */
+
+.toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc-item {
+  margin: 0;
+}
+
+.toc-link {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--toc-text-secondary);
+  text-decoration: none;
+  padding: 5px 0;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
+  user-select: none;
+}
+
+.toc-link--h2 {
+  font-weight: 500;
+  color: var(--toc-text-primary);
+}
+
+.toc-link--h3 {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--toc-text-secondary);
+  padding-left: 14px;
+}
+
+/* ===========================================
+   Interactive States
+   =========================================== */
+
+.toc-link:hover {
+  color: var(--toc-text-primary);
+}
+
+.toc-link--h3:hover {
+  color: var(--toc-text-primary);
+}
+
+.toc-link--active {
+  color: var(--toc-accent) !important;
+}
+
+.toc-link:focus-visible {
+  outline: 2px solid var(--toc-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ===========================================
+   Scrollbar Styling
+   =========================================== */
+
+.toc-container::-webkit-scrollbar {
+  width: 3px;
+}
+
+.toc-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.toc-container::-webkit-scrollbar-thumb {
+  background: var(--toc-border);
+  border-radius: 3px;
+}
+
+.toc-container::-webkit-scrollbar-thumb:hover {
+  background: var(--toc-text-tertiary);
+}
+
+/* ===========================================
+   Reduced Motion Preference
+   =========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .toc-indicator {
+    transition:
+      top 0.1s ease,
+      left 0.1s ease,
+      opacity 0.1s ease;
+  }
+
+  .toc-link {
+    transition: color 0.1s ease;
+  }
+
+  .toc-indicator--moving {
+    animation: none;
+  }
+}
+
+/* ===========================================
+   Link Preview Popover - Native Popover API
+   =========================================== */
+
+.link-preview-popover {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+
+  position: fixed;
+  inset: unset;
+  z-index: 9999;
+
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+  transition:
+    opacity 0.15s ease-out,
+    transform 0.15s ease-out,
+    overlay 0.15s ease-out allow-discrete,
+    display 0.15s ease-out allow-discrete;
+}
+
+.link-preview-popover:popover-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@starting-style {
+  .link-preview-popover:popover-open {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+/* ===========================================
+   Popover Card Styles
+   =========================================== */
+
+.link-preview-card {
+  width: 320px;
+  max-width: calc(100vw - 32px);
+}
+
+@supports (anchor-name: --test) {
+  .link-preview-popover.anchor-positioned {
+    position: absolute;
+    position-try-fallbacks: flip-block;
+
+    bottom: anchor(top);
+    left: anchor(center);
+    transform: translateX(-50%);
+    margin-bottom: 12px;
+  }
+}
+
+/* ===========================================
+   Responsive & Accessibility
+   =========================================== */
+
+@media (hover: none) and (pointer: coarse) {
+  .link-preview-popover {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link-preview-popover {
+    transition: none;
+  }
+
+  @starting-style {
+    .link-preview-popover:popover-open {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}

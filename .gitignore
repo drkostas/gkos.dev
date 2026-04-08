@@ -6,3 +6,17 @@ dist/
 .references/
 .playwright-mcp/
 .DS_Store
+test-results/
+tests/audit/
+tests/baselines/
+tests/current/
+tests/visual-regression.spec.mjs-snapshots/
+tests/braydon-*.png
+tests/baseline-*.png
+tests/compare-*.png
+tests/side-by-side-*.png
+tests/diff-*.png
+*.png
+!public/**/*.png
+!public/**/*.jpeg
+!public/**/*.jpg

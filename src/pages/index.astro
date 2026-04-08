@@ -1,0 +1,174 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { AnimatedProfilePicture } from "@/components/ProfilePicture";
+import { AnimatedText } from "@/components/AnimatedText";
+import { PhotoGallery } from "@/components/PhotoGallery";
+import { AnimatedMobilePhotos } from "@/components/AnimatedMobilePhotos";
+import GridWrapper from "@/components/GridWrapper.astro";
+import AboutMeBento from "@/components/AboutMeBento.astro";
+import { ConnectionsBentoReact } from "@/components/ConnectionsBentoReact";
+import ToolboxBento from "@/components/ToolboxBento.astro";
+import CalendarBento from "@/components/CalendarBento.astro";
+import FeaturedBlogCard from "@/components/FeaturedBlogCard.astro";
+import ChangelogBento from "@/components/ChangelogBento.astro";
+import { SpeakingBentoReact } from "@/components/SpeakingBentoReact";
+import { CommunityWallBentoReact } from "@/components/CommunityWallBentoReact";
+import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+
+const featuredArticles = [
+  {
+    slug: "build-link-previews-with-playwright-and-the-popover-api",
+    imageName: "link_preview_cover.jpeg",
+    title: "Build Link Previews with Playwright and the Popover API",
+    summary: "Wikipedia-style link previews can make your blog feel more polished. In this tutorial, we'll build a system that captures screenshots at build time and displays them using the native Popover API with smooth CSS animations.",
+  },
+  {
+    slug: "a-modern-table-of-contents-in-nextjs-with-css-anchor-positioning",
+    imageName: "toc_nextjs_modern_css.jpeg",
+    title: "A Modern Table of Contents in Next.js with CSS Anchor Positioning",
+    summary: "In this tutorial, you'll learn how to build a floating table of contents component for your Next.js blog that tracks the reader's scroll position and highlights the active section with a smooth animated dot.",
+  },
+  {
+    slug: "how-to-use-signal-forms-in-angular",
+    imageName: "angular-signal-forms.jpeg",
+    title: "How to Use Signal Forms in Angular 21 (With Examples)",
+    summary: "In this post, you'll learn how Angular's new Signal Forms dramatically simplify form creation, improve performance through fine-grained reactivity, and eliminate the boilerplate and workarounds required by Reactive Forms.",
+  },
+];
+---
+
+{/* Animation delays matching Braydon's */}
+<Layout>
+  <section>
+    <AnimatedProfilePicture delay={0} client:load />
+    <div class="mt-6 space-y-10 md:mt-0 md:space-y-16">
+      <section>
+        <div class="relative text-balance">
+          <GridWrapper>
+            <AnimatedText
+              as="h1"
+              delay={0.3}
+              className="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]"
+              client:load
+            >
+              Hey, I'm Braydon! <br /> Welcome to my corner of the internet!
+            </AnimatedText>
+          </GridWrapper>
+          <GridWrapper>
+            <div class="mt-4 text-center md:mt-8">
+              <AnimatedText
+                as="p"
+                delay={0.4}
+                className="leading-8 text-text-secondary"
+                client:load
+              >
+                I'm a front-end developer with a love for design and a knack for tinkering. This site is intentionally over-engineered and serves as my playground for experimenting with new ideas and seeing what sticks!
+              </AnimatedText>
+            </div>
+          </GridWrapper>
+        </div>
+        <div>
+          <div class="relative hidden h-fit w-full items-center justify-center lg:flex">
+            <PhotoGallery animationDelay={0.5} client:load />
+          </div>
+          <AnimatedMobilePhotos delay={0.5} client:load />
+        </div>
+      </section>
+
+      <!-- About Section -->
+      <section class="relative space-y-10 md:space-y-16">
+        <div class="space-y-4">
+          <GridWrapper>
+            <div class="text-center text-sm font-medium text-indigo-600">
+              <span>About</span>
+            </div>
+          </GridWrapper>
+          <GridWrapper>
+            <h2 class="mx-auto max-w-lg text-balance text-center text-3xl font-medium leading-10 tracking-tight text-text-primary md:text-4xl">
+              Here's what sets me apart and makes me unique
+            </h2>
+          </GridWrapper>
+        </div>
+
+        <GridWrapper>
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-12 lg:grid-rows-[14]">
+            <div class="col-span-1 md:col-span-5 lg:col-span-5 lg:row-span-6">
+              <AboutMeBento />
+            </div>
+            <div class="md:col-span-12 lg:col-span-7 lg:row-span-8">
+              <ConnectionsBentoReact linkTo="/connections" client:visible />
+            </div>
+            <div class="md:col-span-7 md:row-start-1 lg:col-span-5 lg:row-span-7">
+              <ToolboxBento />
+            </div>
+            <div class="md:col-span-12 lg:col-span-7 lg:row-span-5">
+              <CalendarBento />
+            </div>
+          </div>
+        </GridWrapper>
+      </section>
+
+      <!-- Blog Section -->
+      <section class="relative space-y-10 md:space-y-16">
+        <div class="relative space-y-4 text-balance">
+          <GridWrapper>
+            <div class="text-center text-sm font-medium text-indigo-600">
+              <span>Blog</span>
+            </div>
+          </GridWrapper>
+          <GridWrapper>
+            <h2 class="mx-auto max-w-lg text-center text-3xl font-medium leading-10 tracking-tighter text-text-primary md:text-4xl">
+              I like sharing my experiments && knowledge with others
+            </h2>
+          </GridWrapper>
+        </div>
+
+        <div class="z-10">
+          <GridWrapper>
+            <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {featuredArticles.map((post) => (
+                <FeaturedBlogCard
+                  slug={post.slug}
+                  imageName={post.imageName}
+                  title={post.title}
+                  summary={post.summary}
+                />
+              ))}
+            </ul>
+          </GridWrapper>
+        </div>
+      </section>
+
+      <!-- My Site Section -->
+      <section class="relative space-y-10 md:space-y-16">
+        <div class="space-y-4 text-balance">
+          <GridWrapper>
+            <div class="text-center text-sm font-medium text-indigo-600">
+              <span>My Site</span>
+            </div>
+          </GridWrapper>
+          <GridWrapper>
+            <h2 class="text-center text-3xl font-medium leading-10 tracking-tighter text-text-primary md:mx-auto md:max-w-lg md:text-4xl">
+              My site is a playful sandbox. Explore, experiment, && say hello
+            </h2>
+          </GridWrapper>
+        </div>
+
+        <GridWrapper>
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+            <span class="col-span-1 h-[276px] sm:block md:hidden lg:block">
+              <ChangelogBento />
+            </span>
+            <SpeakingBentoReact client:visible />
+            <CommunityWallBentoReact client:visible />
+          </div>
+        </GridWrapper>
+      </section>
+
+      <!-- Newsletter Section -->
+      <section>
+        <NewsletterSignUpReact client:visible />
+      </section>
+    </div>
+  </section>
+</Layout>

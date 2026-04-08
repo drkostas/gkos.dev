@@ -1,0 +1,128 @@
+---
+import BentoCard from "./BentoCard.astro";
+---
+
+<BentoCard linkTo="/speaking" height="h-[276px]">
+  <div class="group h-full">
+    <!-- Concentric ring pattern -->
+    <span class="absolute left-1/2 -translate-x-1/2">
+      <svg class="h-full w-[400px]" viewBox="0 0 368 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="86.5" y="108.5" width="195" height="195" rx="97.5" fill="none" stroke="#D6DADE" stroke-opacity="0.5" />
+        <rect x="50.5" y="72.5" width="267" height="267" rx="133.5" fill="none" stroke="#D6DADE" stroke-opacity="0.5" />
+        <rect x="14.5" y="36.5" width="339" height="339" rx="169.5" fill="none" stroke="#D6DADE" stroke-opacity="0.5" />
+        <rect x="-21.5" y="0.5" width="411" height="411" rx="205.5" fill="none" stroke="#D6DADE" stroke-opacity="0.5" />
+      </svg>
+    </span>
+
+    <!-- Audio indicator pill -->
+    <span class="absolute bottom-16 left-1/2 z-20 -translate-x-1/2">
+      <svg width="103" height="32" viewBox="0 0 103 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g filter="url(#speaking-audio-filter)">
+          <rect width="103" height="32" rx="16" fill="#F7F7F8" />
+          <rect x="0.75" y="0.75" width="101.5" height="30.5" rx="15.25" stroke="#D6DADE" stroke-opacity="0.5" stroke-width="1.5" />
+          {[12, 18, 14, 12, 16, 18, 14, 12, 16, 18, 14, 12, 16, 18, 14, 12].map((h, i) => (
+            <rect x={14 + i * 5} width="2" rx="1" height={h} y={16 - h / 2} fill="#A5AEB8" />
+          ))}
+        </g>
+        <defs>
+          <filter id="speaking-audio-filter" x="0" y="-2" width="103" height="34" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feFlood flood-opacity="0" result="BackgroundImageFix" />
+            <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
+            <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+            <feOffset dy="-2" />
+            <feGaussianBlur stdDeviation="1" />
+            <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+            <feColorMatrix type="matrix" values="0 0 0 0 0.647059 0 0 0 0 0.682353 0 0 0 0 0.721569 0 0 0 0.5 0" />
+            <feBlend mode="normal" in2="shape" result="effect1_innerShadow_1_2713" />
+          </filter>
+        </defs>
+      </svg>
+    </span>
+
+    <div class="flex justify-around">
+      <!-- Secondary photo 1 -->
+      <span class="mt-16">
+        <span class="relative">
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g filter="url(#speaking-sec1-filter)">
+              <rect width="76" height="76" rx="38" fill="#F7F7F8" />
+              <rect x="0.75" y="0.75" width="74.5" height="74.5" rx="37.25" stroke="#D6DADE" stroke-opacity="0.5" stroke-width="1.5" />
+            </g>
+            <defs>
+              <filter id="speaking-sec1-filter" x="0" y="-2" width="76" height="78" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                <feFlood flood-opacity="0" result="BackgroundImageFix" />
+                <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
+                <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+                <feOffset dy="-2" />
+                <feGaussianBlur stdDeviation="1" />
+                <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+                <feColorMatrix type="matrix" values="0 0 0 0 0.647059 0 0 0 0 0.682353 0 0 0 0 0.721569 0 0 0 0.5 0" />
+                <feBlend mode="normal" in2="shape" result="effect1_innerShadow" />
+              </filter>
+            </defs>
+          </svg>
+          <img class="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/c3_speaker_head.png" alt="" />
+        </span>
+      </span>
+
+      <!-- Primary photo -->
+      <span class="z-20 mt-4">
+        <span class="relative">
+          <svg width="117" height="116" viewBox="0 0 117 116" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g filter="url(#speaking-primary-filter)">
+              <rect x="0.5" width="116" height="116" rx="58" fill="#F7F7F8" />
+              <rect x="1.25" y="0.75" width="114.5" height="114.5" rx="57.25" stroke="#D6DADE" stroke-opacity="0.5" stroke-width="1.5" />
+            </g>
+            <defs>
+              <filter id="speaking-primary-filter" x="0.5" y="-2" width="116" height="118" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                <feFlood flood-opacity="0" result="BackgroundImageFix" />
+                <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
+                <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+                <feOffset dy="-2" />
+                <feGaussianBlur stdDeviation="1" />
+                <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+                <feColorMatrix type="matrix" values="0 0 0 0 0.647059 0 0 0 0 0.682353 0 0 0 0 0.721569 0 0 0 0.5 0" />
+                <feBlend mode="normal" in2="shape" result="effect1_innerShadow_1_2745" />
+              </filter>
+            </defs>
+          </svg>
+          <img class="absolute left-1/2 top-1/2 h-[100px] w-[100px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/braydon_speaking_photo.jpeg" alt="" />
+        </span>
+      </span>
+
+      <!-- Secondary photo 2 -->
+      <span class="mt-16">
+        <span class="relative">
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g filter="url(#speaking-sec2-filter)">
+              <rect width="76" height="76" rx="38" fill="#F7F7F8" />
+              <rect x="0.75" y="0.75" width="74.5" height="74.5" rx="37.25" stroke="#D6DADE" stroke-opacity="0.5" stroke-width="1.5" />
+            </g>
+            <defs>
+              <filter id="speaking-sec2-filter" x="0" y="-2" width="76" height="78" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                <feFlood flood-opacity="0" result="BackgroundImageFix" />
+                <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
+                <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+                <feOffset dy="-2" />
+                <feGaussianBlur stdDeviation="1" />
+                <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
+                <feColorMatrix type="matrix" values="0 0 0 0 0.647059 0 0 0 0 0.682353 0 0 0 0 0.721569 0 0 0 0.5 0" />
+                <feBlend mode="normal" in2="shape" result="effect1_innerShadow" />
+              </filter>
+            </defs>
+          </svg>
+          <img class="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/braydon_speaking_head_3.jpeg" alt="" />
+        </span>
+      </span>
+    </div>
+
+    <!-- Gradient overlay -->
+    <div class="absolute inset-0 h-full w-full bg-gradient-to-t from-white"></div>
+    <div class="absolute bottom-6 left-6 z-50 grid h-full grid-cols-2 grid-rows-2 items-end gap-8">
+      <div class="col-1 row-start-2 text-balance">
+        <h2 class="mb-2 font-medium">Speaking</h2>
+        <p class="text-text-secondary">Talks, podcasts, tutorials and more</p>
+      </div>
+    </div>
+  </div>
+</BentoCard>

@@ -1,0 +1,300 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import GridWrapper from "@/components/GridWrapper.astro";
+import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { Photo } from "@/components/Photo";
+import { AnimatedMobilePhotos } from "@/components/AnimatedMobilePhotos";
+
+interface Talk {
+  title: string;
+  description: string;
+  event: string;
+  url?: string;
+}
+
+const talksAndPresentations: Talk[] = [
+  {
+    title: "Behind the Scenes of Tailwind CSS",
+    description:
+      "Ever peeked into Tailwind's source code? You'll see exactly how thousands of utility classes get generated, the purging techniques that scan your templates to slash bundle sizes, and how JIT compilation delivers unlimited arbitrary values without tanking performance.",
+    event: "Stir Trek 2025",
+    url: "https://youtu.be/qx_t3uae1o4?si=uvU6dITj1UjbBELf",
+  },
+  {
+    title: "What's New in Tailwind CSS v4?",
+    description:
+      "Tailwind CSS v4 brings numerous enhancements to the developer experience. In this session, we'll explore the key changes and new features to help you prepare for the official release of v4.",
+    event: "Commit Your Code Conference",
+    url: "https://www.youtube.com/live/Ils_dA_fHmY?si=Jk-2MDczcxbE95La&t=15711",
+  },
+  {
+    title: "The Power of a Second Brain in a Developer's Workflow",
+    description:
+      "Instead of using AI to solve a problem and forgetting the solution moments later, use a Second Brain to enhance memory retention and discover related information in context of your past experiences.",
+    event: "C3 Dev Fest",
+    url: "https://gitnation.com/contents/the-power-of-a-second-brain-in-a-developers-workflow",
+  },
+  {
+    title: "Choosing Blog Topics and Boosting Content with SEO",
+    description:
+      "Learn the art of selecting high-traffic article topics and mastering effective writing and formatting techniques to maximize engagement and readership.",
+    event: "THAT Conference",
+    url: "https://www.youtube.com/watch?v=VS01DHSnGV0&t",
+  },
+  {
+    title: "The Nest Big Thing in CSS: An Introduction to Native Class Nesting",
+    description:
+      "Let's explore native class nesting in CSS! We'll cover the fundamentals of nesting, its benefits, and browser support.",
+    event: "Dallas Software Developer Meetup",
+    url: "https://www.youtube.com/watch?v=4lNEn9bY-GE",
+  },
+  {
+    title: "Reactivity Without the Headache - An Introduction to Angular Signals",
+    description:
+      "Learn how Angular Signals introduce a new reactive way to track state across your application. We'll refactor real code to use this new reactive pattern to simplify and minimize the codebase.",
+    event: "Lunch & Learn",
+  },
+  {
+    title: "Application Confidence - An Introduction to Testing React",
+    description: "An introducing to testing React Applications with the React Testing Library!",
+    event: "Dallas Software Developer Meetup",
+  },
+  {
+    title: "Live Link Previews with Next.js",
+    description: "Learn how to display a preview of an externally linked site in your Next.js application!",
+    event: "Dallas Software Developer Meetup",
+  },
+  {
+    title: "FullStack <development /> Chat",
+    description:
+      "I was invited by a Shashi Lo to be a speaker on his Twitter Space discussing Fullstack development.",
+    event: "Twitter Space",
+    url: "https://x.com/shashiwhocodes/status/1620965070183305216",
+  },
+];
+
+interface Video {
+  title: string;
+  subtitle: string;
+  url: string;
+  thumbnailUrl: string;
+  duration: number;
+}
+
+const videos: Video[] = [
+  {
+    title: "Build a Devious Web Video Player in 4 Hours",
+    subtitle: "Web Dev Challenge",
+    url: "https://youtu.be/bF32laUxoK0?si=UW3OGEQ4dYVSzhBV",
+    thumbnailUrl: "/web_dev_challenge.jpeg",
+    duration: 2108,
+  },
+  {
+    title: "Homeless to Software Developer! TailwindCSS Usage and Best Practices!",
+    subtitle: "Commit Your Code: Ep9",
+    url: "https://youtu.be/eQsedvVk9sE?si=11dVYMIoHl-R85o4",
+    thumbnailUrl: "/commit_your_code_ep_9.jpeg",
+    duration: 2731,
+  },
+];
+
+function formatDuration(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+---
+
+<Layout title="Speaking | Braydon Coyer">
+  <div class="relative">
+    <div class="relative space-y-16">
+      <GridWrapper>
+        <h1 class="max-w-3/5 mx-auto mt-16 text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
+          My conference talks, podcast && video appearances.
+        </h1>
+      </GridWrapper>
+
+      <div class="text-center">
+        <GridWrapper class="py-4">
+          <a
+            href="https://forms.gle/hyhqN12A2BGForzq6"
+            class="group relative isolate inline-flex items-center justify-center overflow-hidden rounded-full bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white ring-1 ring-indigo-600 shadow-[0_1px_theme(colors.white/0.07)_inset,0_1px_3px_theme(colors.gray.900/0.2)] transition duration-300 ease-[cubic-bezier(0.4,0.36,0,1)] before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-full before:bg-gradient-to-b before:from-white/20 before:opacity-50 before:transition-opacity before:duration-300 hover:before:opacity-100 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:rounded-full after:bg-gradient-to-b after:from-white/10 after:from-[46%] after:to-[54%] after:mix-blend-overlay"
+          >
+            Invite me to speak
+          </a>
+        </GridWrapper>
+      </div>
+
+      <!-- Desktop conference photos with drag/hover -->
+      <div>
+        <div class="mb-8 mt-16 hidden items-center justify-center space-x-12 lg:flex">
+          <div class="relative">
+            <div class="rounded-[20px] border border-border-primary p-2" style="width: 278px; height: 278px;">
+              <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
+            </div>
+            <span class="absolute left-1 top-2" style="transform: rotate(-8deg);">
+              <Photo width={270} height={270} src="/c3_speaker_head.png" alt="Speaking at C3" direction="right" client:visible />
+            </span>
+          </div>
+
+          <div class="relative">
+            <div class="rounded-[20px] border border-border-primary p-2" style="width: 412px; height: 278px;">
+              <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
+            </div>
+            <span class="absolute left-1 top-1" style="transform: rotate(8deg);">
+              <Photo width={404} height={270} src="/braydon_commit_your_code.jpeg" alt="Commit Your Code" direction="left" client:visible />
+            </span>
+          </div>
+
+          <div class="relative">
+            <div class="rounded-[20px] border border-border-primary p-2" style="width: 188px; height: 278px;">
+              <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
+            </div>
+            <span class="absolute left-1 top-1" style="transform: rotate(-8deg);">
+              <Photo width={180} height={270} src="/braydon_stir_trek.jpeg" alt="Stir Trek" direction="right" client:visible />
+            </span>
+          </div>
+        </div>
+        <!-- Mobile Photos -->
+        <AnimatedMobilePhotos delay={0.1} client:visible />
+      </div>
+
+      <div class="relative space-y-16">
+        <div class="space-y-16">
+          <!-- Talks && Presentations (PageSection layout: 1/4 title + 3/4 content) -->
+          <GridWrapper class="grid grid-cols-4 sm:px-4">
+            <div class="col-span-full sm:col-span-1">
+              <div class="-mt-px inline-flex pt-px">
+                <div class="text-sm/7 font-semibold text-text-primary">
+                  <h2>Talks && Presentations</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-span-full sm:col-span-3">
+              <p class="text-sm/8 text-text-primary">
+                An arrangement of live and virtual conference and meetup presentations.
+              </p>
+              <div class="mt-8 max-w-2xl space-y-10 text-balance">
+                {talksAndPresentations.map((talk) => (
+                  <div class="flow-root">
+                    <div class="-mx-3 -my-2 flex gap-3 rounded-xl px-3 py-2 text-sm/7">
+                      <div>
+                        <div>
+                          <span class="text-lg font-semibold leading-none text-text-primary">{talk.title}</span>
+                        </div>
+                        <p class="text-text-secondary">{talk.description}</p>
+                        {talk.url ? (
+                          <a
+                            href={talk.url}
+                            class="mt-2 flex items-center text-sm font-medium text-indigo-600"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View
+                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M0 0L3 3L0 6"></path>
+                            </svg>
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </GridWrapper>
+
+          <!-- Videos && Podcasts (PageSection layout) -->
+          <GridWrapper class="grid grid-cols-4 sm:px-4">
+            <div class="col-span-full sm:col-span-1">
+              <div class="-mt-px inline-flex pt-px">
+                <div class="text-sm/7 font-semibold text-text-primary">
+                  <h2>Videos && Podcasts</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-span-full sm:col-span-3">
+              <p class="text-sm/8 text-text-primary">
+                A combination of podcast recordings and educational videos.
+              </p>
+              <div class="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
+                {videos.map((video) => (
+                  <a href={video.url} target="_blank" rel="noopener noreferrer" class="group">
+                    <div class="relative overflow-hidden rounded-xl drama-shadow">
+                      <img src={video.thumbnailUrl} alt={video.title} class="aspect-video w-full object-cover" />
+                      <div class="absolute bottom-2 right-2 rounded bg-black/75 px-2 py-1 text-xs text-white">
+                        {formatDuration(video.duration)}
+                      </div>
+                    </div>
+                    <h3 class="mt-3 text-base font-medium text-slate-900">{video.title}</h3>
+                    <p class="mt-1 text-sm text-text-secondary">{video.subtitle}</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </GridWrapper>
+        </div>
+
+        <!-- Biography + Headshots -->
+        <GridWrapper>
+          <section class="relative px-4">
+            <div class="grid grid-cols-1 gap-12 lg:grid-cols-12">
+              <div class="relative col-span-7 flex flex-col space-y-8">
+                <div class="col-span-5 flex w-3/4 flex-col items-start space-y-3 text-balance">
+                  <div class="text-left text-sm font-medium text-indigo-600">
+                    <span>Biography</span>
+                  </div>
+                  <h2 class="text-3xl font-semibold text-text-primary">
+                    Here are a few options for speaker bios
+                  </h2>
+                </div>
+
+                <div>
+                  <div class="flex space-x-4 border-b border-border-primary">
+                    <button class="border-b-2 border-slate-900 pb-2 text-sm font-medium text-slate-900">First person</button>
+                    <button class="border-b-2 border-transparent pb-2 text-sm font-medium text-text-secondary">Third person</button>
+                  </div>
+                  <div class="mt-8">
+                    <p class="text-base leading-7 text-text-secondary">
+                      I am Braydon Coyer, a Senior Frontend Engineer at LogicGate, where I play a key role in developing an automated Governance, Risk, and Compliance (GRC) platform. As a creative developer, blogger, and designer, I enjoy tinkering and sharing my projects with the public. I live in Texas with my wife and two daughters.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-span-5 flex flex-col items-start space-y-8">
+                <div class="flex flex-col items-start space-y-4">
+                  <div class="text-left text-sm font-medium text-indigo-600">
+                    <span>Headshots</span>
+                  </div>
+                  <h2 class="text-3xl font-semibold text-text-primary">
+                    A variety of photos great for speaker headshots
+                  </h2>
+                </div>
+                <div class="mt-12 flex w-full space-x-4">
+                  <div class="relative">
+                    <div class="rounded-[20px] border border-border-primary p-2" style="width: 200px; height: 200px;">
+                      <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
+                    </div>
+                    <img class="absolute left-1 top-2 h-[186px] w-[186px] rotate-[9deg] rounded-lg object-cover shadow" src="/braydon_headshot_3.jpg" alt="" />
+                  </div>
+
+                  <div class="relative">
+                    <div class="rounded-[20px] border border-border-primary p-2" style="width: 200px; height: 200px;">
+                      <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
+                    </div>
+                    <img class="absolute left-1 top-2 h-[186px] w-[186px] rotate-[-8deg] rounded-lg object-cover shadow" src="/braydon_speaking_photo_square.jpg" alt="" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </GridWrapper>
+      </div>
+
+      <div class="mt-16">
+        <NewsletterSignUpReact client:visible />
+      </div>
+    </div>
+  </div>
+</Layout>

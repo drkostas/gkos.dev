@@ -1,0 +1,172 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import GridWrapper from "@/components/GridWrapper.astro";
+import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import FeaturedBlogCard from "@/components/FeaturedBlogCard.astro";
+import { getCollection } from "astro:content";
+
+const allBlogPosts = (await getCollection("blog"))
+  .filter((post) => !post.data.draft)
+  .sort(
+    (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+  );
+
+// Extract unique categories across all posts
+const categoriesSet = new Set<string>();
+for (const post of allBlogPosts) {
+  for (const cat of post.data.categories || []) {
+    categoriesSet.add(cat);
+  }
+}
+const categories = Array.from(categoriesSet);
+
+// Read category filter from URL
+const currentCategory = Astro.url.searchParams.get("category")?.toLowerCase() || "";
+const displayedPosts = currentCategory
+  ? allBlogPosts.filter((post) =>
+      post.data.categories?.map((c: string) => c.toLowerCase()).includes(currentCategory),
+    )
+  : allBlogPosts;
+
+function formatDate(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+---
+
+<Layout title="Blog | Braydon Coyer">
+  <div class="mt-14 space-y-16 md:mt-16">
+    <GridWrapper>
+      <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
+        {currentCategory ? `Articles about ${currentCategory}` : "Insightful && helpful content curated for you."}
+      </h1>
+    </GridWrapper>
+
+    {!currentCategory && (
+    <GridWrapper>
+      <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+        {allBlogPosts.length > 0 ? (
+          allBlogPosts.slice(0, 4).map((post, index) => (
+            <FeaturedBlogCard
+              slug={post.id}
+              imageName={post.data.imageName}
+              title={post.data.title}
+              summary={post.data.summary}
+              class={index === 3 ? "hidden md:block lg:hidden" : undefined}
+            />
+          ))
+        ) : (
+          <p>Nothing to see here yet...</p>
+        )}
+      </ul>
+    </GridWrapper>
+    )}
+
+    <div>
+      <!-- Category Select -->
+      <div class="border-b border-dashed border-border-primary pb-5 md:px-4 lg:pb-0">
+        <h3 class="text-base font-semibold text-gray-900">Categories</h3>
+        <div class="mt-3 sm:mt-4">
+          <div class="grid grid-cols-1 lg:hidden">
+            <select
+              aria-label="Select a Category"
+              class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pl-3 pr-8 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-slate-600"
+            >
+              <option value="">ALL</option>
+              {categories.map((cat) => (
+                <option value={cat.toLowerCase()}>{cat.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
+          <div class="hidden lg:block">
+            <nav class="-mb-px flex space-x-4">
+              <a
+                href="/blog"
+                aria-current={!currentCategory ? "page" : undefined}
+                class:list={[
+                  "whitespace-nowrap border-b-2 pb-4 text-sm uppercase",
+                  !currentCategory ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700",
+                ]}
+              >
+                All
+              </a>
+              {categories.map((cat) => (
+                <a
+                  href={`/blog?category=${encodeURIComponent(cat.toLowerCase())}`}
+                  aria-current={cat.toLowerCase() === currentCategory ? "page" : undefined}
+                  class:list={[
+                    "whitespace-nowrap border-b-2 pb-4 text-sm uppercase",
+                    cat.toLowerCase() === currentCategory ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700",
+                  ]}
+                >
+                  {cat}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <!-- Post list -->
+      <ul class="flex flex-col">
+        {displayedPosts.length > 0 ? (
+          displayedPosts.map((post) => (
+            <li>
+              <div class="block">
+                <article>
+                  <div class="group grid h-full grid-cols-1 md:grid-cols-12">
+                    <div class="hidden space-y-2 p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-2">
+                      <div class="font-mono text-sm leading-none text-text-secondary">
+                        <time datetime={post.data.publishedAt.toISOString()}>
+                          {formatDate(post.data.publishedAt)}
+                        </time>
+                      </div>
+                    </div>
+                    <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
+                    <div class="group col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
+                      <div class="z-10 text-balance">
+                        <h2 class="mb-3 text-base font-medium leading-6 tracking-tight text-slate-900 md:leading-none">
+                          {post.data.title}
+                        </h2>
+                        <p class="mb-3 flex-grow text-base leading-6 text-text-secondary">
+                          {post.data.summary}
+                        </p>
+                        <a
+                          href={`/blog/${post.id}`}
+                          class="flex items-center text-sm font-medium text-indigo-600"
+                        >
+                          <span class="text-sm leading-6">Read More</span>
+                          <svg
+                            class="relative ml-2.5 mt-px overflow-visible"
+                            width="3"
+                            height="6"
+                            viewBox="0 0 3 6"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M0 0L3 3L0 6"></path>
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+              <div class="-mx-4 h-0 w-svw border-t border-dashed border-border-primary md:m-0 md:w-full"></div>
+            </li>
+          ))
+        ) : (
+          <p>Nothing to see here yet...</p>
+        )}
+      </ul>
+    </div>
+
+    <NewsletterSignUpReact client:visible />
+  </div>
+</Layout>
