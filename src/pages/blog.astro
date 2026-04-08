@@ -1,4 +1,6 @@
 ---
+export const prerender = false;
+
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
 import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
@@ -124,6 +126,9 @@ function formatDate(date: Date) {
                           {formatDate(post.data.publishedAt)}
                         </time>
                       </div>
+                      <span class="text-text-secondary">
+                        <span class="font-mono text-xs text-text-secondary">0 reads</span>
+                      </span>
                     </div>
                     <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
                     <div class="group col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
