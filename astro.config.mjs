@@ -6,6 +6,7 @@ import react from "@astrojs/react";
 
 export default defineConfig({
   site: "https://gkos.dev",
+  output: "server",
   integrations: [
     tailwind(),
     mdx(),

@@ -3,6 +3,7 @@ import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
 import { AnimatedProfilePicture } from "@/components/ProfilePicture";
 import FeaturedBlogCard from "@/components/FeaturedBlogCard.astro";
+import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
 import { siteMetadata } from "@/data/siteMetadata";
 import { getCollection } from "astro:content";
 
@@ -93,7 +94,7 @@ const featuredArticles = allBlogPosts.slice(0, 4);
       <!-- Featured blog -->
       <GridWrapper>
         <div class="text-center text-sm font-medium text-indigo-600">
-          <span>Latest from the blog</span>
+          <span>Blog</span>
         </div>
       </GridWrapper>
       <GridWrapper>
@@ -109,6 +110,8 @@ const featuredArticles = allBlogPosts.slice(0, 4);
           ))}
         </ul>
       </GridWrapper>
+
+      <NewsletterSignUpReact client:visible />
     </div>
   </div>
 </Layout>
