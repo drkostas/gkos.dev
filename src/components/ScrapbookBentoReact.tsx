@@ -95,7 +95,7 @@ export function ScrapbookBentoReact() {
   return (
     <div className="group relative flex flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white h-[220px]">
       <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
-      <h2 className="mb-2 font-medium">Scrapbook</h2>
+      <h2 className="mb-2 font-medium text-text-primary">Scrapbook</h2>
       <div className="absolute top-0 h-[220px] w-full overflow-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_2px)] [background-size:14px_14px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_50%,black_40%,transparent_100%)]" />
       <div className="w-full rounded-3xl p-6">
         <motion.div

@@ -15,7 +15,7 @@ export function CurrentlyPlayingBentoReact() {
       <div className="flex flex-col">
         <div className="z-10 h-full">
           <div className="flex h-full flex-col justify-between">
-            <h2 className="mb-2 text-base font-medium">Recent Favorite</h2>
+            <h2 className="mb-2 text-base font-medium text-text-primary">Recent Favorite</h2>
             <p className="max-h-[150px] overflow-hidden text-base text-text-secondary">
               <span className="line-clamp-4 text-ellipsis">
                 I'm listening to{" "}
