@@ -32,6 +32,14 @@ const WALK_ANIM = {
   right: { leftFoot: 7, standing: 2, rightFoot: 8 },
 };
 
+/** Running uses the same layout but offset by 9 (frames 9-17 from running.png). */
+const RUN_ANIM = {
+  down:  { leftFoot: 12, standing: 9,  rightFoot: 13 },
+  up:    { leftFoot: 14, standing: 10, rightFoot: 15 },
+  left:  { leftFoot: 16, standing: 11, rightFoot: 17 },
+  right: { leftFoot: 16, standing: 11, rightFoot: 17 },
+};
+
 export class OverworldScene extends Phaser.Scene {
   declare gridEngine: GridEngine;
 
@@ -43,6 +51,7 @@ export class OverworldScene extends Phaser.Scene {
   private signSystem!: SignSystem;
   private isInteracting = false;
   private menuActive = false;
+  private isRunning = false;
   private unsubMenuClose: (() => void) | null = null;
 
   private static readonly WALK_SPEED = 4;
@@ -140,9 +149,13 @@ export class OverworldScene extends Phaser.Scene {
   update(): void {
     if (this.dialogSystem.active || this.menuActive) return;
 
-    // Hold Shift to run
-    const speed = this.shiftKey.isDown ? OverworldScene.RUN_SPEED : OverworldScene.WALK_SPEED;
-    this.gridEngine.setSpeed("player", speed);
+    // Hold Shift to run — swap speed AND animation mapping
+    const wantsRun = this.shiftKey.isDown;
+    if (wantsRun !== this.isRunning) {
+      this.isRunning = wantsRun;
+      this.gridEngine.setSpeed("player", wantsRun ? OverworldScene.RUN_SPEED : OverworldScene.WALK_SPEED);
+      this.gridEngine.setWalkingAnimationMapping("player", wantsRun ? RUN_ANIM : WALK_ANIM);
+    }
 
     const { cursors } = this;
     if (cursors.left.isDown) {
