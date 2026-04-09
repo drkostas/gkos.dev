@@ -1,0 +1,35 @@
+---
+// Explore Mode — full-screen Phaser game, no layout
+// PhaserGame is loaded client-only to avoid SSR (Phaser needs window/document)
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GKOS.DEV — Explore Mode</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <p style="color: white; text-align: center; padding: 2rem;">
+        JavaScript is required for Explore Mode.
+        <a href="/" style="color: #6C47FF;">Return to normal site</a>
+      </p>
+    </noscript>
+    <div id="game-root"></div>
+    <script>
+      async function boot() {
+        const { default: React } = await import("react");
+        const { createRoot } = await import("react-dom/client");
+        const { default: PhaserGame } = await import("../components/game/PhaserGame");
+        const root = createRoot(document.getElementById("game-root")!);
+        root.render(React.createElement(PhaserGame));
+      }
+      boot();
+    </script>
+  </body>
+</html>
