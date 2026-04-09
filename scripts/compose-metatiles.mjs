@@ -546,6 +546,22 @@ const aboveLayerData = mapData.map((id) =>
 // Grid Engine reads the ge_collide property to know this layer defines collision.
 const collisionLayerData = collisionData.map((c) => (c !== 0 ? BOTTOM_FIRSTGID : 0));
 
+// ── Unblock sign tiles ──
+// Signs are walkable in the original game — the collision bit is a marker
+// that the game code treats specially. We unblock them so the player can
+// walk past and interact by facing them.
+const eventsPath = resolve(ROOT, "public/game/maps/emerald-raw/MauvilleCity/events.json");
+try {
+  const events = JSON.parse(readFileSync(eventsPath, "utf8"));
+  const signs = events.bg_events?.filter((e) => e.type === "sign") ?? [];
+  for (const s of signs) {
+    collisionLayerData[s.y * MAP_WIDTH + s.x] = 0;
+  }
+  console.log(`  Unblocked ${signs.length} sign tiles`);
+} catch {
+  console.warn("  Could not read events.json to unblock signs");
+}
+
 // ── Extra collision: borders + unreachable rooftop areas ──
 // The original game prevents access to these via adjacent route maps.
 // Since we don't have route transitions yet, we block them explicitly.

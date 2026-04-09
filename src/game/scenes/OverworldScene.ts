@@ -230,10 +230,15 @@ export class OverworldScene extends Phaser.Scene {
         // Create sprite at the tile's world position
         const sprite = this.add.sprite(tx * TILE + TILE / 2, ty * TILE + TILE / 2, "mauville_foreground", frameKey);
 
-        // Y-sorted depth: foreground tiles use the BOTTOM edge of the tile (ty+1)
-        // so they cover characters whose Y is at or above this tile row.
-        // The +8 offset ensures the foreground wins over characters at the same Y.
-        sprite.setDepth(10 + (ty + 1) * TILE + 8);
+        // Y-sorted depth: foreground tile covers characters whose sprite.y
+        // is LESS THAN the tile's bottom edge.
+        // A character at tile row Y has sprite.y ≈ (Y+1)*16 - 8 and depth = 10 + sprite.y
+        // For a foreground tile at row ty to cover a character at row ty+1:
+        //   fg depth > character depth at row ty+1
+        //   fg depth > 10 + ((ty+2)*16 - 8)
+        //   fg depth > (ty*16) + 34
+        // We use (ty+2)*16 + 10 to comfortably cover characters one row below.
+        sprite.setDepth(10 + (ty + 2) * TILE + 10);
         count++;
       }
     }
