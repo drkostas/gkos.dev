@@ -4,6 +4,7 @@ export const prerender = false;
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
 import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { BlogSearch } from "@/components/BlogSearch";
 import FeaturedBlogCard from "@/components/FeaturedBlogCard.astro";
 import { getCollection } from "astro:content";
 
@@ -69,6 +70,14 @@ function formatDate(date: Date) {
 
     <div>
       <!-- Category Select -->
+      <!-- Search -->
+      <div class="px-4">
+        <BlogSearch
+          posts={allBlogPosts.map(p => ({ id: p.id, title: p.data.title, summary: p.data.summary }))}
+          client:load
+        />
+      </div>
+
       <!-- Category pills -->
       <div class="border-b border-border-primary/50 px-4 pb-6">
         <div class="flex flex-wrap gap-2">
