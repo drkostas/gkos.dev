@@ -105,11 +105,11 @@ export class OverworldScene extends Phaser.Scene {
     // flipX is handled per-frame in update() instead.
 
     // Intercept movement to block obstructive-tile crossings.
-    // positionChangeStarted fires BEFORE the tile transition happens,
-    // so we can stop the character in time.
+    // positionChangeStarted fires just as the tile transition begins.
+    // If the move crosses a blocked edge, stop movement AND snap the
+    // character back to the exit tile so the in-progress move is cancelled.
     this.gridEngine.positionChangeStarted().subscribe(({ charId, enterTile, exitTile }) => {
       if (charId !== "player") return;
-      // Figure out direction from exit -> enter
       const dx = enterTile.x - exitTile.x;
       const dy = enterTile.y - exitTile.y;
       let dir: Direction;
@@ -121,6 +121,8 @@ export class OverworldScene extends Phaser.Scene {
 
       if (isObstructiveBlocked(exitTile.x, exitTile.y, enterTile.x, enterTile.y, dir, MAUVILLE_OBSTRUCTIVE)) {
         this.gridEngine.stopMovement("player");
+        // Snap back to the tile the player was leaving.
+        this.gridEngine.setPosition("player", exitTile);
       }
     });
 
