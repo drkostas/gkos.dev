@@ -12,10 +12,11 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Bottom-layer-only tileset for the ground layer.
-    // Top layer content (tree canopies, sign tops, fence posts, building
-    // overhangs) is in mauville_foreground.png, which renders above the player.
-    this.load.image("mauville_bottom", "/game/tilesets/mauville_bottom.png");
+    // Composite ground tileset — bottom layer for layerType-0 metatiles,
+    // both layers for layerType-1 metatiles. The latter (flowers, etc.)
+    // need their top layer in the ground so the player covers them.
+    // Layer-type-0 top layers (trees, signs, fences) are in the foreground.
+    this.load.image("mauville_bottom", "/game/tilesets/mauville_ground.png");
 
     // Foreground: single pre-rendered PNG of the top layer (renders above player)
     this.load.image("mauville_foreground", "/game/maps/mauville_foreground.png");
