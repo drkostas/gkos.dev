@@ -343,7 +343,7 @@ iframe {
 }
 
 .drama-shadow {
-  @apply relative shadow-md ring-1 ring-indigo-500/15;
+  @apply relative shadow-md ring-1 ring-black/[0.06];
 }
 
 .drama-shadow::after {
