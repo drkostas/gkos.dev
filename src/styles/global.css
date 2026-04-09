@@ -93,6 +93,14 @@ body.modal-open {
 .dark .bg-dark-primary {
   background-color: rgb(60 60 63);
 }
+/* Newsletter internal text must stay light (card is mid-gray, not dark like page) */
+.dark .bg-dark-primary .text-gray-300,
+.dark .bg-dark-primary .text-slate-50 { color: rgb(210 210 215) !important; }
+.dark .bg-dark-primary .text-white { color: rgb(255 255 255) !important; }
+.dark .bg-dark-primary .placeholder-gray-400::placeholder { color: rgb(160 160 168) !important; }
+.dark .bg-dark-primary .border-gray-400 { border-color: rgb(120 120 128) !important; }
+.dark .bg-dark-primary .bg-zinc-600 { background-color: rgb(90 90 95) !important; }
+.dark .bg-dark-primary .bg-zinc-300 { background-color: rgb(130 130 135) !important; }
 
 /* SocialPill + navbar dark pills STAY dark in dark mode (don't invert) */
 .dark .z-30.bg-dark-primary {
