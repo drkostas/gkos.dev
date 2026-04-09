@@ -5,6 +5,7 @@ import { DialogSystem } from "@/game/systems/DialogSystem";
 import { NPCSystem } from "@/game/systems/NPCSystem";
 import { SignSystem } from "@/game/systems/SignSystem";
 import { MAUVILLE_NPCS, MAUVILLE_SIGNS } from "@/game/data/npcs";
+import { MAUVILLE_OBSTRUCTIVE, isObstructiveBlocked } from "@/game/data/obstructive-tiles";
 import { GameEvents, emitGameEvent, onGameEvent } from "@/game/EventBridge";
 
 /**
@@ -158,14 +159,22 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     const { cursors } = this;
-    if (cursors.left.isDown) {
-      this.gridEngine.move("player", Direction.LEFT);
-    } else if (cursors.right.isDown) {
-      this.gridEngine.move("player", Direction.RIGHT);
-    } else if (cursors.up.isDown) {
-      this.gridEngine.move("player", Direction.UP);
-    } else if (cursors.down.isDown) {
-      this.gridEngine.move("player", Direction.DOWN);
+    let moveDir: Direction | null = null;
+    if (cursors.left.isDown) moveDir = Direction.LEFT;
+    else if (cursors.right.isDown) moveDir = Direction.RIGHT;
+    else if (cursors.up.isDown) moveDir = Direction.UP;
+    else if (cursors.down.isDown) moveDir = Direction.DOWN;
+
+    if (moveDir) {
+      // Check directional block from obstructive tiles (signs, fences, etc.)
+      const playerPos = this.gridEngine.getPosition("player");
+      const target = this.getTileInDirection(playerPos, moveDir);
+      if (isObstructiveBlocked(target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
+        // Turn the player to face the blocked direction without moving
+        this.gridEngine.turnTowards("player", moveDir);
+      } else {
+        this.gridEngine.move("player", moveDir);
+      }
     }
 
     // flipX when facing right (left frames reused, mirrored).
@@ -190,6 +199,20 @@ export class OverworldScene extends Phaser.Scene {
       }
     } finally {
       this.isInteracting = false;
+    }
+  }
+
+  /** Get the tile coordinate in the given direction from the given position. */
+  private getTileInDirection(
+    pos: { x: number; y: number },
+    dir: Direction,
+  ): { x: number; y: number } {
+    switch (dir) {
+      case Direction.UP: return { x: pos.x, y: pos.y - 1 };
+      case Direction.DOWN: return { x: pos.x, y: pos.y + 1 };
+      case Direction.LEFT: return { x: pos.x - 1, y: pos.y };
+      case Direction.RIGHT: return { x: pos.x + 1, y: pos.y };
+      default: return pos;
     }
   }
 
