@@ -186,7 +186,7 @@ export default function DialogBox() {
     <div
       onClick={advance}
       style={{
-        position: "absolute",
+        position: "fixed",
         bottom: "8%",
         left: "50%",
         transform: "translateX(-50%)",
@@ -209,7 +209,7 @@ export default function DialogBox() {
       {speakerName && (
         <div
           style={{
-            position: "absolute",
+            position: "fixed",
             top: "-14px",
             left: "12px",
             background: "#333",

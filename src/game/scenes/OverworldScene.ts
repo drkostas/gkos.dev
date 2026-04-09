@@ -76,13 +76,8 @@ export class OverworldScene extends Phaser.Scene {
       ],
     });
 
-    // Handle flipX for right-facing direction.
-    // Subscribe once — filter for player only.
-    this.gridEngine.directionChanged().subscribe(({ charId, direction }) => {
-      if (charId === "player") {
-        this.playerSprite.flipX = direction === Direction.RIGHT;
-      }
-    });
+    // NOTE: directionChanged() observable is unreliable (doesn't fire consistently).
+    // flipX is handled per-frame in update() instead.
 
     // ── Systems ──────────────────────────────────────────────
     this.dialogSystem = new DialogSystem();
@@ -146,6 +141,11 @@ export class OverworldScene extends Phaser.Scene {
     } else if (cursors.down.isDown) {
       this.gridEngine.move("player", Direction.DOWN);
     }
+
+    // flipX when facing right (left frames reused, mirrored).
+    // Done per-frame because directionChanged() observable is unreliable.
+    const facing = this.gridEngine.getFacingDirection("player");
+    this.playerSprite.flipX = facing === Direction.RIGHT;
 
     // Y-sorted depth for player (between ground at 0 and foreground at 1000)
     this.playerSprite.setDepth(10 + this.playerSprite.y);

@@ -18,9 +18,11 @@ export default function PhaserGame() {
 
     const config = createGameConfig(containerRef.current);
     const game = new Phaser.Game(config);
+    (window as any).__PHASER_GAME__ = game;
 
     return () => {
       game.destroy(true);
+      delete (window as any).__PHASER_GAME__;
     };
   }, []);
 

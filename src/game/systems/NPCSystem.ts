@@ -107,10 +107,16 @@ export class NPCSystem {
 
   // ── Private helpers ──────────────────────────────────────────
 
-  /** Update y-sorted depth for all NPC sprites (between ground at 0 and foreground at 1000). */
+  /** Update y-sorted depth and flipX for all NPC sprites each frame. */
   updateDepth(): void {
-    for (const sprite of this.sprites.values()) {
+    for (const [id, sprite] of this.sprites.entries()) {
       sprite.setDepth(10 + sprite.y);
+      // flipX per-frame (directionChanged observable is unreliable)
+      const npc = this.npcs.find((n) => n.id === id);
+      if (npc?.animated) {
+        const dir = this.gridEngine.getFacingDirection(id);
+        sprite.flipX = dir === Direction.RIGHT;
+      }
     }
   }
 
@@ -132,17 +138,11 @@ export class NPCSystem {
         collides: true,
       });
 
-      // FlipX for right-facing (reuses left frames)
-      this.gridEngine.directionChanged().subscribe(({ charId, direction }) => {
-        if (charId === npc.id) {
-          sprite.flipX = direction === Direction.RIGHT;
-        }
-      });
-
-      // Set initial flip if starting right-facing
+      // Initial flip for right-facing NPCs
       if (npc.facingDirection === Direction.RIGHT) {
         sprite.flipX = true;
       }
+      // NOTE: ongoing flipX handled per-frame in updateDepth()
     } else {
       // Non-animated sprite (e.g. item_ball — 16x16 single image)
       this.gridEngine.addCharacter({
