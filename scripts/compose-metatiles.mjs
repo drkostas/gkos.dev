@@ -546,6 +546,42 @@ const aboveLayerData = mapData.map((id) =>
 // Grid Engine reads the ge_collide property to know this layer defines collision.
 const collisionLayerData = collisionData.map((c) => (c !== 0 ? BOTTOM_FIRSTGID : 0));
 
+// ── Extra collision: borders + unreachable rooftop areas ──
+// The original game prevents access to these via adjacent route maps.
+// Since we don't have route transitions yet, we block them explicitly.
+let extraCollision = 0;
+
+// Block all 4 borders
+for (let x = 0; x < MAP_WIDTH; x++) {
+  if (!collisionLayerData[x]) { collisionLayerData[x] = BOTTOM_FIRSTGID; extraCollision++; }
+  const bot = (MAP_HEIGHT - 1) * MAP_WIDTH + x;
+  if (!collisionLayerData[bot]) { collisionLayerData[bot] = BOTTOM_FIRSTGID; extraCollision++; }
+}
+for (let y = 0; y < MAP_HEIGHT; y++) {
+  if (!collisionLayerData[y * MAP_WIDTH]) { collisionLayerData[y * MAP_WIDTH] = BOTTOM_FIRSTGID; extraCollision++; }
+  const right = y * MAP_WIDTH + MAP_WIDTH - 1;
+  if (!collisionLayerData[right]) { collisionLayerData[right] = BOTTOM_FIRSTGID; extraCollision++; }
+}
+
+// Block rows 0-4 (north rooftops, unreachable without Route 111)
+for (let y = 0; y <= 4; y++) {
+  for (let x = 0; x < MAP_WIDTH; x++) {
+    const idx = y * MAP_WIDTH + x;
+    if (!collisionLayerData[idx]) { collisionLayerData[idx] = BOTTOM_FIRSTGID; extraCollision++; }
+  }
+}
+
+// Block rows 11-12 (south building rooftops, unreachable from the road)
+for (let y = 11; y <= 12; y++) {
+  for (let x = 0; x < MAP_WIDTH; x++) {
+    const idx = y * MAP_WIDTH + x;
+    if (!collisionLayerData[idx]) { collisionLayerData[idx] = BOTTOM_FIRSTGID; extraCollision++; }
+  }
+}
+
+console.log(`  Extra collision tiles added: ${extraCollision}`);
+console.log(`  Total collision: ${collisionLayerData.filter(c => c > 0).length}/${mapData.length}`);
+
 const tiledMap = {
   compressionlevel: -1,
   height: MAP_HEIGHT,
