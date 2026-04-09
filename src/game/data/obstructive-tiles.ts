@@ -27,12 +27,17 @@ export interface ObstructiveTile {
 
 /**
  * Mauville City obstructive tiles.
- * Signs are walkable with their bottom edge blocked (vertical corridor only).
- * Fences are NOT obstructive — they stay as solid walls per the OG game.
- * The hidden path to the pokeball in the SE corner is via the gap at (33,18).
+ *
+ * Signs: bottom edge blocked. You can walk onto them from above, left,
+ * right, and walk off in those directions. Can't enter from below or
+ * exit going down.
+ *
+ * Fences: top edge blocked. You can walk onto them from below, left,
+ * right, and walk off in those directions. Can't enter from above or
+ * exit going up. The fence visually occupies the top of the tile.
  */
 export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = [
-  // Signs (8 tiles, positions from events.json bg_events)
+  // Signs (8 tiles)
   { x: 19, y: 7, blockedEdges: ["bottom"] },
   { x: 23, y: 5, blockedEdges: ["bottom"] },
   { x: 24, y: 5, blockedEdges: ["bottom"] },
@@ -41,6 +46,47 @@ export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = [
   { x: 25, y: 14, blockedEdges: ["bottom"] },
   { x: 33, y: 6, blockedEdges: ["bottom"] },
   { x: 11, y: 15, blockedEdges: ["bottom"] },
+
+  // Fences (metatile 657) — top edge blocked
+  { x: 26, y: 2, blockedEdges: ["top"] },
+  { x: 27, y: 2, blockedEdges: ["top"] },
+  { x: 28, y: 2, blockedEdges: ["top"] },
+  { x: 29, y: 2, blockedEdges: ["top"] },
+  { x: 30, y: 2, blockedEdges: ["top"] },
+  { x: 31, y: 2, blockedEdges: ["top"] },
+  { x: 32, y: 2, blockedEdges: ["top"] },
+  { x: 1, y: 4, blockedEdges: ["top"] },
+  { x: 2, y: 4, blockedEdges: ["top"] },
+  { x: 3, y: 4, blockedEdges: ["top"] },
+  { x: 4, y: 4, blockedEdges: ["top"] },
+  { x: 11, y: 4, blockedEdges: ["top"] },
+  { x: 15, y: 12, blockedEdges: ["top"] },
+  { x: 16, y: 12, blockedEdges: ["top"] },
+  { x: 17, y: 12, blockedEdges: ["top"] },
+  { x: 1, y: 14, blockedEdges: ["top"] },
+  { x: 2, y: 14, blockedEdges: ["top"] },
+  { x: 3, y: 14, blockedEdges: ["top"] },
+  { x: 4, y: 14, blockedEdges: ["top"] },
+  { x: 5, y: 14, blockedEdges: ["top"] },
+  { x: 7, y: 18, blockedEdges: ["top"] },
+  { x: 8, y: 18, blockedEdges: ["top"] },
+  { x: 9, y: 18, blockedEdges: ["top"] },
+  { x: 10, y: 18, blockedEdges: ["top"] },
+  { x: 11, y: 18, blockedEdges: ["top"] },
+  { x: 12, y: 18, blockedEdges: ["top"] },
+  { x: 13, y: 18, blockedEdges: ["top"] },
+  { x: 19, y: 18, blockedEdges: ["top"] },
+  { x: 20, y: 18, blockedEdges: ["top"] },
+  { x: 21, y: 18, blockedEdges: ["top"] },
+  { x: 22, y: 18, blockedEdges: ["top"] },
+  { x: 23, y: 18, blockedEdges: ["top"] },
+  { x: 24, y: 18, blockedEdges: ["top"] },
+  { x: 27, y: 18, blockedEdges: ["top"] },
+  { x: 28, y: 18, blockedEdges: ["top"] },
+  { x: 29, y: 18, blockedEdges: ["top"] },
+  { x: 30, y: 18, blockedEdges: ["top"] },
+  { x: 31, y: 18, blockedEdges: ["top"] },
+  { x: 32, y: 18, blockedEdges: ["top"] },
 ];
 
 /**
