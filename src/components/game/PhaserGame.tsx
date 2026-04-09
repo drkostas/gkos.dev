@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import { createGameConfig } from "@/game/config";
+import DialogBox from "./DialogBox";
 
 /**
  * React wrapper that creates and destroys a Phaser.Game instance.
@@ -23,13 +24,12 @@ export default function PhaserGame() {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100vw",
-        height: "100vh",
-        background: "#000",
-      }}
-    />
+    <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
+      <div
+        ref={containerRef}
+        style={{ width: "100%", height: "100%", background: "#000" }}
+      />
+      <DialogBox />
+    </div>
   );
 }
