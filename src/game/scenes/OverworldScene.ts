@@ -102,6 +102,26 @@ export class OverworldScene extends Phaser.Scene {
     // NOTE: directionChanged() observable is unreliable (doesn't fire consistently).
     // flipX is handled per-frame in update() instead.
 
+    // Intercept movement to block obstructive-tile crossings.
+    // positionChangeStarted fires BEFORE the tile transition happens,
+    // so we can stop the character in time.
+    this.gridEngine.positionChangeStarted().subscribe(({ charId, enterTile, exitTile }) => {
+      if (charId !== "player") return;
+      // Figure out direction from exit -> enter
+      const dx = enterTile.x - exitTile.x;
+      const dy = enterTile.y - exitTile.y;
+      let dir: Direction;
+      if (dy < 0) dir = Direction.UP;
+      else if (dy > 0) dir = Direction.DOWN;
+      else if (dx < 0) dir = Direction.LEFT;
+      else if (dx > 0) dir = Direction.RIGHT;
+      else return;
+
+      if (isObstructiveBlocked(exitTile.x, exitTile.y, enterTile.x, enterTile.y, dir, MAUVILLE_OBSTRUCTIVE)) {
+        this.gridEngine.stopMovement("player");
+      }
+    });
+
     // ── Systems ──────────────────────────────────────────────
     this.dialogSystem = new DialogSystem();
     this.npcSystem = new NPCSystem(this, this.gridEngine, this.dialogSystem, MAUVILLE_NPCS);
@@ -166,14 +186,17 @@ export class OverworldScene extends Phaser.Scene {
     else if (cursors.down.isDown) moveDir = Direction.DOWN;
 
     if (moveDir) {
-      // Check directional block from obstructive tiles (signs, fences, etc.)
-      const playerPos = this.gridEngine.getPosition("player");
-      const target = this.getTileInDirection(playerPos, moveDir);
-      if (isObstructiveBlocked(playerPos.x, playerPos.y, target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
-        // Turn the player to face the blocked direction without moving
-        this.gridEngine.turnTowards("player", moveDir);
-      } else {
-        this.gridEngine.move("player", moveDir);
+      // Only evaluate input when the player is NOT currently in a tile transition.
+      // This ensures getPosition() returns the true current tile, and we can
+      // reliably decide whether the next move is allowed.
+      if (!this.gridEngine.isMoving("player")) {
+        const playerPos = this.gridEngine.getPosition("player");
+        const target = this.getTileInDirection(playerPos, moveDir);
+        if (isObstructiveBlocked(playerPos.x, playerPos.y, target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
+          this.gridEngine.turnTowards("player", moveDir);
+        } else {
+          this.gridEngine.move("player", moveDir);
+        }
       }
     }
 
