@@ -27,9 +27,9 @@ export interface ObstructiveTile {
 
 /**
  * Mauville City obstructive tiles.
- * Signs block their bottom edge (can't walk through them vertically).
- * Fences block both top and bottom edges (can't walk across them),
- * but can be walked ALONG horizontally.
+ * Signs are walkable with their bottom edge blocked (vertical corridor only).
+ * Fences are NOT obstructive — they stay as solid walls per the OG game.
+ * The hidden path to the pokeball in the SE corner is via the gap at (33,18).
  */
 export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = [
   // Signs (8 tiles, positions from events.json bg_events)
@@ -41,49 +41,6 @@ export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = [
   { x: 25, y: 14, blockedEdges: ["bottom"] },
   { x: 33, y: 6, blockedEdges: ["bottom"] },
   { x: 11, y: 15, blockedEdges: ["bottom"] },
-
-  // Fences (metatile 657) — walkable, but block vertical passage.
-  // You can walk ALONG them left-right, and onto them from any direction,
-  // but you can't walk vertically THROUGH them.
-  { x: 26, y: 2, blockedEdges: [] },
-  { x: 27, y: 2, blockedEdges: [] },
-  { x: 28, y: 2, blockedEdges: [] },
-  { x: 29, y: 2, blockedEdges: [] },
-  { x: 30, y: 2, blockedEdges: [] },
-  { x: 31, y: 2, blockedEdges: [] },
-  { x: 32, y: 2, blockedEdges: [] },
-  { x: 1, y: 4, blockedEdges: [] },
-  { x: 2, y: 4, blockedEdges: [] },
-  { x: 3, y: 4, blockedEdges: [] },
-  { x: 4, y: 4, blockedEdges: [] },
-  { x: 11, y: 4, blockedEdges: [] },
-  { x: 15, y: 12, blockedEdges: [] },
-  { x: 16, y: 12, blockedEdges: [] },
-  { x: 17, y: 12, blockedEdges: [] },
-  { x: 1, y: 14, blockedEdges: [] },
-  { x: 2, y: 14, blockedEdges: [] },
-  { x: 3, y: 14, blockedEdges: [] },
-  { x: 4, y: 14, blockedEdges: [] },
-  { x: 5, y: 14, blockedEdges: [] },
-  { x: 7, y: 18, blockedEdges: [] },
-  { x: 8, y: 18, blockedEdges: [] },
-  { x: 9, y: 18, blockedEdges: [] },
-  { x: 10, y: 18, blockedEdges: [] },
-  { x: 11, y: 18, blockedEdges: [] },
-  { x: 12, y: 18, blockedEdges: [] },
-  { x: 13, y: 18, blockedEdges: [] },
-  { x: 19, y: 18, blockedEdges: [] },
-  { x: 20, y: 18, blockedEdges: [] },
-  { x: 21, y: 18, blockedEdges: [] },
-  { x: 22, y: 18, blockedEdges: [] },
-  { x: 23, y: 18, blockedEdges: [] },
-  { x: 24, y: 18, blockedEdges: [] },
-  { x: 27, y: 18, blockedEdges: [] },
-  { x: 28, y: 18, blockedEdges: [] },
-  { x: 29, y: 18, blockedEdges: [] },
-  { x: 30, y: 18, blockedEdges: [] },
-  { x: 31, y: 18, blockedEdges: [] },
-  { x: 32, y: 18, blockedEdges: [] },
 ];
 
 /**
