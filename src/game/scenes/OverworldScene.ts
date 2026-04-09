@@ -96,7 +96,7 @@ export class OverworldScene extends Phaser.Scene {
           walkingAnimationMapping: WALK_ANIM,
           startPosition: { x: 20, y: 9 },
           speed: OverworldScene.WALK_SPEED,
-          offsetY: -8,
+          offsetY: 0,
         },
       ],
     });

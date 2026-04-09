@@ -133,7 +133,7 @@ export class NPCSystem {
         sprite,
         startPosition: npc.position,
         speed: 2,
-        offsetY: -8,
+        offsetY: 0,
         facingDirection: npc.facingDirection,
         walkingAnimationMapping: WALK_ANIM_MAPPING,
         collides: true,
