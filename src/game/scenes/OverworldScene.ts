@@ -177,8 +177,11 @@ export class OverworldScene extends Phaser.Scene {
   update(): void {
     if (this.dialogSystem.active || this.menuActive) return;
 
-    // Hold Shift to run — swap speed AND animation mapping
-    const wantsRun = this.shiftKey.isDown;
+    // Hold Shift to run — but only actually "run" when moving.
+    // When idle or at the end of a move, use the walking mapping so the
+    // standing frame comes from the walking spritesheet, not running.
+    const isCurrentlyMoving = this.gridEngine.isMoving("player");
+    const wantsRun = this.shiftKey.isDown && isCurrentlyMoving;
     if (wantsRun !== this.isRunning) {
       this.isRunning = wantsRun;
       this.gridEngine.setSpeed("player", wantsRun ? OverworldScene.RUN_SPEED : OverworldScene.WALK_SPEED);
