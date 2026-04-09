@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "dark-mode": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "ed82868d1b370dccc4da248e38486bdf2c5215f63399a27d5ad42480e9b18bf4"
+    },
     "dark-mode-check": {
       "source": "smithery.ai",
       "sourceType": "well-known",
