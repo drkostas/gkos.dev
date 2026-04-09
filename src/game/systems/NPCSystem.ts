@@ -5,15 +5,12 @@ import { MovementBehavior, type NPCDefinition } from "@/game/types/npc";
 import { DialogSystem } from "@/game/systems/DialogSystem";
 
 /**
- * Standard walking animation mapping for 9-frame NPC spritesheets.
- * Layout: down(0-2), up(3-5), left(6-8). Right = flipped left.
+ * Native walking animation mapping for 12-frame NPC spritesheets (3x4 grid).
+ * Layout: Row 0=down, Row 1=left, Row 2=right, Row 3=up.
+ * Each row: [walk1, stand, walk2].
+ * Grid Engine handles all frame selection and flipX natively with mapping 0.
  */
-const WALK_ANIM_MAPPING = {
-  down: { leftFoot: 0, standing: 1, rightFoot: 2 },
-  up: { leftFoot: 3, standing: 4, rightFoot: 5 },
-  left: { leftFoot: 6, standing: 7, rightFoot: 8 },
-  right: { leftFoot: 6, standing: 7, rightFoot: 8 },
-};
+const WALK_ANIM_MAPPING = 0;
 
 /** Min/max interval in ms between autonomous NPC actions (wander, look around). */
 const BEHAVIOR_MIN_MS = 2000;
@@ -81,7 +78,6 @@ export class NPCSystem {
         // Make NPC face the player (opposite of player's facing direction)
         if (npc.animated) {
           this.gridEngine.turnTowards(npc.id, OPPOSITE[playerFacing]);
-          this.updateSpriteFlip(npc.id, OPPOSITE[playerFacing]);
         }
 
         await this.dialogSystem.showDialog({
@@ -104,10 +100,11 @@ export class NPCSystem {
 
   // ── Private helpers ──────────────────────────────────────────
 
-  /** Update y-sorted depth for all NPC sprites. Call from scene update(). */
+  /** Update y-sorted depth for all NPC sprites (range 1-99, between Ground and Above layers). */
   updateDepth(): void {
     for (const sprite of this.sprites.values()) {
-      sprite.setDepth(sprite.y);
+      const depth = 1 + (sprite.y / 1000) * 98;
+      sprite.setDepth(Math.min(99, Math.max(1, depth)));
     }
   }
 
@@ -117,7 +114,7 @@ export class NPCSystem {
     this.homePositions.set(npc.id, { ...npc.position });
 
     if (npc.animated) {
-      // Standard 9-frame NPC spritesheet
+      // 12-frame NPC spritesheet (3x4 grid: down, left, right, up)
       this.gridEngine.addCharacter({
         id: npc.id,
         sprite,
@@ -129,17 +126,6 @@ export class NPCSystem {
         collides: true,
       });
 
-      // Flip sprite for right-facing (reuses left frames)
-      this.gridEngine.directionChanged().subscribe(({ charId, direction }) => {
-        if (charId === npc.id) {
-          this.updateSpriteFlip(npc.id, direction);
-        }
-      });
-
-      // Set initial flip if facing right
-      if (npc.facingDirection === Direction.RIGHT) {
-        sprite.flipX = true;
-      }
     } else {
       // Non-animated sprite (e.g. item_ball — 16x16 single image)
       this.gridEngine.addCharacter({
@@ -224,14 +210,6 @@ export class NPCSystem {
     ];
     const randomDir = directions[Math.floor(Math.random() * directions.length)];
     this.gridEngine.turnTowards(npc.id, randomDir);
-    this.updateSpriteFlip(npc.id, randomDir);
-  }
-
-  private updateSpriteFlip(npcId: string, direction: Direction): void {
-    const sprite = this.sprites.get(npcId);
-    if (sprite) {
-      sprite.flipX = direction === Direction.RIGHT;
-    }
   }
 
   private getTileInFront(

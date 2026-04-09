@@ -3,8 +3,11 @@
  *
  * Takes raw Pokemon Emerald tileset data from pret/pokeemerald decompilation
  * and produces:
- *   1. A composed metatile tileset PNG (public/game/tilesets/mauville_composed.png)
- *   2. A Tiled-format JSON map of Mauville City (public/game/maps/mauville.json)
+ *   1. Bottom-layer tileset PNG (public/game/tilesets/mauville_bottom.png)
+ *   2. Top-layer tileset PNG (public/game/tilesets/mauville_top.png)
+ *   3. Composed reference tileset PNG (public/game/tilesets/mauville_composed.png)
+ *   4. A Tiled-format JSON map of Mauville City (public/game/maps/mauville.json)
+ *      with Ground, Above, and Collision layers for pseudo-3D rendering
  *
  * Binary format references:
  *   - Metatile entry: 16 bytes = 8 tile refs (2 bytes each), bottom-layer[4] + top-layer[4]
@@ -336,9 +339,60 @@ for (let i = 0; i < 16; i++) {
   }
 }
 
-// ─── Compose Tileset PNG ─────────────────────────────────────────────────────
+// ─── Render Individual Layers ────────────────────────────────────────────────
 
-console.log("Composing metatile tileset PNG...");
+/**
+ * Render ONE layer (bottom or top) of a metatile into an RGBA buffer.
+ * @param {"bottom"|"top"} which — which layer to render
+ */
+function renderMetatileLayer(outBuf, outWidth, destX, destY, metatileIndex, which) {
+  const meta = allMetatiles[metatileIndex];
+  if (!meta) return;
+
+  const layer = which === "bottom" ? meta.bottomLayer : meta.topLayer;
+
+  const positions = [
+    [0, 0],
+    [TILE_PX, 0],
+    [0, TILE_PX],
+    [TILE_PX, TILE_PX],
+  ];
+
+  for (let i = 0; i < 4; i++) {
+    const ref = layer[i];
+    const [offX, offY] = positions[i];
+
+    let tilePixels;
+    if (ref.tileIndex < generalTiles.length) {
+      tilePixels = generalTiles[ref.tileIndex];
+    } else {
+      const secIdx = ref.tileIndex - generalTiles.length;
+      if (secIdx >= 0 && secIdx < mauvilleTiles.length) {
+        tilePixels = mauvilleTiles[secIdx];
+      } else {
+        continue;
+      }
+    }
+
+    const pal = combinedPalettes[ref.palette];
+    if (!pal) continue;
+
+    renderTile(
+      outBuf,
+      outWidth,
+      destX + offX,
+      destY + offY,
+      tilePixels,
+      pal,
+      ref.xflip,
+      ref.yflip,
+    );
+  }
+}
+
+// ─── Compose Tileset PNGs ────────────────────────────────────────────────────
+
+console.log("Composing metatile tileset PNGs (bottom + top layers)...");
 
 const totalMetatiles = allMetatiles.length;
 const rows = Math.ceil(totalMetatiles / COMPOSED_COLUMNS);
@@ -349,25 +403,53 @@ console.log(
   `  Tileset dimensions: ${tilesetWidth}x${tilesetHeight} (${COMPOSED_COLUMNS} columns, ${rows} rows, ${totalMetatiles} metatiles)`,
 );
 
-const tilesetBuf = Buffer.alloc(tilesetWidth * tilesetHeight * 4, 0); // RGBA, transparent
-
+// --- Bottom-layer tileset ---
+const bottomBuf = Buffer.alloc(tilesetWidth * tilesetHeight * 4, 0);
 for (let m = 0; m < totalMetatiles; m++) {
   const col = m % COMPOSED_COLUMNS;
   const row = Math.floor(m / COMPOSED_COLUMNS);
-  renderMetatile(tilesetBuf, tilesetWidth, col * META_PX, row * META_PX, m);
+  renderMetatileLayer(bottomBuf, tilesetWidth, col * META_PX, row * META_PX, m, "bottom");
 }
 
-const tilesetOutPath = resolve(
-  ROOT,
-  "public/game/tilesets/mauville_composed.png",
-);
-await sharp(tilesetBuf, {
+const bottomOutPath = resolve(ROOT, "public/game/tilesets/mauville_bottom.png");
+await sharp(bottomBuf, {
   raw: { width: tilesetWidth, height: tilesetHeight, channels: 4 },
 })
   .png()
-  .toFile(tilesetOutPath);
+  .toFile(bottomOutPath);
+console.log(`  Written: ${bottomOutPath}`);
 
-console.log(`  Written: ${tilesetOutPath}`);
+// --- Top-layer tileset ---
+const topBuf = Buffer.alloc(tilesetWidth * tilesetHeight * 4, 0);
+for (let m = 0; m < totalMetatiles; m++) {
+  const col = m % COMPOSED_COLUMNS;
+  const row = Math.floor(m / COMPOSED_COLUMNS);
+  renderMetatileLayer(topBuf, tilesetWidth, col * META_PX, row * META_PX, m, "top");
+}
+
+const topOutPath = resolve(ROOT, "public/game/tilesets/mauville_top.png");
+await sharp(topBuf, {
+  raw: { width: tilesetWidth, height: tilesetHeight, channels: 4 },
+})
+  .png()
+  .toFile(topOutPath);
+console.log(`  Written: ${topOutPath}`);
+
+// --- Composed tileset (both layers merged, for reference) ---
+const composedBuf = Buffer.alloc(tilesetWidth * tilesetHeight * 4, 0);
+for (let m = 0; m < totalMetatiles; m++) {
+  const col = m % COMPOSED_COLUMNS;
+  const row = Math.floor(m / COMPOSED_COLUMNS);
+  renderMetatile(composedBuf, tilesetWidth, col * META_PX, row * META_PX, m);
+}
+
+const composedOutPath = resolve(ROOT, "public/game/tilesets/mauville_composed.png");
+await sharp(composedBuf, {
+  raw: { width: tilesetWidth, height: tilesetHeight, channels: 4 },
+})
+  .png()
+  .toFile(composedOutPath);
+console.log(`  Written: ${composedOutPath}`);
 
 // ─── Parse Map Layout ────────────────────────────────────────────────────────
 
@@ -418,13 +500,29 @@ console.log(
 console.log("Generating Tiled JSON map...");
 
 // Tiled uses 1-based GIDs (global tile IDs). GID 0 = empty.
-// Our tileset starts at firstgid=1, so metatile index N -> GID N+1.
-const groundLayerData = mapData.map((id) => id + 1);
+//
+// We define TWO tilesets:
+//   1. "mauville_bottom" — firstgid = 1          (metatile N -> GID N+1)
+//   2. "mauville_top"    — firstgid = totalMetatiles + 1
+//      (metatile N -> GID totalMetatiles + N + 1)
+//
+// Layers:
+//   "Ground"    — bottom tileset, all metatile IDs
+//   "Above"     — top tileset, all metatile IDs (transparent where top layer is empty)
+//   "Collision" — bottom tileset, collision markers
+
+const BOTTOM_FIRSTGID = 1;
+const TOP_FIRSTGID = totalMetatiles + 1;
+
+const groundLayerData = mapData.map((id) => id + BOTTOM_FIRSTGID);
+
+// Above layer uses the top tileset — same metatile IDs offset by TOP_FIRSTGID
+const aboveLayerData = mapData.map((id) => id + TOP_FIRSTGID);
 
 // For collision layer, use a non-zero GID where collision exists.
-// We use GID 1 (the first tile) as a marker for collision tiles.
+// We use GID 1 (the first tile in the bottom tileset) as a marker for collision tiles.
 // Grid Engine reads the ge_collide property to know this layer defines collision.
-const collisionLayerData = collisionData.map((c) => (c !== 0 ? 1 : 0));
+const collisionLayerData = collisionData.map((c) => (c !== 0 ? BOTTOM_FIRSTGID : 0));
 
 const tiledMap = {
   compressionlevel: -1,
@@ -444,9 +542,21 @@ const tiledMap = {
       y: 0,
     },
     {
-      data: collisionLayerData,
+      data: aboveLayerData,
       height: MAP_HEIGHT,
       id: 2,
+      name: "Above",
+      opacity: 1,
+      type: "tilelayer",
+      visible: true,
+      width: MAP_WIDTH,
+      x: 0,
+      y: 0,
+    },
+    {
+      data: collisionLayerData,
+      height: MAP_HEIGHT,
+      id: 3,
       name: "Collision",
       opacity: 1,
       type: "tilelayer",
@@ -463,7 +573,7 @@ const tiledMap = {
       ],
     },
   ],
-  nextlayerid: 3,
+  nextlayerid: 4,
   nextobjectid: 1,
   orientation: "orthogonal",
   renderorder: "right-down",
@@ -473,12 +583,25 @@ const tiledMap = {
   tilesets: [
     {
       columns: COMPOSED_COLUMNS,
-      firstgid: 1,
-      image: "../tilesets/mauville_composed.png",
+      firstgid: BOTTOM_FIRSTGID,
+      image: "../tilesets/mauville_bottom.png",
       imageheight: tilesetHeight,
       imagewidth: tilesetWidth,
       margin: 0,
-      name: "mauville_composed",
+      name: "mauville_bottom",
+      spacing: 0,
+      tilecount: totalMetatiles,
+      tileheight: META_PX,
+      tilewidth: META_PX,
+    },
+    {
+      columns: COMPOSED_COLUMNS,
+      firstgid: TOP_FIRSTGID,
+      image: "../tilesets/mauville_top.png",
+      imageheight: tilesetHeight,
+      imagewidth: tilesetWidth,
+      margin: 0,
+      name: "mauville_top",
       spacing: 0,
       tilecount: totalMetatiles,
       tileheight: META_PX,
@@ -497,8 +620,10 @@ console.log(`  Written: ${mapOutPath}`);
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
 console.log("\nDone!");
-console.log(`  Tileset: ${tilesetOutPath}`);
-console.log(`  Map:     ${mapOutPath}`);
+console.log(`  Bottom tileset: ${bottomOutPath}`);
+console.log(`  Top tileset:    ${topOutPath}`);
+console.log(`  Composed:       ${composedOutPath}`);
+console.log(`  Map:            ${mapOutPath}`);
 console.log(
   `  Tileset size: ${tilesetWidth}x${tilesetHeight} (${totalMetatiles} metatiles in ${COMPOSED_COLUMNS}x${rows} grid)`,
 );

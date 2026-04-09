@@ -20,6 +20,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private interactKey!: Phaser.Input.Keyboard.Key;
+  private shiftKey!: Phaser.Input.Keyboard.Key;
   private playerSprite!: Phaser.GameObjects.Sprite;
   private dialogSystem!: DialogSystem;
   private npcSystem!: NPCSystem;
@@ -31,6 +32,10 @@ export class OverworldScene extends Phaser.Scene {
   /** Cleanup function for MENU_CLOSE event listener. */
   private unsubMenuClose: (() => void) | null = null;
 
+  /** Normal and running speeds (tiles per second). */
+  private static readonly WALK_SPEED = 4;
+  private static readonly RUN_SPEED = 8;
+
   constructor() {
     super({ key: "OverworldScene" });
   }
@@ -39,25 +44,39 @@ export class OverworldScene extends Phaser.Scene {
     // ── Tilemap ──────────────────────────────────────────────
     const map = this.make.tilemap({ key: "mauville" });
 
-    // The tileset name must match the "name" field in mauville.json's tilesets array.
-    // The second argument is the Phaser cache key from BootScene's load.image().
-    const tileset = map.addTilesetImage(
-      "mauville_composed",
-      "mauville_composed",
+    // Two tilesets: bottom layer (ground) and top layer (above player).
+    const bottomTileset = map.addTilesetImage(
+      "mauville_bottom",
+      "mauville_bottom",
+    );
+    const topTileset = map.addTilesetImage(
+      "mauville_top",
+      "mauville_top",
     );
 
-    if (!tileset) {
-      throw new Error(
-        "OverworldScene: failed to add tileset 'mauville_composed'",
-      );
+    if (!bottomTileset) {
+      throw new Error("OverworldScene: failed to add tileset 'mauville_bottom'");
+    }
+    if (!topTileset) {
+      throw new Error("OverworldScene: failed to add tileset 'mauville_top'");
     }
 
-    // Create the ground layer (visible metatiles from Mauville City).
-    map.createLayer("Ground", tileset);
+    // Ground layer — renders BELOW the player (depth 0).
+    const groundLayer = map.createLayer("Ground", bottomTileset);
+    if (groundLayer) {
+      groundLayer.setDepth(0);
+    }
+
+    // Above layer — renders ABOVE the player (depth 100).
+    // This creates the pseudo-3D effect: treetops, roof overhangs, etc.
+    const aboveLayer = map.createLayer("Above", topTileset);
+    if (aboveLayer) {
+      aboveLayer.setDepth(100);
+    }
 
     // Collision layer: Grid Engine reads ge_collide property from it.
     // Must be created so Grid Engine can inspect it, but hidden visually.
-    const collisionLayer = map.createLayer("Collision", tileset);
+    const collisionLayer = map.createLayer("Collision", bottomTileset);
     if (collisionLayer) {
       collisionLayer.setVisible(false);
     }
@@ -66,22 +85,18 @@ export class OverworldScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(0, 0, "player");
 
     // ── Grid Engine ──────────────────────────────────────────
-    // Brendan has 9 frames in a single row (16x32 each):
-    //   0-2: down, 3-5: up, 6-8: left
-    // Right-facing reuses left frames with flipX.
+    // Brendan spritesheet is now a 3x4 grid (48x128):
+    //   Row 0=down, Row 1=left, Row 2=right, Row 3=up
+    //   Each row: [walk1, stand, walk2]
+    // walkingAnimationMapping: 0 lets Grid Engine handle all frames + flipX natively.
     this.gridEngine.create(map, {
       characters: [
         {
           id: "player",
           sprite: this.playerSprite,
-          walkingAnimationMapping: {
-            down: { leftFoot: 0, standing: 1, rightFoot: 2 },
-            up: { leftFoot: 3, standing: 4, rightFoot: 5 },
-            left: { leftFoot: 6, standing: 7, rightFoot: 8 },
-            right: { leftFoot: 6, standing: 7, rightFoot: 8 },
-          },
+          walkingAnimationMapping: 0,
           startPosition: { x: 20, y: 9 },
-          speed: 4,
+          speed: OverworldScene.WALK_SPEED,
           offsetY: -8,
         },
       ],
@@ -111,17 +126,26 @@ export class OverworldScene extends Phaser.Scene {
     // ── Input ────────────────────────────────────────────────
     this.cursors = this.input.keyboard!.createCursorKeys();
 
-    // Enter / Z key for interaction (talk to NPCs, read signs)
+    // Interaction keys: Enter, Z, and Space
     this.interactKey = this.input.keyboard!.addKey(
       Phaser.Input.Keyboard.KeyCodes.ENTER,
     );
     const zKey = this.input.keyboard!.addKey(
       Phaser.Input.Keyboard.KeyCodes.Z,
     );
+    const spaceKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
+    );
 
-    // Bind interaction to both Enter and Z (JustDown checked in update)
+    // Bind interaction to Enter, Z, and Space
     this.interactKey.on("down", () => this.handleInteraction());
     zKey.on("down", () => this.handleInteraction());
+    spaceKey.on("down", () => this.handleInteraction());
+
+    // Shift key for running (hold to run, release to walk)
+    this.shiftKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SHIFT,
+    );
 
     // ── Start Menu (Escape key) ─────────────────────────────────
     const escKey = this.input.keyboard!.addKey(
@@ -144,6 +168,12 @@ export class OverworldScene extends Phaser.Scene {
     // Block all player movement while dialog or menu is active
     if (this.dialogSystem.active || this.menuActive) return;
 
+    // Hold Shift to run
+    const speed = this.shiftKey.isDown
+      ? OverworldScene.RUN_SPEED
+      : OverworldScene.WALK_SPEED;
+    this.gridEngine.setSpeed("player", speed);
+
     const { cursors } = this;
 
     if (cursors.left.isDown) {
@@ -156,13 +186,10 @@ export class OverworldScene extends Phaser.Scene {
       this.gridEngine.move("player", Direction.DOWN);
     }
 
-    // Flip sprite when facing right (left-facing frames reused).
-    const facing = this.gridEngine.getFacingDirection("player");
-    this.playerSprite.flipX = facing === Direction.RIGHT;
-
-    // Y-sorted depth: characters lower on screen render on top.
-    // This mimics the original Pokemon GBA rendering order.
-    this.playerSprite.setDepth(this.playerSprite.y);
+    // Y-sorted depth for characters: between Ground (0) and Above (100).
+    // Depth 1-99 range ensures characters render above ground but below treetops/roofs.
+    const playerDepth = 1 + (this.playerSprite.y / 1000) * 98;
+    this.playerSprite.setDepth(Math.min(99, Math.max(1, playerDepth)));
     this.npcSystem.updateDepth();
   }
 
