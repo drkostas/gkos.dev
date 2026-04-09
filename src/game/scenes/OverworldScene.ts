@@ -53,7 +53,6 @@ export class OverworldScene extends Phaser.Scene {
   private isInteracting = false;
   private menuActive = false;
   private isRunning = false;
-  private wasMoving = false;
   private unsubMenuClose: (() => void) | null = null;
   /** Per-obstructive-tile overlay sprites that only show when a character stands on them. */
   private obstructiveOverlays: Map<string, Phaser.GameObjects.Sprite> = new Map();
@@ -186,20 +185,17 @@ export class OverworldScene extends Phaser.Scene {
       this.gridEngine.setWalkingAnimationMapping("player", wantsRun ? RUN_ANIM : WALK_ANIM);
     }
 
-    // Detect the moment movement STOPS (moving→idle transition).
-    // When that happens, snap to the walking standing frame so the last
-    // pose isn't a running-mapping frame. Only fire once per stop —
-    // don't touch the frame during continuous running.
-    const isMovingNow = this.gridEngine.isMoving("player");
-    if (this.wasMoving && !isMovingNow) {
+    // When the player is NOT moving, force the walking standing frame for
+    // the current facing direction. Grid Engine keeps the last frame of the
+    // running mapping when movement stops, which shows a running pose.
+    if (!this.gridEngine.isMoving("player")) {
       const facing = this.gridEngine.getFacingDirection("player");
       const standingFrame =
         facing === Direction.DOWN ? 0 :
         facing === Direction.UP ? 1 :
-        2; // left/right use frame 2 with flipX
+        2; // left/right both use frame 2 (left-standing) with flipX
       this.playerSprite.setFrame(standingFrame);
     }
-    this.wasMoving = isMovingNow;
 
     const { cursors } = this;
     let moveDir: Direction | null = null;
@@ -209,17 +205,16 @@ export class OverworldScene extends Phaser.Scene {
     else if (cursors.down.isDown) moveDir = Direction.DOWN;
 
     if (moveDir) {
-      // Only evaluate input when the player is NOT currently in a tile transition.
-      // This ensures getPosition() returns the true current tile, and we can
-      // reliably decide whether the next move is allowed.
-      if (!this.gridEngine.isMoving("player")) {
-        const playerPos = this.gridEngine.getPosition("player");
-        const target = this.getTileInDirection(playerPos, moveDir);
-        if (isObstructiveBlocked(playerPos.x, playerPos.y, target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
-          this.gridEngine.turnTowards("player", moveDir);
-        } else {
-          this.gridEngine.move("player", moveDir);
-        }
+      // Call move every frame — Grid Engine handles continuous movement
+      // and ignores calls while already moving in the same direction.
+      // Obstructive-tile blocking is handled by the positionChangeStarted
+      // interceptor (set up in create()), which stops the move if needed.
+      const playerPos = this.gridEngine.getPosition("player");
+      const target = this.getTileInDirection(playerPos, moveDir);
+      if (isObstructiveBlocked(playerPos.x, playerPos.y, target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
+        this.gridEngine.turnTowards("player", moveDir);
+      } else {
+        this.gridEngine.move("player", moveDir);
       }
     }
 
