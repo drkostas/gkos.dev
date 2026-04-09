@@ -69,46 +69,33 @@ function formatDate(date: Date) {
 
     <div>
       <!-- Category Select -->
-      <div class="border-b border-dashed border-border-primary pb-5 md:px-4 lg:pb-0">
-        <h3 class="text-base font-semibold text-gray-900">Categories</h3>
-        <div class="mt-3 sm:mt-4">
-          <div class="grid grid-cols-1 lg:hidden">
-            <select
-              aria-label="Select a Category"
-              class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pl-3 pr-8 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-slate-600"
+      <!-- Category pills -->
+      <div class="border-b border-border-primary/50 px-4 pb-6">
+        <div class="flex flex-wrap gap-2">
+          <a
+            href="/blog"
+            class:list={[
+              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              !currentCategory
+                ? "border-dark-primary bg-dark-primary text-white"
+                : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
+            ]}
+          >
+            All
+          </a>
+          {categories.map((cat) => (
+            <a
+              href={`/blog?category=${encodeURIComponent(cat.toLowerCase())}`}
+              class:list={[
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                cat.toLowerCase() === currentCategory
+                  ? "border-dark-primary bg-dark-primary text-white"
+                  : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
+              ]}
             >
-              <option value="">ALL</option>
-              {categories.map((cat) => (
-                <option value={cat.toLowerCase()}>{cat.toUpperCase()}</option>
-              ))}
-            </select>
-          </div>
-          <div class="hidden lg:block">
-            <nav class="-mb-px flex space-x-4">
-              <a
-                href="/blog"
-                aria-current={!currentCategory ? "page" : undefined}
-                class:list={[
-                  "whitespace-nowrap border-b-2 pb-4 text-sm uppercase",
-                  !currentCategory ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700",
-                ]}
-              >
-                All
-              </a>
-              {categories.map((cat) => (
-                <a
-                  href={`/blog?category=${encodeURIComponent(cat.toLowerCase())}`}
-                  aria-current={cat.toLowerCase() === currentCategory ? "page" : undefined}
-                  class:list={[
-                    "whitespace-nowrap border-b-2 pb-4 text-sm uppercase",
-                    cat.toLowerCase() === currentCategory ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700",
-                  ]}
-                >
-                  {cat}
-                </a>
-              ))}
-            </nav>
-          </div>
+              {cat}
+            </a>
+          ))}
         </div>
       </div>
 
@@ -117,7 +104,7 @@ function formatDate(date: Date) {
         {displayedPosts.length > 0 ? (
           displayedPosts.map((post) => (
             <li>
-              <div class="block">
+              <div class="block rounded-lg transition-colors hover:bg-white/60">
                 <article>
                   <div class="group grid h-full grid-cols-1 md:grid-cols-12">
                     <div class="hidden space-y-2 p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-2">
@@ -163,7 +150,7 @@ function formatDate(date: Date) {
                   </div>
                 </article>
               </div>
-              <div class="-mx-4 h-0 w-svw border-t border-dashed border-border-primary md:m-0 md:w-full"></div>
+              <div class="h-0 w-full border-t border-border-primary/50"></div>
             </li>
           ))
         ) : (
