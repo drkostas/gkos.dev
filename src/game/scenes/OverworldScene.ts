@@ -21,21 +21,22 @@ export class OverworldScene extends Phaser.Scene {
   create(): void {
     // ── Tilemap ──────────────────────────────────────────────
     const map = this.make.tilemap({ key: "mauville" });
+
+    // The tileset name must match the "name" field in mauville.json's tilesets array.
+    // The second argument is the Phaser cache key from BootScene's load.image().
     const tileset = map.addTilesetImage(
-      "placeholder-tiles",
-      "placeholder-tiles",
+      "mauville_composed",
+      "mauville_composed",
     );
 
     if (!tileset) {
       throw new Error(
-        "OverworldScene: failed to add tileset 'placeholder-tiles'",
+        "OverworldScene: failed to add tileset 'mauville_composed'",
       );
     }
 
-    // Create layers defined in the Tiled JSON.
-    // The layer names must match those in the exported map.
+    // Create the ground layer (visible metatiles from Mauville City).
     map.createLayer("Ground", tileset);
-    map.createLayer("World", tileset);
 
     // Collision layer: Grid Engine reads ge_collide property from it.
     // Must be created so Grid Engine can inspect it, but hidden visually.
@@ -49,13 +50,14 @@ export class OverworldScene extends Phaser.Scene {
     playerSprite.setDepth(10);
 
     // ── Grid Engine ──────────────────────────────────────────
+    // Start near center of Mauville City (40x20 map)
     this.gridEngine.create(map, {
       characters: [
         {
           id: "player",
           sprite: playerSprite,
           walkingAnimationMapping: 0,
-          startPosition: { x: 10, y: 7 },
+          startPosition: { x: 17, y: 14 },
           speed: 4,
         },
       ],
