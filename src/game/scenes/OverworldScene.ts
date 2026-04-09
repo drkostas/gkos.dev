@@ -169,7 +169,7 @@ export class OverworldScene extends Phaser.Scene {
       // Check directional block from obstructive tiles (signs, fences, etc.)
       const playerPos = this.gridEngine.getPosition("player");
       const target = this.getTileInDirection(playerPos, moveDir);
-      if (isObstructiveBlocked(target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
+      if (isObstructiveBlocked(playerPos.x, playerPos.y, target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
         // Turn the player to face the blocked direction without moving
         this.gridEngine.turnTowards("player", moveDir);
       } else {
