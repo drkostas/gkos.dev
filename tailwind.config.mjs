@@ -18,7 +18,7 @@ export default {
         "bg-primary": "rgb(var(--color-bg-primary) / <alpha-value>)",
         "border-primary": "rgb(var(--color-border-primary) / <alpha-value>)",
         "dark-primary": "rgb(var(--color-dark-primary) / <alpha-value>)",
-        "purple-primary": "#6C47FF",
+        "purple-primary": "#9B7BF7",
         "purple-secondary": "rgb(var(--color-purple-secondary) / <alpha-value>)",
         "text-primary": "rgb(var(--color-text-primary) / <alpha-value>)",
         "text-secondary": "rgb(var(--color-text-secondary) / <alpha-value>)",
