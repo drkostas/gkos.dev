@@ -516,8 +516,30 @@ const TOP_FIRSTGID = totalMetatiles + 1;
 
 const groundLayerData = mapData.map((id) => id + BOTTOM_FIRSTGID);
 
-// Above layer uses the top tileset — same metatile IDs offset by TOP_FIRSTGID
-const aboveLayerData = mapData.map((id) => id + TOP_FIRSTGID);
+// Determine which metatiles have non-transparent top layers by checking rendered pixels.
+// A metatile's top layer is "empty" if all 16x16 pixels are fully transparent (alpha=0).
+const metatileTopHasContent = new Set();
+for (let m = 0; m < totalMetatiles; m++) {
+  const col = m % COMPOSED_COLUMNS;
+  const row = Math.floor(m / COMPOSED_COLUMNS);
+  const baseX = col * META_PX;
+  const baseY = row * META_PX;
+  let hasOpaque = false;
+  for (let py = 0; py < META_PX && !hasOpaque; py++) {
+    for (let px = 0; px < META_PX && !hasOpaque; px++) {
+      const off = ((baseY + py) * tilesetWidth + (baseX + px)) * 4;
+      if (topBuf[off + 3] > 0) hasOpaque = true;
+    }
+  }
+  if (hasOpaque) metatileTopHasContent.add(m);
+}
+console.log(`  Metatiles with visible top layer: ${metatileTopHasContent.size}/${totalMetatiles}`);
+
+// Above layer: only include GIDs for metatiles whose top layer has actual content.
+// Use 0 (no tile) for empty/transparent top layers.
+const aboveLayerData = mapData.map((id) =>
+  metatileTopHasContent.has(id) ? id + TOP_FIRSTGID : 0
+);
 
 // For collision layer, use a non-zero GID where collision exists.
 // We use GID 1 (the first tile in the bottom tileset) as a marker for collision tiles.
@@ -593,6 +615,14 @@ const tiledMap = {
       tilecount: totalMetatiles,
       tileheight: META_PX,
       tilewidth: META_PX,
+      tiles: [
+        {
+          id: 0,
+          properties: [
+            { name: "ge_collide", type: "bool", value: true },
+          ],
+        },
+      ],
     },
     {
       columns: COMPOSED_COLUMNS,
