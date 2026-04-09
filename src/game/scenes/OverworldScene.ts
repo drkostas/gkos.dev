@@ -367,15 +367,17 @@ export class OverworldScene extends Phaser.Scene {
         // Create sprite at the tile's world position
         const sprite = this.add.sprite(tx * TILE + TILE / 2, ty * TILE + TILE / 2, "mauville_foreground", frameKey);
 
-        // Y-sorted depth: foreground tile covers characters whose sprite.y
-        // is LESS THAN the tile's bottom edge.
-        // A character at tile row Y has sprite.y ≈ (Y+1)*16 - 8 and depth = 10 + sprite.y
-        // For a foreground tile at row ty to cover a character at row ty+1:
-        //   fg depth > character depth at row ty+1
-        //   fg depth > 10 + ((ty+2)*16 - 8)
-        //   fg depth > (ty*16) + 34
-        // We use (ty+2)*16 + 10 to comfortably cover characters one row below.
-        sprite.setDepth(10 + (ty + 2) * TILE + 10);
+        // Y-sorted depth: foreground tile covers characters ABOVE it (rows < ty)
+        // but characters at the SAME row or BELOW render in front.
+        //
+        // Character at row Y has sprite.y ≈ (Y+1)*TILE - 8, depth = 10 + sprite.y.
+        //   - Char at Y = ty-1:  depth = 10 + ty*16 - 8  =  ty*16 + 2
+        //   - Char at Y = ty:    depth = 10 + ty*16 + 8  =  ty*16 + 18
+        //   - Char at Y = ty+1:  depth = 10 + ty*16 + 24 =  ty*16 + 34
+        //
+        // We want fg depth > (ty-1 char) and fg depth < (ty char).
+        // ty*16 + 2 < fg < ty*16 + 18. Use ty*16 + 9 as a safe middle value.
+        sprite.setDepth(ty * TILE + 9);
         count++;
       }
     }
