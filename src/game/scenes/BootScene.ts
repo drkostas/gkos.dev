@@ -15,17 +15,17 @@ export class BootScene extends Phaser.Scene {
     // Tileset image (single PNG with all tile graphics)
     this.load.image(
       "placeholder-tiles",
-      "/assets/game/tilesets/placeholder-tiles.png",
+      "/game/tilesets/placeholder-tiles.png",
     );
 
     // Tiled JSON map exported from Tiled editor
     this.load.tilemapTiledJSON(
       "mauville",
-      "/assets/game/maps/mauville.json",
+      "/game/maps/mauville.json",
     );
 
     // Player spritesheet — 16x16 frames, 4 directions x 3 walk frames
-    this.load.spritesheet("player", "/assets/game/sprites/player.png", {
+    this.load.spritesheet("player", "/game/sprites/player.png", {
       frameWidth: 16,
       frameHeight: 16,
     });
