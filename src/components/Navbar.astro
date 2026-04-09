@@ -11,6 +11,11 @@ const navigationLinks = [
 ];
 
 const currentPath = Astro.url.pathname;
+
+function isActive(link: string): boolean {
+  if (link === "/") return currentPath === "/";
+  return currentPath === link || currentPath.startsWith(link + "/");
+}
 ---
 
 <header role="banner">
@@ -37,7 +42,7 @@ const currentPath = Astro.url.pathname;
             href={link.link}
             class:list={[
               "font-medium hover:text-text-primary",
-              currentPath === link.link ? "text-text-primary" : "text-gray-500",
+              isActive(link.link) ? "text-text-primary" : "text-gray-500",
             ]}
           >
             {link.name}
@@ -114,9 +119,9 @@ const currentPath = Astro.url.pathname;
               href={link}
               class:list={[
                 "rounded-lg px-3 py-2 text-xl/9 font-medium",
-                currentPath === link ? "text-text-primary" : "text-text-secondary",
+                isActive(link) ? "text-text-primary" : "text-text-secondary",
               ]}
-              aria-current={currentPath === link ? "page" : undefined}
+              aria-current={isActive(link) ? "page" : undefined}
             >
               {name}
             </a>
