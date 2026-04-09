@@ -55,7 +55,6 @@ export class OverworldScene extends Phaser.Scene {
   private isRunning = false;
   private unsubMenuClose: (() => void) | null = null;
   /** Per-obstructive-tile overlay sprites that only show when a character stands on them. */
-  private obstructiveOverlays: Map<string, Phaser.GameObjects.Sprite> = new Map();
 
   private static readonly WALK_SPEED = 4;
   private static readonly RUN_SPEED = 8;
@@ -249,62 +248,92 @@ export class OverworldScene extends Phaser.Scene {
 
   /**
    * Create overlay sprites for each obstructive tile (like signs).
-   * These are hidden by default and become visible only when a character
-   * is standing on the tile — showing the sign graphic ABOVE the character
-   * so they appear to be standing behind it.
+   * Also includes the tile directly above if that tile has foreground
+   * content (for tall signs like the gym sign that span 2 tiles).
+   *
+   * Overlays are hidden by default and shown only when a character
+   * stands on the obstructive tile.
+   *
+   * Each obstructive tile maps to a list of overlay sprites (the tile
+   * itself + any tall-object tiles above it).
    */
+  private obstructiveOverlayGroups: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
+
   private createObstructiveOverlays(): void {
     const TILE = 16;
-    // Load the composed tileset to extract the sign graphics
     const composedTex = this.textures.get("mauville_bottom");
     if (!composedTex) return;
 
     const map = this.make.tilemap({ key: "mauville" });
-    const groundLayer = map.getLayer("Ground");
-    if (!groundLayer) return;
+    if (!map.getLayer("Ground")) return;
+
+    // Check the foreground image for content at a given tile
+    const fgTexture = this.textures.get("mauville_foreground");
+    const fgSource = fgTexture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const fgCanvas = document.createElement("canvas");
+    fgCanvas.width = fgSource.width;
+    fgCanvas.height = fgSource.height;
+    const fgCtx = fgCanvas.getContext("2d")!;
+    fgCtx.drawImage(fgSource, 0, 0);
+
+    const hasForegroundContent = (tx: number, ty: number): boolean => {
+      if (tx < 0 || ty < 0 || tx * TILE >= fgSource.width || ty * TILE >= fgSource.height) return false;
+      const img = fgCtx.getImageData(tx * TILE, ty * TILE, TILE, TILE);
+      for (let i = 3; i < img.data.length; i += 4) {
+        if (img.data[i] > 0) return true;
+      }
+      return false;
+    };
 
     for (const tile of MAUVILLE_OBSTRUCTIVE) {
-      const tileData = map.getTileAt(tile.x, tile.y, true, "Ground");
-      if (!tileData) continue;
+      const group: Phaser.GameObjects.Sprite[] = [];
 
-      // Get the metatile index (GID - firstgid)
-      const gid = tileData.index;
-      const localId = gid - 1; // bottom tileset firstgid is 1
+      // Start with the obstructive tile itself, then walk UP collecting
+      // tiles that have foreground content (tall objects like gym sign).
+      const tilesToCover: { x: number; y: number }[] = [{ x: tile.x, y: tile.y }];
+      let ty = tile.y - 1;
+      while (ty >= 0 && hasForegroundContent(tile.x, ty)) {
+        tilesToCover.push({ x: tile.x, y: ty });
+        ty--;
+      }
 
-      // Create a unique frame for this metatile from the composed tileset
-      const columns = 16;
-      const srcX = (localId % columns) * TILE;
-      const srcY = Math.floor(localId / columns) * TILE;
-      const frameKey = `obstructive_${tile.x}_${tile.y}`;
-      composedTex.add(frameKey, 0, srcX, srcY, TILE, TILE);
+      for (const t of tilesToCover) {
+        const tileData = map.getTileAt(t.x, t.y, true, "Ground");
+        if (!tileData) continue;
+        const gid = tileData.index;
+        const localId = gid - 1;
 
-      // Create the overlay sprite at the tile position, origin top-left
-      const sprite = this.add.sprite(
-        tile.x * TILE + TILE / 2,
-        tile.y * TILE + TILE / 2,
-        "mauville_bottom",
-        frameKey,
-      );
-      // High depth so it always covers any character at the same or lower y
-      sprite.setDepth(10 + (tile.y + 2) * TILE + 10);
-      sprite.setVisible(false);
-      this.obstructiveOverlays.set(`${tile.x},${tile.y}`, sprite);
+        const columns = 16;
+        const srcX = (localId % columns) * TILE;
+        const srcY = Math.floor(localId / columns) * TILE;
+        const frameKey = `obstructive_${t.x}_${t.y}`;
+        composedTex.add(frameKey, 0, srcX, srcY, TILE, TILE);
+
+        const sprite = this.add.sprite(
+          t.x * TILE + TILE / 2,
+          t.y * TILE + TILE / 2,
+          "mauville_bottom",
+          frameKey,
+        );
+        // High depth so the sign covers any character at the obstructive tile
+        sprite.setDepth(10 + (tile.y + 2) * TILE + 10);
+        sprite.setVisible(false);
+        group.push(sprite);
+      }
+
+      this.obstructiveOverlayGroups.set(`${tile.x},${tile.y}`, group);
     }
   }
 
   /** Show/hide obstructive overlay sprites based on whether a character is on them. */
   private updateObstructiveOverlays(): void {
     // Build set of occupied obstructive tiles.
-    // Include BOTH the current tile AND the destination tile (when moving),
-    // because positionChangeStarted fires before getPosition updates. This
-    // ensures the overlay appears as soon as the character starts stepping
-    // onto the tile, not a frame after they arrive.
+    // Include BOTH the current tile AND the destination tile (when moving).
     const occupied = new Set<string>();
     const charIds = this.gridEngine.getAllCharacters();
     for (const charId of charIds) {
       const pos = this.gridEngine.getPosition(charId);
       occupied.add(`${pos.x},${pos.y}`);
-      // Also consider the tile being moved INTO
       if (this.gridEngine.isMoving(charId)) {
         const dir = this.gridEngine.getFacingDirection(charId);
         const target = this.getTileInDirection(pos, dir);
@@ -312,8 +341,11 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    for (const [key, sprite] of this.obstructiveOverlays) {
-      sprite.setVisible(occupied.has(key));
+    for (const [key, group] of this.obstructiveOverlayGroups) {
+      const visible = occupied.has(key);
+      for (const sprite of group) {
+        sprite.setVisible(visible);
+      }
     }
   }
 
