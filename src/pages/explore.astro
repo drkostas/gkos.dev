@@ -1,6 +1,7 @@
 ---
 // Explore Mode — full-screen Phaser game, no layout
 // PhaserGame is loaded client-only to avoid SSR (Phaser needs window/document)
+import PhaserGame from "../components/game/PhaserGame";
 ---
 
 <html lang="en">
@@ -20,16 +21,6 @@
         <a href="/" style="color: #6C47FF;">Return to normal site</a>
       </p>
     </noscript>
-    <div id="game-root"></div>
-    <script>
-      async function boot() {
-        const { default: React } = await import("react");
-        const { createRoot } = await import("react-dom/client");
-        const { default: PhaserGame } = await import("../components/game/PhaserGame");
-        const root = createRoot(document.getElementById("game-root")!);
-        root.render(React.createElement(PhaserGame));
-      }
-      boot();
-    </script>
+    <PhaserGame client:only="react" />
   </body>
 </html>

@@ -37,6 +37,13 @@ export class OverworldScene extends Phaser.Scene {
     map.createLayer("Ground", tileset);
     map.createLayer("World", tileset);
 
+    // Collision layer: Grid Engine reads ge_collide property from it.
+    // Must be created so Grid Engine can inspect it, but hidden visually.
+    const collisionLayer = map.createLayer("Collision", tileset);
+    if (collisionLayer) {
+      collisionLayer.setVisible(false);
+    }
+
     // ── Player sprite ────────────────────────────────────────
     const playerSprite = this.add.sprite(0, 0, "player");
     playerSprite.setDepth(10);
@@ -48,7 +55,7 @@ export class OverworldScene extends Phaser.Scene {
           id: "player",
           sprite: playerSprite,
           walkingAnimationMapping: 0,
-          startPosition: { x: 20, y: 10 },
+          startPosition: { x: 10, y: 7 },
           speed: 4,
         },
       ],
