@@ -54,6 +54,8 @@ export class OverworldScene extends Phaser.Scene {
   private menuActive = false;
   private isRunning = false;
   private unsubMenuClose: (() => void) | null = null;
+  /** Per-obstructive-tile overlay sprites that only show when a character stands on them. */
+  private obstructiveOverlays: Map<string, Phaser.GameObjects.Sprite> = new Map();
 
   private static readonly WALK_SPEED = 4;
   private static readonly RUN_SPEED = 8;
@@ -136,6 +138,11 @@ export class OverworldScene extends Phaser.Scene {
     // This matches the OG GBA hardware layer behavior.
     this.createForegroundTiles();
 
+    // Dynamic overlays for obstructive tiles (signs, etc.) — shown
+    // only when a character stands ON them, so the tile's graphic
+    // renders IN FRONT of the character.
+    this.createObstructiveOverlays();
+
     // ── Camera ───────────────────────────────────────────────
     this.cameras.main.startFollow(this.playerSprite, true);
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
@@ -208,6 +215,9 @@ export class OverworldScene extends Phaser.Scene {
     // Y-sorted depth for player (between ground at 0 and foreground at 1000)
     this.playerSprite.setDepth(10 + this.playerSprite.y);
     this.npcSystem.updateDepth();
+
+    // Toggle obstructive-tile overlays based on character positions
+    this.updateObstructiveOverlays();
   }
 
   private async handleInteraction(): Promise<void> {
@@ -222,6 +232,69 @@ export class OverworldScene extends Phaser.Scene {
       }
     } finally {
       this.isInteracting = false;
+    }
+  }
+
+  /**
+   * Create overlay sprites for each obstructive tile (like signs).
+   * These are hidden by default and become visible only when a character
+   * is standing on the tile — showing the sign graphic ABOVE the character
+   * so they appear to be standing behind it.
+   */
+  private createObstructiveOverlays(): void {
+    const TILE = 16;
+    // Load the composed tileset to extract the sign graphics
+    const composedTex = this.textures.get("mauville_bottom");
+    if (!composedTex) return;
+
+    const map = this.make.tilemap({ key: "mauville" });
+    const groundLayer = map.getLayer("Ground");
+    if (!groundLayer) return;
+
+    for (const tile of MAUVILLE_OBSTRUCTIVE) {
+      const tileData = map.getTileAt(tile.x, tile.y, true, "Ground");
+      if (!tileData) continue;
+
+      // Get the metatile index (GID - firstgid)
+      const gid = tileData.index;
+      const localId = gid - 1; // bottom tileset firstgid is 1
+
+      // Create a unique frame for this metatile from the composed tileset
+      const columns = 16;
+      const srcX = (localId % columns) * TILE;
+      const srcY = Math.floor(localId / columns) * TILE;
+      const frameKey = `obstructive_${tile.x}_${tile.y}`;
+      composedTex.add(frameKey, 0, srcX, srcY, TILE, TILE);
+
+      // Create the overlay sprite at the tile position, origin top-left
+      const sprite = this.add.sprite(
+        tile.x * TILE + TILE / 2,
+        tile.y * TILE + TILE / 2,
+        "mauville_bottom",
+        frameKey,
+      );
+      // High depth so it always covers any character at the same or lower y
+      sprite.setDepth(10 + (tile.y + 2) * TILE + 10);
+      sprite.setVisible(false);
+      this.obstructiveOverlays.set(`${tile.x},${tile.y}`, sprite);
+    }
+  }
+
+  /** Show/hide obstructive overlay sprites based on whether a character is on them. */
+  private updateObstructiveOverlays(): void {
+    // Build set of occupied obstructive tiles
+    const occupied = new Set<string>();
+    const playerPos = this.gridEngine.getPosition("player");
+    occupied.add(`${playerPos.x},${playerPos.y}`);
+    // (NPCs don't typically stand on sign tiles in Mauville, but check anyway)
+    for (const charId of this.gridEngine.getAllCharacters()) {
+      if (charId === "player") continue;
+      const pos = this.gridEngine.getPosition(charId);
+      occupied.add(`${pos.x},${pos.y}`);
+    }
+
+    for (const [key, sprite] of this.obstructiveOverlays) {
+      sprite.setVisible(occupied.has(key));
     }
   }
 
