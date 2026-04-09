@@ -25,15 +25,15 @@ body.modal-open {
 }
 
 .dark {
-  --color-bg-primary: 18 18 18;            /* #121212 — neutral dark gray, no blue hue */
-  --color-border-primary: 45 45 45;        /* #2d2d2d — neutral border */
-  --color-dark-primary: 235 235 235;       /* #ebebeb — slightly off-white for inverted elements */
+  --color-bg-primary: 25 25 25;            /* #191919 — warm dark gray, not too black */
+  --color-border-primary: 50 50 50;        /* #323232 — visible borders */
+  --color-dark-primary: 235 235 235;       /* #ebebeb — off-white for inverted elements */
   --color-purple-secondary: 50 40 85;      /* #322850 — purple tint for badges */
-  --color-text-primary: 235 235 235;       /* #ebebeb — off-white, comfortable to read */
-  --color-text-secondary: 150 150 150;     /* #969696 — neutral mid gray */
-  --color-text-tertiary: 100 100 100;      /* #646464 — dim but still readable */
-  --color-surface: 30 30 30;              /* #1e1e1e — cards, clear elevation above bg */
-  --color-surface-secondary: 38 38 38;     /* #262626 — ShadowBox inner, inputs */
+  --color-text-primary: 235 235 235;       /* #ebebeb — comfortable to read */
+  --color-text-secondary: 155 155 155;     /* #9b9b9b — mid gray */
+  --color-text-tertiary: 105 105 105;      /* #696969 — dim but readable */
+  --color-surface: 35 35 35;              /* #232323 — cards, elevated above bg */
+  --color-surface-secondary: 42 42 42;     /* #2a2a2a — ShadowBox inner, inputs */
 }
 
 /* Override Tailwind defaults that use hardcoded colors */
@@ -54,12 +54,13 @@ body.modal-open {
 .dark .border-gray-400 { border-color: rgb(55 55 60); }
 .dark .bg-slate-50 { background-color: rgb(var(--color-surface-secondary)); }
 
-/* Drama shadow in dark mode */
+/* Drama shadow in dark mode — subtle, flat elevation via faint border glow */
 .dark .drama-shadow {
-  @apply shadow-lg ring-1 ring-purple-primary/25;
+  box-shadow: none;
+  @apply ring-1 ring-white/[0.08];
 }
 .dark .drama-shadow::after {
-  @apply shadow-[inset_0_0_2px_1px_rgba(255,255,255,0.06)];
+  box-shadow: none;
 }
 
 /* Selection in dark mode */
@@ -90,12 +91,12 @@ body.modal-open {
 
 /* Newsletter section — slightly lighter than page bg for differentiation */
 .dark .bg-dark-primary {
-  background-color: rgb(24 24 24);
+  background-color: rgb(30 30 30);
 }
 
 /* SocialPill + navbar dark pills STAY dark in dark mode (don't invert) */
 .dark .z-30.bg-dark-primary {
-  background-color: rgb(38 38 38);
+  background-color: rgb(42 42 42);
   color: white;
 }
 /* Social icon SVGs inside the pill need to stay visible */
@@ -181,12 +182,13 @@ body.modal-open {
 .dark .from-bg-primary { --tw-gradient-from: rgb(var(--color-bg-primary)); }
 .dark .group-hover\:from-bg-white:hover { --tw-gradient-from: rgb(var(--color-surface)); }
 
-/* Drama shadow in dark mode */
+/* Drama shadow in dark mode — subtle, flat elevation via faint border glow */
 .dark .drama-shadow {
-  @apply shadow-lg ring-1 ring-purple-primary/25;
+  box-shadow: none;
+  @apply ring-1 ring-white/[0.08];
 }
 .dark .drama-shadow::after {
-  @apply shadow-[inset_0_0_2px_1px_rgba(255,255,255,0.06)];
+  box-shadow: none;
 }
 
 /* Code blocks in dark mode */
