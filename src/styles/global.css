@@ -7,11 +7,212 @@ body.modal-open {
 }
 
 /* =========================================
-   Dark Mode — Infrastructure ready, CSS pending.
-   Toggle button + FOUC script + darkMode:"class" in tailwind.config
-   are in place. Comprehensive component-by-component dark: variants
-   needed before enabling. See docs/plans/2026-04-09-visual-improvements.md
+   Color System — CSS Custom Properties
+   All colors defined as "R G B" for Tailwind alpha support.
+   Switching .dark on <html> swaps all colors automatically.
    ========================================= */
+
+:root {
+  --color-bg-primary: 247 247 248;
+  --color-border-primary: 214 218 222;
+  --color-dark-primary: 60 60 63;
+  --color-purple-secondary: 230 226 249;
+  --color-text-primary: 15 23 42;
+  --color-text-secondary: 94 95 110;
+  --color-text-tertiary: 165 174 184;
+  --color-surface: 255 255 255;
+  --color-surface-secondary: 237 238 240;
+}
+
+.dark {
+  --color-bg-primary: 15 15 16;
+  --color-border-primary: 42 42 46;
+  --color-dark-primary: 240 240 242;
+  --color-purple-secondary: 45 36 85;
+  --color-text-primary: 241 241 243;
+  --color-text-secondary: 154 154 166;
+  --color-text-tertiary: 92 92 104;
+  --color-surface: 26 26 30;
+  --color-surface-secondary: 30 30 34;
+}
+
+/* Override Tailwind defaults that use hardcoded colors */
+.dark .bg-white { background-color: rgb(var(--color-surface)); }
+.dark .hover\:bg-white:hover { background-color: rgb(var(--color-surface)); }
+.dark .hover\:bg-white\/60:hover { background-color: rgb(var(--color-surface) / 0.6); }
+.dark .text-slate-900 { color: rgb(var(--color-text-primary)); }
+.dark .text-gray-500 { color: rgb(var(--color-text-secondary)); }
+.dark .text-gray-300 { color: rgb(var(--color-text-tertiary)); }
+.dark .text-gray-900 { color: rgb(var(--color-text-primary)); }
+.dark .text-gray-600 { color: rgb(var(--color-text-secondary)); }
+.dark .bg-\[\#EDEEF0\] { background-color: rgb(var(--color-surface-secondary)); }
+.dark .bg-\[\#F7F7F8\] { background-color: rgb(var(--color-bg-primary)); }
+.dark .bg-\[\#E8ECEF\] { background-color: rgb(30 30 34); }
+.dark .bg-zinc-600 { background-color: rgb(55 55 60); }
+.dark .bg-zinc-300 { background-color: rgb(70 70 78); }
+.dark .border-\[\#E2E3E5\] { border-color: rgb(42 42 46); }
+.dark .border-gray-400 { border-color: rgb(55 55 60); }
+.dark .bg-slate-50 { background-color: rgb(var(--color-surface-secondary)); }
+
+/* Drama shadow in dark mode */
+.dark .drama-shadow {
+  @apply shadow-lg ring-1 ring-purple-primary/25;
+}
+.dark .drama-shadow::after {
+  @apply shadow-[inset_0_0_2px_1px_rgba(255,255,255,0.06)];
+}
+
+/* Selection in dark mode */
+.dark ::selection {
+  background-color: #6C47FF;
+  color: #fff;
+}
+
+/* Prose in dark mode */
+.dark .prose {
+  --tw-prose-body: rgb(var(--color-text-secondary));
+  --tw-prose-headings: rgb(var(--color-text-primary));
+  --tw-prose-links: #818cf8;
+  --tw-prose-bold: rgb(var(--color-text-primary));
+  --tw-prose-counters: rgb(var(--color-text-tertiary));
+  --tw-prose-bullets: rgb(var(--color-text-tertiary));
+  --tw-prose-hr: rgb(var(--color-border-primary));
+  --tw-prose-quotes: rgb(var(--color-text-secondary));
+  --tw-prose-code: rgb(var(--color-text-primary));
+  --tw-prose-pre-bg: rgb(var(--color-surface));
+}
+
+/* =========================================
+   Dark Mode — Targeted Overrides
+   For elements that use hardcoded colors
+   not covered by CSS custom properties
+   ========================================= */
+
+/* Newsletter section — slight differentiation from page bg */
+.dark .bg-dark-primary {
+  background-color: rgb(22 22 26);
+}
+
+/* SocialPill + navbar dark pills STAY dark in dark mode (don't invert) */
+.dark .z-30.bg-dark-primary {
+  background-color: rgb(60 60 63);
+  color: white;
+}
+/* Social icon SVGs inside the pill need to stay visible */
+.dark .z-30.bg-dark-primary svg {
+  color: rgb(180 180 190) !important;
+}
+.dark .z-30.bg-dark-primary svg:hover {
+  color: rgb(220 220 230) !important;
+}
+
+/* Buttons/links that should INVERT (light on dark) */
+.dark a.bg-dark-primary:not(.z-30),
+.dark button.bg-dark-primary {
+  background-color: rgb(var(--color-dark-primary));
+  color: rgb(var(--color-bg-primary));
+}
+
+/* SVG fills — hardcoded #F7F7F8 and white in ProfilePicture, ConnectionsBento, SpeakingBento etc */
+.dark svg rect[fill="#F7F7F8"],
+.dark svg circle[fill="#F7F7F8"] {
+  fill: rgb(var(--color-bg-primary));
+}
+
+/* ShadowBox inner backgrounds */
+.dark .bg-\[\#EDEEF0\] { background-color: rgb(var(--color-surface-secondary)); }
+.dark .bg-\[\#F7F7F8\] { background-color: rgb(var(--color-bg-primary)); }
+
+/* ShadowBox inset shadow override for dark */
+.dark [style*="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset"] {
+  box-shadow: 0px 2px 1.5px 0px rgba(0, 0, 0, 0.3) inset !important;
+}
+
+/* ChangelogBento mini cards — bg-white on dark */
+.dark .bg-white { background-color: rgb(var(--color-surface)); }
+.dark .hover\:bg-white:hover { background-color: rgb(var(--color-surface)); }
+.dark .hover\:bg-white\/60:hover { background-color: rgb(var(--color-surface) / 0.6); }
+.dark .from-white { --tw-gradient-from: rgb(var(--color-surface)); }
+.dark .via-white { --tw-gradient-via: rgb(var(--color-surface)); }
+.dark .to-transparent { --tw-gradient-to: transparent; }
+
+/* Text color overrides for hardcoded Tailwind defaults */
+.dark .text-slate-900 { color: rgb(var(--color-text-primary)); }
+.dark .text-slate-50 { color: rgb(var(--color-text-primary)); }
+.dark .text-gray-500 { color: rgb(var(--color-text-secondary)); }
+.dark .text-gray-300 { color: rgb(var(--color-text-tertiary)); }
+.dark .text-gray-900 { color: rgb(var(--color-text-primary)); }
+.dark .text-gray-600 { color: rgb(var(--color-text-secondary)); }
+.dark .text-gray-400 { color: rgb(var(--color-text-tertiary)); }
+.dark .text-white { color: rgb(255 255 255); } /* keep white text white */
+.dark .placeholder-gray-400::placeholder { color: rgb(var(--color-text-tertiary)); }
+
+/* Border overrides */
+.dark .border-\[\#E2E3E5\] { border-color: rgb(42 42 46); }
+.dark .border-gray-400 { border-color: rgb(55 55 60); }
+.dark .border-\[\#A5AEB81F\] { border-color: rgba(92, 92, 104, 0.12); }
+
+/* Background overrides */
+.dark .bg-slate-50 { background-color: rgb(var(--color-surface-secondary)); }
+.dark .bg-\[\#E8ECEF\] { background-color: rgb(30 30 34); }
+.dark .bg-zinc-600 { background-color: rgb(55 55 60); }
+.dark .bg-zinc-300 { background-color: rgb(70 70 78); }
+.dark .bg-slate-100 { background-color: rgb(var(--color-surface)); }
+
+/* Ring overrides */
+.dark .ring-white { --tw-ring-color: rgb(var(--color-border-primary)); }
+.dark .ring-dark-primary { --tw-ring-color: rgb(var(--color-dark-primary)); }
+
+/* Gradient overrides for overlays */
+.dark .from-bg-primary { --tw-gradient-from: rgb(var(--color-bg-primary)); }
+.dark .group-hover\:from-bg-white:hover { --tw-gradient-from: rgb(var(--color-surface)); }
+
+/* Drama shadow in dark mode */
+.dark .drama-shadow {
+  @apply shadow-lg ring-1 ring-purple-primary/25;
+}
+.dark .drama-shadow::after {
+  @apply shadow-[inset_0_0_2px_1px_rgba(255,255,255,0.06)];
+}
+
+/* Code blocks in dark mode */
+.dark pre { background-color: rgb(var(--color-surface)); }
+.dark .code-frame { border-color: rgb(var(--color-border-primary)); background-color: rgb(var(--color-surface)); }
+.dark .code-container { background-color: rgb(var(--color-surface)); }
+.dark .frame-control { background-color: rgb(var(--color-text-tertiary)); }
+
+/* Selection in dark mode */
+.dark ::selection {
+  background-color: #6C47FF;
+  color: #fff;
+}
+
+/* Prose in dark mode */
+.dark .prose {
+  --tw-prose-body: rgb(var(--color-text-secondary));
+  --tw-prose-headings: rgb(var(--color-text-primary));
+  --tw-prose-links: #818cf8;
+  --tw-prose-bold: rgb(var(--color-text-primary));
+  --tw-prose-counters: rgb(var(--color-text-tertiary));
+  --tw-prose-bullets: rgb(var(--color-text-tertiary));
+  --tw-prose-hr: rgb(var(--color-border-primary));
+  --tw-prose-quotes: rgb(var(--color-text-secondary));
+  --tw-prose-code: rgb(var(--color-text-primary));
+  --tw-prose-pre-bg: rgb(var(--color-surface));
+}
+
+/* Reduce image brightness slightly in dark mode */
+.dark img:not([src*=".svg"]) {
+  filter: brightness(0.9);
+}
+
+/* Dot patterns in dark mode */
+.dark [style*="radial-gradient(#e5e7eb"] {
+  background-image: radial-gradient(#2a2a2e 1px, transparent 2px) !important;
+}
+.dark .bg-\[radial-gradient\(\#e5e7eb_1px\2c transparent_2px\)\] {
+  background-image: radial-gradient(#2a2a2e 1px, transparent 2px);
+}
 
 .wrapper {
   display: grid;

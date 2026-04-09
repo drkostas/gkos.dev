@@ -1,4 +1,3 @@
-import colors from "tailwindcss/colors";
 import typography from "@tailwindcss/typography";
 
 /** @type {import('tailwindcss').Config} */
@@ -16,14 +15,14 @@ export default {
         mono: ["var(--font-geist-mono)"],
       },
       colors: {
-        "bg-primary": "#F7F7F8",
-        "border-primary": "#D6DADE",
-        "dark-primary": "#3C3C3F",
+        "bg-primary": "rgb(var(--color-bg-primary) / <alpha-value>)",
+        "border-primary": "rgb(var(--color-border-primary) / <alpha-value>)",
+        "dark-primary": "rgb(var(--color-dark-primary) / <alpha-value>)",
         "purple-primary": "#6C47FF",
-        "purple-secondary": "#E6E2F9",
-        "text-primary": colors.slate[900],
-        "text-secondary": "#5E5F6E",
-        "text-tertiary": "#A5AEB8",
+        "purple-secondary": "rgb(var(--color-purple-secondary) / <alpha-value>)",
+        "text-primary": "rgb(var(--color-text-primary) / <alpha-value>)",
+        "text-secondary": "rgb(var(--color-text-secondary) / <alpha-value>)",
+        "text-tertiary": "rgb(var(--color-text-tertiary) / <alpha-value>)",
       },
       typography: {
         quoteless: {
