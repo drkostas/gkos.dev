@@ -12,7 +12,7 @@ import { AboutTrackPattern } from "@/components/AboutTrackPattern";
 import { TimelineReact } from "@/components/TimelineReact";
 import { Photo } from "@/components/Photo";
 
-// Time-of-day greeting (matches Braydon's getTimeOfDayGreeting util)
+// Time-of-day greeting (matches Kostas's getTimeOfDayGreeting util)
 const hour = new Date().getHours();
 let timeOfDayGreeting = "Good morning";
 if (hour >= 12 && hour < 18) timeOfDayGreeting = "Good afternoon";
@@ -23,7 +23,7 @@ const shadowBoxWidth = 188;
 const shadowBoxHeight = 278;
 ---
 
-<Layout title="About | Braydon Coyer">
+<Layout title="About | Kostas Georgiou">
   <div class="relative mt-14">
     <div class="relative space-y-10 md:space-y-16">
       <!-- Title -->
@@ -41,13 +41,13 @@ const shadowBoxHeight = 278;
             <div class="relative mx-auto w-full max-w-[400px]">
               <div class="relative grid grid-cols-3">
                 <div class="relative z-20 -translate-y-2">
-                  <Photo width={140} height={140} src="/braydon_speaking_photo.jpeg" alt="Braydon Coyer" direction="left" client:visible />
+                  <Photo width={140} height={140} src="/kostas_neurips_square.jpg" alt="Kostas Georgiou" direction="left" client:visible />
                 </div>
                 <div class="relative z-30">
-                  <Photo width={140} height={140} src="/braydon_headshot_1.jpeg" alt="Braydon Coyer" direction="right" client:visible />
+                  <Photo width={140} height={140} src="/kostas_neurips_square.jpg" alt="Kostas Georgiou" direction="right" client:visible />
                 </div>
                 <div class="relative z-20 translate-y-4">
-                  <Photo width={140} height={140} src="/braydon_headshot_3.jpg" alt="Braydon Coyer" direction="left" client:visible />
+                  <Photo width={140} height={140} src="/kostas_poster.jpg" alt="Kostas Georgiou" direction="left" client:visible />
                 </div>
               </div>
             </div>
@@ -86,7 +86,7 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/knights_kwest.jpeg" alt="A headshot" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_speaking.jpg" alt="A headshot" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
@@ -101,7 +101,7 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/knights_kwest.jpeg" alt="A headshot" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_speaking.jpg" alt="A headshot" />
               </div>
             </div>
           </div>
@@ -114,7 +114,7 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/c3_speaker_head.png" alt="Speaking at C3 Conf!" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_speaking.jpg" alt="Speaking at C3 Conf!" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
@@ -129,7 +129,7 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/braydon_headshot_3.jpg" alt="Speaking at C3 Conf!" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_poster.jpg" alt="Speaking at C3 Conf!" />
               </div>
             </div>
           </div>
@@ -142,7 +142,7 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/braydon_and_pj.jpeg" alt="A headshot" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="A headshot" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
@@ -160,7 +160,7 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/braydon_and_pj.jpeg" alt="A headshot" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="A headshot" />
               </div>
             </div>
           </div>
@@ -173,7 +173,7 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/braydon_speaking_photo.jpeg" alt="A headshot" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_neurips_square.jpg" alt="A headshot" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
@@ -191,7 +191,7 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/braydon_speaking_photo.jpeg" alt="A headshot" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_neurips_square.jpg" alt="A headshot" />
               </div>
             </div>
           </div>
@@ -216,7 +216,7 @@ const shadowBoxHeight = 278;
       <div class="space-y-16">
         <GridWrapper>
           <Resume>
-            <TimelineReact slot="timeline" avatarUrl="/braydon_headshot_1.jpeg" client:visible />
+            <TimelineReact slot="timeline" avatarUrl="/kostas_neurips_square.jpg" client:visible />
           </Resume>
         </GridWrapper>
       </div>

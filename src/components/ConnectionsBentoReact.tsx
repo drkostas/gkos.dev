@@ -111,7 +111,7 @@ export function ConnectionsBentoReact({ linkTo }: { linkTo?: string }) {
                   </filter>
                 </defs>
               </svg>
-              <img className="absolute left-1/2 top-1/2 h-[100px] w-[100px] -translate-x-1/2 -translate-y-1/2 transform rounded-full" src="/braydon_headshot_3.jpg" alt="" />
+              <img className="absolute left-1/2 top-1/2 h-[100px] w-[100px] -translate-x-1/2 -translate-y-1/2 transform rounded-full" src="/kostas_poster.jpg" alt="" />
             </div>
           </span>
 
