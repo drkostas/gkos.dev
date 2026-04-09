@@ -5,6 +5,7 @@ import { DialogSystem } from "@/game/systems/DialogSystem";
 import { NPCSystem } from "@/game/systems/NPCSystem";
 import { SignSystem } from "@/game/systems/SignSystem";
 import { MAUVILLE_NPCS, MAUVILLE_SIGNS } from "@/game/data/npcs";
+import { GameEvents, emitGameEvent, onGameEvent } from "@/game/EventBridge";
 
 /**
  * OverworldScene — the main playable scene.
@@ -24,6 +25,10 @@ export class OverworldScene extends Phaser.Scene {
   private signSystem!: SignSystem;
   /** Guards against multiple simultaneous interactions. */
   private isInteracting = false;
+  /** True while the start menu overlay is open — blocks player movement. */
+  private menuActive = false;
+  /** Cleanup function for MENU_CLOSE event listener. */
+  private unsubMenuClose: (() => void) | null = null;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -122,11 +127,27 @@ export class OverworldScene extends Phaser.Scene {
     // Bind interaction to both Enter and Z (JustDown checked in update)
     this.interactKey.on("down", () => this.handleInteraction());
     zKey.on("down", () => this.handleInteraction());
+
+    // ── Start Menu (Escape key) ─────────────────────────────────
+    const escKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ESC,
+    );
+    escKey.on("down", () => {
+      // Don't open menu if dialog is active or menu is already open
+      if (this.dialogSystem.active || this.menuActive) return;
+      this.menuActive = true;
+      emitGameEvent(GameEvents.SHOW_MENU);
+    });
+
+    // Listen for menu close from the React overlay
+    this.unsubMenuClose = onGameEvent(GameEvents.MENU_CLOSE, () => {
+      this.menuActive = false;
+    });
   }
 
   update(): void {
-    // Block all player movement while dialog is active
-    if (this.dialogSystem.active) return;
+    // Block all player movement while dialog or menu is active
+    if (this.dialogSystem.active || this.menuActive) return;
 
     const { cursors } = this;
 
@@ -168,5 +189,9 @@ export class OverworldScene extends Phaser.Scene {
   shutdown(): void {
     this.npcSystem?.destroy();
     this.dialogSystem?.destroy();
+    if (this.unsubMenuClose) {
+      this.unsubMenuClose();
+      this.unsubMenuClose = null;
+    }
   }
 }

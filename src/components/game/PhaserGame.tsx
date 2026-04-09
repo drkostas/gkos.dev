@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import { createGameConfig } from "@/game/config";
 import DialogBox from "./DialogBox";
+import StartMenu from "./StartMenu";
 
 /**
  * React wrapper that creates and destroys a Phaser.Game instance.
@@ -30,6 +31,7 @@ export default function PhaserGame() {
         style={{ width: "100%", height: "100%", background: "#000" }}
       />
       <DialogBox />
+      <StartMenu />
     </div>
   );
 }
