@@ -2,16 +2,16 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 function ProfilePictureInner() {
-  const [imageSrc, setImageSrc] = useState("/braydon_headshot_1.jpeg");
+  const [imageSrc, setImageSrc] = useState("/kostas_profile.jpg");
   const [isChanging, setIsChanging] = useState(false);
 
   const changeImage = () => {
     setIsChanging(true);
     const images = [
-      "/braydon_headshot_1.jpeg",
-      "/braydon_headshot_3.jpg",
-      "/braydon_speaking_photo.jpeg",
-      "/braydon_headshot_4.jpg",
+      "/kostas_profile.jpg",
+      "/kostas_headshot.jpg",
+      "/kostas_photo_1.jpg",
+      "/kostas_photo_2.jpg",
     ];
     const availableImages = images.filter((img) => img !== imageSrc);
     const randomIndex = Math.floor(Math.random() * availableImages.length);
