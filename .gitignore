@@ -6,6 +6,7 @@ dist/
 .references/
 .playwright-mcp/
 .DS_Store
+.worktrees/
 test-results/
 tests/audit/
 tests/baselines/
