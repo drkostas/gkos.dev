@@ -264,8 +264,11 @@ export class OverworldScene extends Phaser.Scene {
 
   private createObstructiveOverlays(): void {
     const TILE = 16;
-    const composedTex = this.textures.get("mauville_bottom");
-    if (!composedTex) return;
+    // Use the TOP-layer-only tileset so overlay sprites draw just the
+    // object pixels (sign, fence post) without the grass background
+    // that would otherwise cover the underlying ground/foreground.
+    const overlayTex = this.textures.get("mauville_top");
+    if (!overlayTex) return;
 
     const map = this.make.tilemap({ key: "mauville" });
     if (!map.getLayer("Ground")) return;
@@ -310,12 +313,12 @@ export class OverworldScene extends Phaser.Scene {
         const srcX = (localId % columns) * TILE;
         const srcY = Math.floor(localId / columns) * TILE;
         const frameKey = `obstructive_${t.x}_${t.y}`;
-        composedTex.add(frameKey, 0, srcX, srcY, TILE, TILE);
+        overlayTex.add(frameKey, 0, srcX, srcY, TILE, TILE);
 
         const sprite = this.add.sprite(
           t.x * TILE + TILE / 2,
           t.y * TILE + TILE / 2,
-          "mauville_bottom",
+          "mauville_top",
           frameKey,
         );
         // High depth so the sign covers any character at the obstructive tile

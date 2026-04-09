@@ -18,6 +18,10 @@ export class BootScene extends Phaser.Scene {
     // Layer-type-0 top layers (trees, signs, fences) are in the foreground.
     this.load.image("mauville_bottom", "/game/tilesets/mauville_ground.png");
 
+    // Top-layer-only tileset used by obstructive overlay sprites
+    // (signs etc.) so they only draw the object pixels, not grass bg.
+    this.load.image("mauville_top", "/game/tilesets/mauville_top.png");
+
     // Foreground: single pre-rendered PNG of the top layer (renders above player)
     this.load.image("mauville_foreground", "/game/maps/mauville_foreground.png");
 
