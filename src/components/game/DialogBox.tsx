@@ -7,7 +7,12 @@ import {
 } from "@/game/EventBridge";
 
 /** Milliseconds per character for the typewriter effect. */
-const TYPE_SPEED_MS = 30;
+/**
+ * Text typing speed — OG Pokemon Emerald "fast" setting.
+ * sTextSpeedFrameDelays[OPTIONS_TEXT_SPEED_FAST] = 1 frame @ 60fps ≈ 17ms.
+ * (src/menu.c in pret/pokeemerald)
+ */
+const TYPE_SPEED_MS = 17;
 
 /**
  * Pokemon-style dialog box rendered as a React overlay.
