@@ -364,20 +364,23 @@ export class OverworldScene extends Phaser.Scene {
         const frameKey = `fg_${tx}_${ty}`;
         fgTexture.add(frameKey, 0, tx * TILE, ty * TILE, TILE, TILE);
 
-        // Create sprite at the tile's world position
-        const sprite = this.add.sprite(tx * TILE + TILE / 2, ty * TILE + TILE / 2, "mauville_foreground", frameKey);
+        // Create sprite with top-left origin so its y matches tile top.
+        const sprite = this.add.sprite(tx * TILE, ty * TILE, "mauville_foreground", frameKey);
+        sprite.setOrigin(0, 0);
 
-        // Y-sorted depth: foreground tile covers characters ABOVE it (rows < ty)
-        // but characters at the SAME row or BELOW render in front.
+        // Player sprite depth formula: depth = 10 + sprite.y
+        // where sprite.y = tileY*16 - 24 (top of 32-tall sprite with offsetY=-8).
+        // So player at row Y has depth = 10 + Y*16 - 24 = Y*16 - 14.
         //
-        // Character at row Y has sprite.y ≈ (Y+1)*TILE - 8, depth = 10 + sprite.y.
-        //   - Char at Y = ty-1:  depth = 10 + ty*16 - 8  =  ty*16 + 2
-        //   - Char at Y = ty:    depth = 10 + ty*16 + 8  =  ty*16 + 18
-        //   - Char at Y = ty+1:  depth = 10 + ty*16 + 24 =  ty*16 + 34
+        // We want fg at row ty to render:
+        //   - ABOVE characters at row ty-1 or above (cover them)
+        //   - BELOW characters at row ty or below (let them render in front)
         //
-        // We want fg depth > (ty-1 char) and fg depth < (ty char).
-        // ty*16 + 2 < fg < ty*16 + 18. Use ty*16 + 9 as a safe middle value.
-        sprite.setDepth(ty * TILE + 9);
+        // Char at row ty depth = ty*16 - 14
+        // Char at row ty-1 depth = (ty-1)*16 - 14 = ty*16 - 30
+        //
+        // Use fg depth = ty*16 - 22 (between ty-1 and ty).
+        sprite.setDepth(ty * TILE - 22);
         count++;
       }
     }
