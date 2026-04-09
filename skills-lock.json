@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "dark-mode-check": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "5bf769c3f376ec5958786ce9c40f0214920ae5fff6d328e9717e6dc301f4f697"
+    }
+  }
+}

@@ -201,6 +201,32 @@ body.modal-open {
   --tw-prose-pre-bg: rgb(var(--color-surface));
 }
 
+/* Newsletter subscribe button — keep light bg + dark text as CTA */
+.dark .bg-slate-100 { background-color: rgb(220 220 225); }
+.dark .text-slate-900.bg-slate-100,
+.dark .bg-slate-100 { color: rgb(15 15 16); }
+
+/* Scrapbook caption tooltip */
+.dark .bg-white\/95 { background-color: rgb(26 26 30 / 0.95); }
+.dark .text-black { color: rgb(var(--color-text-primary)); }
+
+/* Changelog timeline spine */
+.dark .bg-\[\#D6DADE\]\/35 { background-color: rgb(var(--color-border-primary) / 0.35); }
+.dark .border-\[\#A5AEB8\]\/10 { border-color: rgb(92 92 104 / 0.1); }
+
+/* Gradient overrides — from-white used in bento overlays */
+.dark .bg-gradient-to-t.from-white { --tw-gradient-from: rgb(var(--color-surface)); }
+.dark .bg-gradient-to-t.from-bg-primary { --tw-gradient-from: rgb(var(--color-bg-primary)); }
+
+/* Calendar highlighted days */
+.dark .bg-white\/75 { background-color: rgb(var(--color-surface) / 0.75); }
+
+/* Connection circle bg */
+.dark .bg-\[\#EDEEF0\] { background-color: rgb(var(--color-surface-secondary)); }
+
+/* Stats bar chart gridlines */
+.dark .border-gray-300\/60 { border-color: rgb(var(--color-border-primary) / 0.6); }
+
 /* Reduce image brightness slightly in dark mode */
 .dark img:not([src*=".svg"]) {
   filter: brightness(0.9);
