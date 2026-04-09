@@ -282,15 +282,22 @@ export class OverworldScene extends Phaser.Scene {
 
   /** Show/hide obstructive overlay sprites based on whether a character is on them. */
   private updateObstructiveOverlays(): void {
-    // Build set of occupied obstructive tiles
+    // Build set of occupied obstructive tiles.
+    // Include BOTH the current tile AND the destination tile (when moving),
+    // because positionChangeStarted fires before getPosition updates. This
+    // ensures the overlay appears as soon as the character starts stepping
+    // onto the tile, not a frame after they arrive.
     const occupied = new Set<string>();
-    const playerPos = this.gridEngine.getPosition("player");
-    occupied.add(`${playerPos.x},${playerPos.y}`);
-    // (NPCs don't typically stand on sign tiles in Mauville, but check anyway)
-    for (const charId of this.gridEngine.getAllCharacters()) {
-      if (charId === "player") continue;
+    const charIds = this.gridEngine.getAllCharacters();
+    for (const charId of charIds) {
       const pos = this.gridEngine.getPosition(charId);
       occupied.add(`${pos.x},${pos.y}`);
+      // Also consider the tile being moved INTO
+      if (this.gridEngine.isMoving(charId)) {
+        const dir = this.gridEngine.getFacingDirection(charId);
+        const target = this.getTileInDirection(pos, dir);
+        occupied.add(`${target.x},${target.y}`);
+      }
     }
 
     for (const [key, sprite] of this.obstructiveOverlays) {
