@@ -1,18 +1,29 @@
 import Phaser from "phaser";
 import { Direction } from "grid-engine";
 import type GridEngine from "grid-engine";
+import { DialogSystem } from "@/game/systems/DialogSystem";
+import { NPCSystem } from "@/game/systems/NPCSystem";
+import { SignSystem } from "@/game/systems/SignSystem";
+import { MAUVILLE_NPCS, MAUVILLE_SIGNS } from "@/game/data/npcs";
 
 /**
  * OverworldScene — the main playable scene.
  *
  * Creates the tilemap, spawns the player sprite, initialises Grid Engine
  * for grid-based movement, and wires up arrow-key controls.
+ * Also initialises NPC and sign systems for interaction.
  */
 export class OverworldScene extends Phaser.Scene {
   /** Injected by Grid Engine plugin (see config.ts mapping) */
   declare gridEngine: GridEngine;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private interactKey!: Phaser.Input.Keyboard.Key;
+  private dialogSystem!: DialogSystem;
+  private npcSystem!: NPCSystem;
+  private signSystem!: SignSystem;
+  /** Guards against multiple simultaneous interactions. */
+  private isInteracting = false;
 
   constructor() {
     super({ key: "OverworldScene" });
@@ -76,6 +87,17 @@ export class OverworldScene extends Phaser.Scene {
       playerSprite.flipX = direction === Direction.RIGHT;
     });
 
+    // ── Systems ──────────────────────────────────────────────
+    this.dialogSystem = new DialogSystem();
+    this.npcSystem = new NPCSystem(
+      this,
+      this.gridEngine,
+      this.dialogSystem,
+      MAUVILLE_NPCS,
+    );
+    this.npcSystem.init();
+    this.signSystem = new SignSystem(this.dialogSystem, MAUVILLE_SIGNS);
+
     // ── Camera ───────────────────────────────────────────────
     this.cameras.main.startFollow(playerSprite, true);
     this.cameras.main.setBounds(
@@ -88,9 +110,24 @@ export class OverworldScene extends Phaser.Scene {
 
     // ── Input ────────────────────────────────────────────────
     this.cursors = this.input.keyboard!.createCursorKeys();
+
+    // Enter / Z key for interaction (talk to NPCs, read signs)
+    this.interactKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ENTER,
+    );
+    const zKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.Z,
+    );
+
+    // Bind interaction to both Enter and Z (JustDown checked in update)
+    this.interactKey.on("down", () => this.handleInteraction());
+    zKey.on("down", () => this.handleInteraction());
   }
 
   update(): void {
+    // Block all player movement while dialog is active
+    if (this.dialogSystem.active) return;
+
     const { cursors } = this;
 
     if (cursors.left.isDown) {
@@ -102,5 +139,34 @@ export class OverworldScene extends Phaser.Scene {
     } else if (cursors.down.isDown) {
       this.gridEngine.move("player", Direction.DOWN);
     }
+  }
+
+  /** Handle Enter/Z press: try NPC interaction, then sign interaction. */
+  private async handleInteraction(): Promise<void> {
+    // Don't stack interactions
+    if (this.isInteracting || this.dialogSystem.active) return;
+
+    this.isInteracting = true;
+    try {
+      const playerPos = this.gridEngine.getPosition("player");
+      const playerFacing = this.gridEngine.getFacingDirection("player");
+
+      // Try NPC first, then sign
+      const npcHit = await this.npcSystem.tryInteract(
+        playerPos,
+        playerFacing,
+      );
+      if (!npcHit) {
+        await this.signSystem.tryInteract(playerPos, playerFacing);
+      }
+    } finally {
+      this.isInteracting = false;
+    }
+  }
+
+  /** Clean up systems on scene shutdown. */
+  shutdown(): void {
+    this.npcSystem?.destroy();
+    this.dialogSystem?.destroy();
   }
 }

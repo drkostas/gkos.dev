@@ -30,6 +30,28 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 32,
     });
+
+    // NPC spritesheets — same 9-frame 16x32 layout as Brendan
+    const npcSprites = [
+      "boy_3",
+      "rich_boy",
+      "maniac",
+      "woman_4",
+      "school_kid_m",
+      "fat_man",
+    ];
+    for (const name of npcSprites) {
+      this.load.spritesheet(name, `/game/sprites/emerald/${name}.png`, {
+        frameWidth: 16,
+        frameHeight: 32,
+      });
+    }
+
+    // Item ball — single 16x16 image (loaded as spritesheet for Grid Engine compat)
+    this.load.spritesheet("item_ball", "/game/sprites/emerald/item_ball.png", {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
   }
 
   create(): void {
