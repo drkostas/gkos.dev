@@ -49,7 +49,7 @@ export function StatsBentoReact() {
       ref={containerRef}
     >
       <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100"></div>
-      <h2 className="mb-2 text-base font-medium">Site Analytics</h2>
+      <h2 className="mb-2 text-base font-medium text-text-primary">Site Analytics</h2>
       <div className="relative flex-1">
         {/* Grid lines */}
         <div className="pointer-events-none absolute bottom-0 left-0 -right-6 top-8">

@@ -241,6 +241,29 @@ body.modal-open {
 /* Stats bar chart gridlines */
 .dark .border-gray-300\/60 { border-color: rgb(var(--color-border-primary) / 0.6); }
 
+/* Missing default color overrides */
+.dark .text-gray-200 { color: rgb(var(--color-text-primary)); }
+.dark .bg-gray-200 { background-color: rgb(var(--color-surface-secondary)); }
+.dark .bg-emerald-100 { background-color: rgb(20 40 30); }
+.dark .bg-amber-100 { background-color: rgb(40 30 15); }
+.dark .border-slate-900 { border-color: rgb(var(--color-text-primary)); }
+.dark .ring-slate-100 { --tw-ring-color: rgb(var(--color-border-primary)); }
+.dark .shadow-slate-900\/30 { --tw-shadow-color: rgba(0, 0, 0, 0.5); }
+.dark .to-zinc-300 { --tw-gradient-to: rgb(var(--color-surface-secondary)); }
+
+/* Resume dividers */
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--color-border-primary)); }
+
+/* Footer section borders */
+.dark .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--color-border-primary)); }
+.dark .divide-x > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--color-border-primary)); }
+.dark .lg\:divide-x > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--color-border-primary)); }
+
+/* Reduce BgGradient purple glow in dark mode */
+.dark .blur-3xl {
+  opacity: 0.03 !important;
+}
+
 /* Reduce image brightness slightly in dark mode */
 .dark img:not([src*=".svg"]) {
   filter: brightness(0.9);

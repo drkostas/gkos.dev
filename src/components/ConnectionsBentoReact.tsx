@@ -141,7 +141,7 @@ export function ConnectionsBentoReact({ linkTo }: { linkTo?: string }) {
           </span>
         </div>
         <div className="z-20 mt-auto w-full text-balance text-center">
-          <h2 className="text-base font-medium">Connections</h2>
+          <h2 className="text-base font-medium text-text-primary">Connections</h2>
           <p className="mt-1 text-text-secondary">An evolving list of people I've met and those I wish to meet.</p>
         </div>
       </div>
