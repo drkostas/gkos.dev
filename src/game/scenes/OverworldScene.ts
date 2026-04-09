@@ -50,17 +50,30 @@ export class OverworldScene extends Phaser.Scene {
     playerSprite.setDepth(10);
 
     // ── Grid Engine ──────────────────────────────────────────
-    // Start near center of Mauville City (40x20 map)
+    // Brendan has 9 frames in a single row (16x32 each):
+    //   0-2: down, 3-5: up, 6-8: left
+    // Right-facing reuses left frames with flipX.
     this.gridEngine.create(map, {
       characters: [
         {
           id: "player",
           sprite: playerSprite,
-          walkingAnimationMapping: 0,
+          walkingAnimationMapping: {
+            down: { leftFoot: 0, standing: 1, rightFoot: 2 },
+            up: { leftFoot: 3, standing: 4, rightFoot: 5 },
+            left: { leftFoot: 6, standing: 7, rightFoot: 8 },
+            right: { leftFoot: 6, standing: 7, rightFoot: 8 },
+          },
           startPosition: { x: 17, y: 14 },
           speed: 4,
+          offsetY: -8,
         },
       ],
+    });
+
+    // Flip sprite horizontally when facing right (reuses left-facing frames)
+    this.gridEngine.directionChanged().subscribe(({ direction }) => {
+      playerSprite.flipX = direction === Direction.RIGHT;
     });
 
     // ── Camera ───────────────────────────────────────────────

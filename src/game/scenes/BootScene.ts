@@ -24,10 +24,11 @@ export class BootScene extends Phaser.Scene {
       "/game/maps/mauville.json",
     );
 
-    // Player spritesheet — 16x16 frames, 4 directions x 3 walk frames
-    this.load.spritesheet("player", "/game/sprites/player.png", {
+    // Brendan spritesheet — 9 frames of 16x32 in a single row (144x32 sheet)
+    // Layout: [down-walk1, down-stand, down-walk2, up-walk1, up-stand, up-walk2, left-walk1, left-stand, left-walk2]
+    this.load.spritesheet("player", "/game/sprites/emerald/brendan.png", {
       frameWidth: 16,
-      frameHeight: 16,
+      frameHeight: 32,
     });
   }
 
