@@ -7,6 +7,7 @@ import { SignSystem } from "@/game/systems/SignSystem";
 import { MAUVILLE_NPCS, MAUVILLE_SIGNS } from "@/game/data/npcs";
 import { MAUVILLE_OBSTRUCTIVE, isObstructiveBlocked } from "@/game/data/obstructive-tiles";
 import { GameEvents, emitGameEvent, onGameEvent } from "@/game/EventBridge";
+import { PIXEL_SCALE } from "@/game/config";
 
 /**
  * 9-frame spritesheet walking animation mapping.
@@ -145,6 +146,8 @@ export class OverworldScene extends Phaser.Scene {
     this.createObstructiveOverlays();
 
     // ── Camera ───────────────────────────────────────────────
+    // Pixel-perfect integer zoom. Tiles render at PIXEL_SCALE * 16 screen pixels.
+    this.cameras.main.setZoom(PIXEL_SCALE);
     this.cameras.main.startFollow(this.playerSprite, true);
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.cameras.main.setRoundPixels(true);
