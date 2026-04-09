@@ -25,15 +25,15 @@ body.modal-open {
 }
 
 .dark {
-  --color-bg-primary: 17 17 20;            /* #111114 — dark gray with blue undertone */
-  --color-border-primary: 46 46 53;        /* #2e2e35 — visible against both bg and surface */
-  --color-dark-primary: 236 236 239;       /* #ececef — slightly off-white for inverted elements */
-  --color-purple-secondary: 53 43 94;      /* #352b5e — purple tint visible in dark */
-  --color-text-primary: 236 236 239;       /* #ececef — off-white, less eye strain than pure white */
-  --color-text-secondary: 139 139 151;     /* #8b8b97 — mid gray with blue undertone */
-  --color-text-tertiary: 90 90 102;        /* #5a5a66 — dim gray */
-  --color-surface: 28 28 32;              /* #1c1c20 — level 1: cards, elevated surfaces */
-  --color-surface-secondary: 35 35 40;     /* #232328 — level 2: ShadowBox inner, inputs */
+  --color-bg-primary: 18 18 18;            /* #121212 — neutral dark gray, no blue hue */
+  --color-border-primary: 45 45 45;        /* #2d2d2d — neutral border */
+  --color-dark-primary: 235 235 235;       /* #ebebeb — slightly off-white for inverted elements */
+  --color-purple-secondary: 50 40 85;      /* #322850 — purple tint for badges */
+  --color-text-primary: 235 235 235;       /* #ebebeb — off-white, comfortable to read */
+  --color-text-secondary: 150 150 150;     /* #969696 — neutral mid gray */
+  --color-text-tertiary: 100 100 100;      /* #646464 — dim but still readable */
+  --color-surface: 30 30 30;              /* #1e1e1e — cards, clear elevation above bg */
+  --color-surface-secondary: 38 38 38;     /* #262626 — ShadowBox inner, inputs */
 }
 
 /* Override Tailwind defaults that use hardcoded colors */
@@ -47,9 +47,9 @@ body.modal-open {
 .dark .text-gray-600 { color: rgb(var(--color-text-secondary)); }
 .dark .bg-\[\#EDEEF0\] { background-color: rgb(var(--color-surface-secondary)); }
 .dark .bg-\[\#F7F7F8\] { background-color: rgb(var(--color-bg-primary)); }
-.dark .bg-\[\#E8ECEF\] { background-color: rgb(35 35 40); }
-.dark .bg-zinc-600 { background-color: rgb(50 50 58); }
-.dark .bg-zinc-300 { background-color: rgb(65 65 75); }
+.dark .bg-\[\#E8ECEF\] { background-color: rgb(38 38 38); }
+.dark .bg-zinc-600 { background-color: rgb(55 55 55); }
+.dark .bg-zinc-300 { background-color: rgb(70 70 70); }
 .dark .border-\[\#E2E3E5\] { border-color: rgb(42 42 46); }
 .dark .border-gray-400 { border-color: rgb(55 55 60); }
 .dark .bg-slate-50 { background-color: rgb(var(--color-surface-secondary)); }
@@ -88,22 +88,22 @@ body.modal-open {
    not covered by CSS custom properties
    ========================================= */
 
-/* Newsletter section — purple-tinted dark to differentiate from page bg */
+/* Newsletter section — slightly lighter than page bg for differentiation */
 .dark .bg-dark-primary {
-  background-color: rgb(22 20 30);
+  background-color: rgb(24 24 24);
 }
 
 /* SocialPill + navbar dark pills STAY dark in dark mode (don't invert) */
 .dark .z-30.bg-dark-primary {
-  background-color: rgb(35 35 40);
+  background-color: rgb(38 38 38);
   color: white;
 }
 /* Social icon SVGs inside the pill need to stay visible */
 .dark .z-30.bg-dark-primary svg {
-  color: rgb(160 160 175) !important;
+  color: rgb(170 170 170) !important;
 }
 .dark .z-30.bg-dark-primary svg:hover {
-  color: rgb(210 210 220) !important;
+  color: rgb(220 220 220) !important;
 }
 
 /* Buttons/links that should INVERT (light on dark) */
@@ -113,11 +113,25 @@ body.modal-open {
   color: rgb(var(--color-bg-primary));
 }
 
-/* SVG fills — hardcoded #F7F7F8 and white in ProfilePicture, ConnectionsBento, SpeakingBento etc */
+/* SVG fills — hardcoded light fills in ProfilePicture, ConnectionsBento, SpeakingBento etc */
 .dark svg rect[fill="#F7F7F8"],
 .dark svg circle[fill="#F7F7F8"] {
   fill: rgb(var(--color-bg-primary));
 }
+
+/* SVG dark fills — #3C3C3F is dark-primary, needs to lighten in dark mode */
+.dark svg circle[fill="#3C3C3F"] {
+  fill: rgb(var(--color-surface));
+}
+.dark svg path[fill="#3C3C3F"] {
+  fill: rgb(var(--color-text-secondary));
+}
+
+/* SVG dark strokes */
+.dark svg circle[stroke="#6C6D70"] { stroke: rgb(80 80 80); }
+.dark svg circle[stroke="#4D4E52"] { stroke: rgb(60 60 60); }
+.dark svg circle[stroke="#D6DADE"] { stroke: rgb(var(--color-border-primary)); }
+.dark svg rect[stroke="#D6DADE"] { stroke: rgb(var(--color-border-primary)); }
 
 /* ShadowBox inner backgrounds */
 .dark .bg-\[\#EDEEF0\] { background-color: rgb(var(--color-surface-secondary)); }
@@ -154,9 +168,9 @@ body.modal-open {
 
 /* Background overrides */
 .dark .bg-slate-50 { background-color: rgb(var(--color-surface-secondary)); }
-.dark .bg-\[\#E8ECEF\] { background-color: rgb(35 35 40); }
-.dark .bg-zinc-600 { background-color: rgb(50 50 58); }
-.dark .bg-zinc-300 { background-color: rgb(65 65 75); }
+.dark .bg-\[\#E8ECEF\] { background-color: rgb(38 38 38); }
+.dark .bg-zinc-600 { background-color: rgb(55 55 55); }
+.dark .bg-zinc-300 { background-color: rgb(70 70 70); }
 .dark .bg-slate-100 { background-color: rgb(var(--color-surface)); }
 
 /* Ring overrides */
