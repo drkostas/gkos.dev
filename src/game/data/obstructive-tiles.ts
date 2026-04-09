@@ -26,18 +26,64 @@ export interface ObstructiveTile {
 }
 
 /**
- * Mauville City obstructive tiles. Signs block their bottom edge.
- * All 8 sign positions come from events.json bg_events.
+ * Mauville City obstructive tiles.
+ * Signs block their bottom edge (can't walk through them vertically).
+ * Fences block both top and bottom edges (can't walk across them),
+ * but can be walked ALONG horizontally.
  */
 export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = [
-  { x: 19, y: 7, blockedEdges: ["bottom"] },   // city sign
-  { x: 23, y: 5, blockedEdges: ["bottom"] },   // pc sign
-  { x: 24, y: 5, blockedEdges: ["bottom"] },   // pc sign
-  { x: 11, y: 6, blockedEdges: ["bottom"] },   // gym sign
-  { x: 24, y: 14, blockedEdges: ["bottom"] },  // mart sign
-  { x: 25, y: 14, blockedEdges: ["bottom"] },  // mart sign
-  { x: 33, y: 6, blockedEdges: ["bottom"] },   // bike shop sign
-  { x: 11, y: 15, blockedEdges: ["bottom"] },  // game corner sign
+  // Signs (8 tiles, positions from events.json bg_events)
+  { x: 19, y: 7, blockedEdges: ["bottom"] },
+  { x: 23, y: 5, blockedEdges: ["bottom"] },
+  { x: 24, y: 5, blockedEdges: ["bottom"] },
+  { x: 11, y: 6, blockedEdges: ["bottom"] },
+  { x: 24, y: 14, blockedEdges: ["bottom"] },
+  { x: 25, y: 14, blockedEdges: ["bottom"] },
+  { x: 33, y: 6, blockedEdges: ["bottom"] },
+  { x: 11, y: 15, blockedEdges: ["bottom"] },
+
+  // Fences (metatile 657) — walkable, but block vertical passage.
+  // You can walk ALONG them left-right, and onto them from any direction,
+  // but you can't walk vertically THROUGH them.
+  { x: 26, y: 2, blockedEdges: [] },
+  { x: 27, y: 2, blockedEdges: [] },
+  { x: 28, y: 2, blockedEdges: [] },
+  { x: 29, y: 2, blockedEdges: [] },
+  { x: 30, y: 2, blockedEdges: [] },
+  { x: 31, y: 2, blockedEdges: [] },
+  { x: 32, y: 2, blockedEdges: [] },
+  { x: 1, y: 4, blockedEdges: [] },
+  { x: 2, y: 4, blockedEdges: [] },
+  { x: 3, y: 4, blockedEdges: [] },
+  { x: 4, y: 4, blockedEdges: [] },
+  { x: 11, y: 4, blockedEdges: [] },
+  { x: 15, y: 12, blockedEdges: [] },
+  { x: 16, y: 12, blockedEdges: [] },
+  { x: 17, y: 12, blockedEdges: [] },
+  { x: 1, y: 14, blockedEdges: [] },
+  { x: 2, y: 14, blockedEdges: [] },
+  { x: 3, y: 14, blockedEdges: [] },
+  { x: 4, y: 14, blockedEdges: [] },
+  { x: 5, y: 14, blockedEdges: [] },
+  { x: 7, y: 18, blockedEdges: [] },
+  { x: 8, y: 18, blockedEdges: [] },
+  { x: 9, y: 18, blockedEdges: [] },
+  { x: 10, y: 18, blockedEdges: [] },
+  { x: 11, y: 18, blockedEdges: [] },
+  { x: 12, y: 18, blockedEdges: [] },
+  { x: 13, y: 18, blockedEdges: [] },
+  { x: 19, y: 18, blockedEdges: [] },
+  { x: 20, y: 18, blockedEdges: [] },
+  { x: 21, y: 18, blockedEdges: [] },
+  { x: 22, y: 18, blockedEdges: [] },
+  { x: 23, y: 18, blockedEdges: [] },
+  { x: 24, y: 18, blockedEdges: [] },
+  { x: 27, y: 18, blockedEdges: [] },
+  { x: 28, y: 18, blockedEdges: [] },
+  { x: 29, y: 18, blockedEdges: [] },
+  { x: 30, y: 18, blockedEdges: [] },
+  { x: 31, y: 18, blockedEdges: [] },
+  { x: 32, y: 18, blockedEdges: [] },
 ];
 
 /**
