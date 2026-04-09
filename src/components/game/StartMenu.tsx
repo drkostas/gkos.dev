@@ -6,6 +6,7 @@ import {
 } from "@/game/EventBridge";
 import TrainerCard from "./TrainerCard";
 import PokedexList from "./PokedexList";
+import { getCollectedItems } from "@/game/systems/PickupStore";
 
 /**
  * Menu items matching the original Pokemon Emerald start menu order.
@@ -231,12 +232,36 @@ export default function StartMenu() {
         </div>
       )}
 
-      {/* Bag stub */}
+      {/* Bag — shows collected KEY ITEMS */}
       {subScreen === "bag" && (
         <div style={stubOverlayStyle}>
           <div style={stubBoxStyle}>
-            <p style={{ margin: 0 }}>BAG is empty.</p>
-            <p style={{ margin: "8px 0 0", fontSize: "11px", opacity: 0.7 }}>
+            <p style={{ margin: 0, fontWeight: "bold" }}>KEY ITEMS</p>
+            <div style={{ marginTop: "12px", textAlign: "left" }}>
+              {(() => {
+                const items = getCollectedItems();
+                if (items.length === 0) {
+                  return <p style={{ margin: 0, opacity: 0.7 }}>BAG is empty.</p>;
+                }
+                return items.map((item, i) => (
+                  <div key={i} style={{ padding: "4px 0" }}>
+                    {item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#fff", textDecoration: "underline" }}
+                      >
+                        {"\u25B6"} {item.name}
+                      </a>
+                    ) : (
+                      <span>{"\u25B6"} {item.name}</span>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
+            <p style={{ margin: "12px 0 0", fontSize: "11px", opacity: 0.7 }}>
               Press ESC or X to go back
             </p>
           </div>

@@ -3,6 +3,7 @@ import { Direction } from "grid-engine";
 import type GridEngine from "grid-engine";
 import { MovementBehavior, type NPCDefinition } from "@/game/types/npc";
 import { DialogSystem } from "@/game/systems/DialogSystem";
+import { isPickedUp, recordPickup } from "@/game/systems/PickupStore";
 
 /**
  * Walking animation mapping from original pokeemerald source.
@@ -63,6 +64,8 @@ export class NPCSystem {
   /** Create all NPC sprites, register with Grid Engine, start behaviors. */
   init(): void {
     for (const npc of this.npcs) {
+      // Skip pickups that have already been collected
+      if (npc.pickup && isPickedUp(npc.id)) continue;
       this.createNPC(npc);
     }
   }
@@ -78,6 +81,10 @@ export class NPCSystem {
     const target = this.getTileInFront(playerPos, playerFacing);
 
     for (const npc of this.npcs) {
+      // Skip NPCs that have been picked up (no sprite in scene)
+      if (npc.pickup && isPickedUp(npc.id)) continue;
+      if (!this.sprites.has(npc.id)) continue;
+
       const npcPos = this.gridEngine.getPosition(npc.id);
       if (npcPos.x === target.x && npcPos.y === target.y) {
         // Make NPC face the player (opposite of player's facing direction)
@@ -92,10 +99,34 @@ export class NPCSystem {
           lines: npc.dialog,
           speakerName: npc.speakerName,
         });
+
+        // If this is a pickup item, remove it from the scene and record it
+        if (npc.pickup) {
+          recordPickup(npc.id, {
+            name: npc.pickup.itemName,
+            url: npc.pickup.itemUrl,
+          });
+          this.removeNPC(npc.id);
+        }
+
         return true;
       }
     }
     return false;
+  }
+
+  /** Remove an NPC from the scene (sprite + grid engine character). */
+  private removeNPC(npcId: string): void {
+    const sprite = this.sprites.get(npcId);
+    if (sprite) {
+      sprite.destroy();
+      this.sprites.delete(npcId);
+    }
+    try {
+      this.gridEngine.removeCharacter(npcId);
+    } catch {
+      // ignore
+    }
   }
 
   /** Clean up all behavior timers (call on scene shutdown). */

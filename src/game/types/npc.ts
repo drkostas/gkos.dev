@@ -36,6 +36,17 @@ export interface NPCDefinition {
   speakerName?: string;
   /** Whether this NPC uses the standard 9-frame spritesheet (false for item_ball). */
   animated: boolean;
+  /**
+   * If set, this NPC is a pickup item. After interaction, the sprite is removed
+   * and the item is added to the player's key items. Pickup state persists
+   * via localStorage.
+   */
+  pickup?: {
+    /** Item name shown in the Bag (e.g. "RESUME.PDF"). */
+    itemName: string;
+    /** URL opened when the item is "used" from the Bag. */
+    itemUrl?: string;
+  };
 }
 
 /**

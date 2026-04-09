@@ -129,6 +129,10 @@ export const MAUVILLE_NPCS: NPCDefinition[] = [
       "your KEY ITEMS!",
     ],
     animated: false,
+    pickup: {
+      itemName: "RESUME.PDF",
+      itemUrl: "/resume.pdf",
+    },
   },
 ];
 
