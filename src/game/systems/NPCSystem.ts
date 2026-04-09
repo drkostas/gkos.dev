@@ -104,9 +104,15 @@ export class NPCSystem {
 
   // ── Private helpers ──────────────────────────────────────────
 
+  /** Update y-sorted depth for all NPC sprites. Call from scene update(). */
+  updateDepth(): void {
+    for (const sprite of this.sprites.values()) {
+      sprite.setDepth(sprite.y);
+    }
+  }
+
   private createNPC(npc: NPCDefinition): void {
     const sprite = this.scene.add.sprite(0, 0, npc.spriteKey);
-    sprite.setDepth(10);
     this.sprites.set(npc.id, sprite);
     this.homePositions.set(npc.id, { ...npc.position });
 

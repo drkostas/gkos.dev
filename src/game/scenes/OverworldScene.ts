@@ -64,7 +64,6 @@ export class OverworldScene extends Phaser.Scene {
 
     // ── Player sprite ────────────────────────────────────────
     this.playerSprite = this.add.sprite(0, 0, "player");
-    this.playerSprite.setDepth(10);
 
     // ── Grid Engine ──────────────────────────────────────────
     // Brendan has 9 frames in a single row (16x32 each):
@@ -81,7 +80,7 @@ export class OverworldScene extends Phaser.Scene {
             left: { leftFoot: 6, standing: 7, rightFoot: 8 },
             right: { leftFoot: 6, standing: 7, rightFoot: 8 },
           },
-          startPosition: { x: 17, y: 15 },
+          startPosition: { x: 20, y: 9 },
           speed: 4,
           offsetY: -8,
         },
@@ -158,10 +157,13 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // Flip sprite when facing right (left-facing frames reused).
-    // Done every frame in update() rather than via directionChanged()
-    // because the observable does not reliably fire for every character.
     const facing = this.gridEngine.getFacingDirection("player");
     this.playerSprite.flipX = facing === Direction.RIGHT;
+
+    // Y-sorted depth: characters lower on screen render on top.
+    // This mimics the original Pokemon GBA rendering order.
+    this.playerSprite.setDepth(this.playerSprite.y);
+    this.npcSystem.updateDepth();
   }
 
   /** Handle Enter/Z press: try NPC interaction, then sign interaction. */
