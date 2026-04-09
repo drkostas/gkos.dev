@@ -368,19 +368,18 @@ export class OverworldScene extends Phaser.Scene {
         const sprite = this.add.sprite(tx * TILE, ty * TILE, "mauville_foreground", frameKey);
         sprite.setOrigin(0, 0);
 
-        // Player sprite depth formula: depth = 10 + sprite.y
-        // where sprite.y = tileY*16 - 24 (top of 32-tall sprite with offsetY=-8).
-        // So player at row Y has depth = 10 + Y*16 - 24 = Y*16 - 14.
+        // Player sprite with offsetY=0 has sprite.y = tileY*16 - 16
+        // (Grid Engine positions the 32px sprite centered on the tile row,
+        // making sprite.y one tile above the player's tile row).
+        // Player depth = 10 + sprite.y = Y*16 - 6.
         //
-        // We want fg at row ty to render:
-        //   - ABOVE characters at row ty-1 or above (cover them)
-        //   - BELOW characters at row ty or below (let them render in front)
+        // Char at row ty depth   = ty*16 - 6
+        // Char at row ty-1 depth = ty*16 - 22
         //
-        // Char at row ty depth = ty*16 - 14
-        // Char at row ty-1 depth = (ty-1)*16 - 14 = ty*16 - 30
-        //
-        // Use fg depth = ty*16 - 22 (between ty-1 and ty).
-        sprite.setDepth(ty * TILE - 22);
+        // We want fg depth between these two:
+        //   ty*16 - 22 < fg < ty*16 - 6
+        // Use fg depth = ty*16 - 14 (midpoint).
+        sprite.setDepth(ty * TILE - 14);
         count++;
       }
     }
