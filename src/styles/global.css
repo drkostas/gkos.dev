@@ -6,6 +6,13 @@ body.modal-open {
   overflow: hidden;
 }
 
+/* =========================================
+   Dark Mode — Infrastructure ready, CSS pending.
+   Toggle button + FOUC script + darkMode:"class" in tailwind.config
+   are in place. Comprehensive component-by-component dark: variants
+   needed before enabling. See docs/plans/2026-04-09-visual-improvements.md
+   ========================================= */
+
 .wrapper {
   display: grid;
   grid-template-columns:

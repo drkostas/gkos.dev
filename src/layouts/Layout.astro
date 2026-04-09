@@ -26,6 +26,15 @@ const { title = siteMetadata.title, description = siteMetadata.description } = A
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
+    <!-- Prevent FOUC: apply dark mode before paint -->
+    <script is:inline>
+      (function() {
+        const stored = localStorage.getItem('theme');
+        if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
     <style is:global>
       :root {
         --font-geist-sans: 'Geist Sans', system-ui, sans-serif;
