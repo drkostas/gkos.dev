@@ -2,6 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
 import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { ReadingProgress } from "@/components/ReadingProgress";
 import { getCollection, getEntry, render } from "astro:content";
 
 const { slug } = Astro.params;
@@ -19,6 +20,7 @@ function formatDate(date: Date) {
 ---
 
 <Layout title={`${post.data.title} | Braydon Coyer`}>
+  <ReadingProgress client:load />
   <article class="relative">
     <div class="mx-auto max-w-3xl px-4 py-16">
       <!-- Hero image -->
