@@ -89,9 +89,9 @@ body.modal-open {
    not covered by CSS custom properties
    ========================================= */
 
-/* Newsletter section — keep original dark gray, not slate-tinted */
+/* Newsletter section — dark purple-gray, contrasts with cool slate page via warmth */
 .dark .bg-dark-primary {
-  background-color: rgb(45 45 48);
+  background-color: rgb(26 21 40);
 }
 
 /* SocialPill + navbar dark pills STAY dark in dark mode (don't invert) */
