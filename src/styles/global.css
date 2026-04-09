@@ -25,15 +25,15 @@ body.modal-open {
 }
 
 .dark {
-  --color-bg-primary: 15 15 16;
-  --color-border-primary: 42 42 46;
-  --color-dark-primary: 240 240 242;
-  --color-purple-secondary: 45 36 85;
-  --color-text-primary: 241 241 243;
-  --color-text-secondary: 154 154 166;
-  --color-text-tertiary: 92 92 104;
-  --color-surface: 26 26 30;
-  --color-surface-secondary: 30 30 34;
+  --color-bg-primary: 17 17 20;            /* #111114 — dark gray with blue undertone */
+  --color-border-primary: 46 46 53;        /* #2e2e35 — visible against both bg and surface */
+  --color-dark-primary: 236 236 239;       /* #ececef — slightly off-white for inverted elements */
+  --color-purple-secondary: 53 43 94;      /* #352b5e — purple tint visible in dark */
+  --color-text-primary: 236 236 239;       /* #ececef — off-white, less eye strain than pure white */
+  --color-text-secondary: 139 139 151;     /* #8b8b97 — mid gray with blue undertone */
+  --color-text-tertiary: 90 90 102;        /* #5a5a66 — dim gray */
+  --color-surface: 28 28 32;              /* #1c1c20 — level 1: cards, elevated surfaces */
+  --color-surface-secondary: 35 35 40;     /* #232328 — level 2: ShadowBox inner, inputs */
 }
 
 /* Override Tailwind defaults that use hardcoded colors */
@@ -47,9 +47,9 @@ body.modal-open {
 .dark .text-gray-600 { color: rgb(var(--color-text-secondary)); }
 .dark .bg-\[\#EDEEF0\] { background-color: rgb(var(--color-surface-secondary)); }
 .dark .bg-\[\#F7F7F8\] { background-color: rgb(var(--color-bg-primary)); }
-.dark .bg-\[\#E8ECEF\] { background-color: rgb(30 30 34); }
-.dark .bg-zinc-600 { background-color: rgb(55 55 60); }
-.dark .bg-zinc-300 { background-color: rgb(70 70 78); }
+.dark .bg-\[\#E8ECEF\] { background-color: rgb(35 35 40); }
+.dark .bg-zinc-600 { background-color: rgb(50 50 58); }
+.dark .bg-zinc-300 { background-color: rgb(65 65 75); }
 .dark .border-\[\#E2E3E5\] { border-color: rgb(42 42 46); }
 .dark .border-gray-400 { border-color: rgb(55 55 60); }
 .dark .bg-slate-50 { background-color: rgb(var(--color-surface-secondary)); }
@@ -88,22 +88,22 @@ body.modal-open {
    not covered by CSS custom properties
    ========================================= */
 
-/* Newsletter section — slight differentiation from page bg */
+/* Newsletter section — purple-tinted dark to differentiate from page bg */
 .dark .bg-dark-primary {
-  background-color: rgb(22 22 26);
+  background-color: rgb(22 20 30);
 }
 
 /* SocialPill + navbar dark pills STAY dark in dark mode (don't invert) */
 .dark .z-30.bg-dark-primary {
-  background-color: rgb(60 60 63);
+  background-color: rgb(35 35 40);
   color: white;
 }
 /* Social icon SVGs inside the pill need to stay visible */
 .dark .z-30.bg-dark-primary svg {
-  color: rgb(180 180 190) !important;
+  color: rgb(160 160 175) !important;
 }
 .dark .z-30.bg-dark-primary svg:hover {
-  color: rgb(220 220 230) !important;
+  color: rgb(210 210 220) !important;
 }
 
 /* Buttons/links that should INVERT (light on dark) */
@@ -154,9 +154,9 @@ body.modal-open {
 
 /* Background overrides */
 .dark .bg-slate-50 { background-color: rgb(var(--color-surface-secondary)); }
-.dark .bg-\[\#E8ECEF\] { background-color: rgb(30 30 34); }
-.dark .bg-zinc-600 { background-color: rgb(55 55 60); }
-.dark .bg-zinc-300 { background-color: rgb(70 70 78); }
+.dark .bg-\[\#E8ECEF\] { background-color: rgb(35 35 40); }
+.dark .bg-zinc-600 { background-color: rgb(50 50 58); }
+.dark .bg-zinc-300 { background-color: rgb(65 65 75); }
 .dark .bg-slate-100 { background-color: rgb(var(--color-surface)); }
 
 /* Ring overrides */
