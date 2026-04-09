@@ -107,13 +107,13 @@ export class OverworldScene extends Phaser.Scene {
     this.npcSystem.init();
     this.signSystem = new SignSystem(this.dialogSystem, MAUVILLE_SIGNS);
 
-    // ── Foreground image (pseudo-3D) ────────────────────────
-    // Single pre-rendered PNG of the entire top layer.
-    // Renders at very high depth so it covers the player, creating
-    // the authentic Pokemon effect where treetops/roofs are in front.
-    const fg = this.add.image(0, 0, "mauville_foreground");
-    fg.setOrigin(0, 0);
-    fg.setDepth(1000);
+    // ── Per-tile foreground sprites (pseudo-3D) ───────────────
+    // Instead of a single flat foreground image, we create individual
+    // sprites for each 16x16 tile that has top-layer content.
+    // Each sprite gets Y-sorted depth so tiles ABOVE the player
+    // render in front, and tiles BELOW render behind.
+    // This matches the OG GBA hardware layer behavior.
+    this.createForegroundTiles();
 
     // ── Camera ───────────────────────────────────────────────
     this.cameras.main.startFollow(this.playerSprite, true);
@@ -191,6 +191,53 @@ export class OverworldScene extends Phaser.Scene {
     } finally {
       this.isInteracting = false;
     }
+  }
+
+  /**
+   * Create individual foreground tile sprites from the foreground image.
+   * Each non-transparent 16x16 tile gets its own sprite with Y-sorted depth.
+   * This replaces the single flat foreground image approach.
+   */
+  private createForegroundTiles(): void {
+    const TILE = 16;
+    const fgTexture = this.textures.get("mauville_foreground");
+    const source = fgTexture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const mapW = Math.floor(source.width / TILE);
+    const mapH = Math.floor(source.height / TILE);
+
+    // Create a temporary canvas to read pixel data and check transparency
+    const canvas = document.createElement("canvas");
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(source, 0, 0);
+
+    let count = 0;
+    for (let ty = 0; ty < mapH; ty++) {
+      for (let tx = 0; tx < mapW; tx++) {
+        // Check if this 16x16 tile has any non-transparent pixels
+        const imgData = ctx.getImageData(tx * TILE, ty * TILE, TILE, TILE);
+        let hasContent = false;
+        for (let i = 3; i < imgData.data.length; i += 4) {
+          if (imgData.data[i] > 0) { hasContent = true; break; }
+        }
+        if (!hasContent) continue;
+
+        // Create a unique texture frame for this tile
+        const frameKey = `fg_${tx}_${ty}`;
+        fgTexture.add(frameKey, 0, tx * TILE, ty * TILE, TILE, TILE);
+
+        // Create sprite at the tile's world position
+        const sprite = this.add.sprite(tx * TILE + TILE / 2, ty * TILE + TILE / 2, "mauville_foreground", frameKey);
+
+        // Y-sorted depth: foreground tiles use the BOTTOM edge of the tile (ty+1)
+        // so they cover characters whose Y is at or above this tile row.
+        // The +8 offset ensures the foreground wins over characters at the same Y.
+        sprite.setDepth(10 + (ty + 1) * TILE + 8);
+        count++;
+      }
+    }
+    console.log(`Created ${count} foreground tile sprites`);
   }
 
   shutdown(): void {
