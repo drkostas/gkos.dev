@@ -25,15 +25,15 @@ body.modal-open {
 }
 
 .dark {
-  --color-bg-primary: 25 25 25;            /* #191919 — warm dark gray, not too black */
-  --color-border-primary: 50 50 50;        /* #323232 — visible borders */
-  --color-dark-primary: 235 235 235;       /* #ebebeb — off-white for inverted elements */
-  --color-purple-secondary: 50 40 85;      /* #322850 — purple tint for badges */
-  --color-text-primary: 235 235 235;       /* #ebebeb — comfortable to read */
-  --color-text-secondary: 155 155 155;     /* #9b9b9b — mid gray */
-  --color-text-tertiary: 105 105 105;      /* #696969 — dim but readable */
-  --color-surface: 35 35 35;              /* #232323 — cards, elevated above bg */
-  --color-surface-secondary: 42 42 42;     /* #2a2a2a — ShadowBox inner, inputs */
+  --color-bg-primary: 22 30 48;            /* #161e30 — slate lighter, cool navy */
+  --color-border-primary: 40 50 68;        /* #283244 — visible against slate */
+  --color-dark-primary: 228 233 240;       /* #e4e9f0 — cool off-white */
+  --color-purple-secondary: 45 40 80;      /* #2d2850 — deep purple tint */
+  --color-text-primary: 228 233 240;       /* #e4e9f0 — comfortable cool white */
+  --color-text-secondary: 152 166 186;     /* #98a6ba — slate mid gray */
+  --color-text-tertiary: 108 120 142;      /* #6c788e — dim slate */
+  --color-surface: 32 42 62;              /* #202a3e — cards, clear elevation */
+  --color-surface-secondary: 48 58 78;     /* #303a4e — ShadowBox inner */
 }
 
 /* Override Tailwind defaults that use hardcoded colors */
@@ -91,12 +91,12 @@ body.modal-open {
 
 /* Newsletter section — slightly lighter than page bg for differentiation */
 .dark .bg-dark-primary {
-  background-color: rgb(30 30 30);
+  background-color: rgb(28 36 55);
 }
 
 /* SocialPill + navbar dark pills STAY dark in dark mode (don't invert) */
 .dark .z-30.bg-dark-primary {
-  background-color: rgb(42 42 42);
+  background-color: rgb(38 48 68);
   color: white;
 }
 /* Social icon SVGs inside the pill need to stay visible */
@@ -789,3 +789,7 @@ blockquote p {
     }
   }
 }
+
+/* Section labels + accent — violet in dark mode */
+.dark .text-purple-primary { color: #a78bfa !important; }
+
