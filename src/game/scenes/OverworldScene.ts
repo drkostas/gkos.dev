@@ -177,6 +177,15 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   update(): void {
+    // Visual updates run every frame, even during dialog/menu,
+    // so depth sorting and overlays stay in sync.
+    const facingForFlip = this.gridEngine.getFacingDirection("player");
+    this.playerSprite.flipX = facingForFlip === Direction.RIGHT;
+    this.playerSprite.setDepth(10 + this.playerSprite.y);
+    this.npcSystem.updateDepth();
+    this.updateObstructiveOverlays();
+
+    // Block input/movement while dialog or menu is active.
     if (this.dialogSystem.active || this.menuActive) return;
 
     // Hold Shift to run — swap speed AND running animation mapping.
@@ -220,17 +229,7 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // flipX when facing right (left frames reused, mirrored).
-    // Done per-frame because directionChanged() observable is unreliable.
-    const facing = this.gridEngine.getFacingDirection("player");
-    this.playerSprite.flipX = facing === Direction.RIGHT;
-
-    // Y-sorted depth for player (between ground at 0 and foreground at 1000)
-    this.playerSprite.setDepth(10 + this.playerSprite.y);
-    this.npcSystem.updateDepth();
-
-    // Toggle obstructive-tile overlays based on character positions
-    this.updateObstructiveOverlays();
+    // (flipX, depth, NPC depth, overlays are updated at the top of update())
   }
 
   private async handleInteraction(): Promise<void> {
