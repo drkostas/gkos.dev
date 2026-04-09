@@ -8,6 +8,7 @@ import "@fontsource/geist-mono/500.css";
 import "@/styles/global.css";
 import Navbar from "@/components/Navbar.astro";
 import Footer from "@/components/Footer.astro";
+import { BackToTop } from "@/components/BackToTop";
 import { siteMetadata } from "@/data/siteMetadata";
 
 interface Props {
@@ -64,5 +65,6 @@ const { title = siteMetadata.title, description = siteMetadata.description } = A
       </div>
       <Footer />
     </main>
+    <BackToTop client:load />
   </body>
 </html>
