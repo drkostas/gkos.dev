@@ -20,6 +20,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private interactKey!: Phaser.Input.Keyboard.Key;
+  private playerSprite!: Phaser.GameObjects.Sprite;
   private dialogSystem!: DialogSystem;
   private npcSystem!: NPCSystem;
   private signSystem!: SignSystem;
@@ -62,8 +63,8 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // ── Player sprite ────────────────────────────────────────
-    const playerSprite = this.add.sprite(0, 0, "player");
-    playerSprite.setDepth(10);
+    this.playerSprite = this.add.sprite(0, 0, "player");
+    this.playerSprite.setDepth(10);
 
     // ── Grid Engine ──────────────────────────────────────────
     // Brendan has 9 frames in a single row (16x32 each):
@@ -73,23 +74,18 @@ export class OverworldScene extends Phaser.Scene {
       characters: [
         {
           id: "player",
-          sprite: playerSprite,
+          sprite: this.playerSprite,
           walkingAnimationMapping: {
             down: { leftFoot: 0, standing: 1, rightFoot: 2 },
             up: { leftFoot: 3, standing: 4, rightFoot: 5 },
             left: { leftFoot: 6, standing: 7, rightFoot: 8 },
             right: { leftFoot: 6, standing: 7, rightFoot: 8 },
           },
-          startPosition: { x: 17, y: 14 },
+          startPosition: { x: 17, y: 15 },
           speed: 4,
           offsetY: -8,
         },
       ],
-    });
-
-    // Flip sprite horizontally when facing right (reuses left-facing frames)
-    this.gridEngine.directionChanged().subscribe(({ direction }) => {
-      playerSprite.flipX = direction === Direction.RIGHT;
     });
 
     // ── Systems ──────────────────────────────────────────────
@@ -104,7 +100,7 @@ export class OverworldScene extends Phaser.Scene {
     this.signSystem = new SignSystem(this.dialogSystem, MAUVILLE_SIGNS);
 
     // ── Camera ───────────────────────────────────────────────
-    this.cameras.main.startFollow(playerSprite, true);
+    this.cameras.main.startFollow(this.playerSprite, true);
     this.cameras.main.setBounds(
       0,
       0,
@@ -160,6 +156,12 @@ export class OverworldScene extends Phaser.Scene {
     } else if (cursors.down.isDown) {
       this.gridEngine.move("player", Direction.DOWN);
     }
+
+    // Flip sprite when facing right (left-facing frames reused).
+    // Done every frame in update() rather than via directionChanged()
+    // because the observable does not reliably fire for every character.
+    const facing = this.gridEngine.getFacingDirection("player");
+    this.playerSprite.flipX = facing === Direction.RIGHT;
   }
 
   /** Handle Enter/Z press: try NPC interaction, then sign interaction. */
