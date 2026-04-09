@@ -112,7 +112,7 @@ export function SpeakingBentoReact() {
             <motion.span className="mt-16" initial={{ y: 0 }} animate={{ y: isHovered ? -6 : 0 }} transition={{ duration: 0.6, ease: "easeOut", delay: 0.1, type: "spring", stiffness: 150 }}>
               <span className="relative">
                 <svg width="76" height="76" viewBox="0 0 76 76" fill="none"><rect width="76" height="76" rx="38" fill="#F7F7F8" /><rect x="0.75" y="0.75" width="74.5" height="74.5" rx="37.25" stroke="#D6DADE" strokeOpacity="0.5" strokeWidth="1.5" /></svg>
-                <img className="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/c3_speaker_head.png" alt="" />
+                <img className="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/kostas_speaking.jpg" alt="" />
               </span>
             </motion.span>
 
@@ -120,7 +120,7 @@ export function SpeakingBentoReact() {
             <motion.span className="z-20 mt-4" initial={{ y: 0 }} animate={{ y: isHovered ? -8 : 0 }} transition={{ duration: 0.6, ease: "easeOut", type: "spring", stiffness: 150 }}>
               <span className="relative">
                 <svg width="117" height="116" viewBox="0 0 117 116" fill="none"><rect x="0.5" width="116" height="116" rx="58" fill="#F7F7F8" /><rect x="1.25" y="0.75" width="114.5" height="114.5" rx="57.25" stroke="#D6DADE" strokeOpacity="0.5" strokeWidth="1.5" /></svg>
-                <img className="absolute left-1/2 top-1/2 h-[100px] w-[100px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/braydon_speaking_photo.jpeg" alt="" />
+                <img className="absolute left-1/2 top-1/2 h-[100px] w-[100px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/kostas_neurips_square.jpg" alt="" />
               </span>
             </motion.span>
 
@@ -128,7 +128,7 @@ export function SpeakingBentoReact() {
             <motion.span className="mt-16" initial={{ y: 0 }} animate={{ y: isHovered ? -6 : 0 }} transition={{ duration: 0.6, ease: "easeOut", delay: 0.2, type: "spring", stiffness: 150 }}>
               <span className="relative">
                 <svg width="76" height="76" viewBox="0 0 76 76" fill="none"><rect width="76" height="76" rx="38" fill="#F7F7F8" /><rect x="0.75" y="0.75" width="74.5" height="74.5" rx="37.25" stroke="#D6DADE" strokeOpacity="0.5" strokeWidth="1.5" /></svg>
-                <img className="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/braydon_speaking_head_3.jpeg" alt="" />
+                <img className="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/kostas_poster_headshot.jpg" alt="" />
               </span>
             </motion.span>
           </div>
