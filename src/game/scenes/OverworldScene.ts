@@ -177,15 +177,24 @@ export class OverworldScene extends Phaser.Scene {
   update(): void {
     if (this.dialogSystem.active || this.menuActive) return;
 
-    // Hold Shift to run — but only actually "run" when moving.
-    // When idle or at the end of a move, use the walking mapping so the
-    // standing frame comes from the walking spritesheet, not running.
-    const isCurrentlyMoving = this.gridEngine.isMoving("player");
-    const wantsRun = this.shiftKey.isDown && isCurrentlyMoving;
+    // Hold Shift to run — swap speed AND running animation mapping.
+    const wantsRun = this.shiftKey.isDown;
     if (wantsRun !== this.isRunning) {
       this.isRunning = wantsRun;
       this.gridEngine.setSpeed("player", wantsRun ? OverworldScene.RUN_SPEED : OverworldScene.WALK_SPEED);
       this.gridEngine.setWalkingAnimationMapping("player", wantsRun ? RUN_ANIM : WALK_ANIM);
+    }
+
+    // When the player is NOT moving, force the walking standing frame for
+    // the current facing direction. Grid Engine keeps the last frame of the
+    // running mapping when movement stops, which shows a running pose.
+    if (!this.gridEngine.isMoving("player")) {
+      const facing = this.gridEngine.getFacingDirection("player");
+      const standingFrame =
+        facing === Direction.DOWN ? 0 :
+        facing === Direction.UP ? 1 :
+        2; // left/right both use frame 2 (left-standing) with flipX
+      this.playerSprite.setFrame(standingFrame);
     }
 
     const { cursors } = this;
