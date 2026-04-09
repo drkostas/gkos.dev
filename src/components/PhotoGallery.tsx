@@ -154,7 +154,7 @@ export function PhotoGallery({
       y: "15px",
       zIndex: 50,
       direction: "left" as Direction,
-      src: "/kostas_headshot.jpg",
+      src: "/kostas_neurips_square.jpg",
     },
     {
       id: 2,
@@ -163,7 +163,7 @@ export function PhotoGallery({
       y: "32px",
       zIndex: 40,
       direction: "left" as Direction,
-      src: "/kostas_photo_2.jpg",
+      src: "/kostas_speaking.jpg",
     },
     {
       id: 3,
@@ -172,7 +172,7 @@ export function PhotoGallery({
       y: "8px",
       zIndex: 30,
       direction: "right" as Direction,
-      src: "/kostas_photo_1.jpg",
+      src: "/kostas_headshot.jpg",
     },
     {
       id: 4,
@@ -181,7 +181,7 @@ export function PhotoGallery({
       y: "22px",
       zIndex: 20,
       direction: "right" as Direction,
-      src: "/kostas_portrait.jpg",
+      src: "/kostas_poster.jpg",
     },
     {
       id: 5,
@@ -190,7 +190,7 @@ export function PhotoGallery({
       y: "44px",
       zIndex: 10,
       direction: "left" as Direction,
-      src: "/kostas_portrait_2.jpg",
+      src: "/kostas_photo_2.jpg",
     },
   ];
 
