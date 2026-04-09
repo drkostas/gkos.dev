@@ -5,15 +5,16 @@ import { MovementBehavior, type NPCDefinition } from "@/game/types/npc";
 import { DialogSystem } from "@/game/systems/DialogSystem";
 
 /**
- * 9-frame spritesheet walking animation mapping.
- * Original pret layout: 144x32 = 9 frames of 16x32 in a row.
- * Frames 0-2: down, 3-5: up, 6-8: left. Right = flipped left.
+ * Walking animation mapping from original pokeemerald source.
+ * Frame layout: 0=down-stand, 1=up-stand, 2=left-stand,
+ * 3=down-walkL, 4=down-walkR, 5=up-walkL, 6=up-walkR,
+ * 7=left-walkL, 8=left-walkR. Right = left frames + hFlip.
  */
 const WALK_ANIM_MAPPING = {
-  down: { leftFoot: 0, standing: 1, rightFoot: 2 },
-  up: { leftFoot: 3, standing: 4, rightFoot: 5 },
-  left: { leftFoot: 6, standing: 7, rightFoot: 8 },
-  right: { leftFoot: 6, standing: 7, rightFoot: 8 },
+  down:  { leftFoot: 3, standing: 0, rightFoot: 4 },
+  up:    { leftFoot: 5, standing: 1, rightFoot: 6 },
+  left:  { leftFoot: 7, standing: 2, rightFoot: 8 },
+  right: { leftFoot: 7, standing: 2, rightFoot: 8 },
 };
 
 /** Min/max interval in ms between autonomous NPC actions (wander, look around). */

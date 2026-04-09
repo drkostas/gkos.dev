@@ -12,11 +12,24 @@ import { GameEvents, emitGameEvent, onGameEvent } from "@/game/EventBridge";
  * Original pret layout: 144x32 = 9 frames of 16x32 in a row.
  * Frames 0-2: down, 3-5: up, 6-8: left. Right = flipped left.
  */
+/**
+ * Walking animation mapping derived from the ORIGINAL pokeemerald source code.
+ * (src/data/object_events/object_event_anims.h)
+ *
+ * Frame layout in the 9-frame spritesheet (144x32):
+ *   0 = down standing,  1 = up standing,  2 = left standing
+ *   3 = down walk-L,    4 = down walk-R
+ *   5 = up walk-L,      6 = up walk-R
+ *   7 = left walk-L,    8 = left walk-R
+ *
+ * Walk cycle: leftFoot → standing → rightFoot → standing → repeat
+ * Right direction reuses left frames with hFlip.
+ */
 const WALK_ANIM = {
-  down: { leftFoot: 0, standing: 1, rightFoot: 2 },
-  up: { leftFoot: 3, standing: 4, rightFoot: 5 },
-  left: { leftFoot: 6, standing: 7, rightFoot: 8 },
-  right: { leftFoot: 6, standing: 7, rightFoot: 8 },
+  down:  { leftFoot: 3, standing: 0, rightFoot: 4 },
+  up:    { leftFoot: 5, standing: 1, rightFoot: 6 },
+  left:  { leftFoot: 7, standing: 2, rightFoot: 8 },
+  right: { leftFoot: 7, standing: 2, rightFoot: 8 },
 };
 
 export class OverworldScene extends Phaser.Scene {
