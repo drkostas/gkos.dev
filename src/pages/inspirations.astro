@@ -5,20 +5,27 @@ import { GetInTouchReact } from "@/components/GetInTouchReact";
 import { ScrapbookBentoReact } from "@/components/ScrapbookBentoReact";
 import { CurrentlyReadingBentoReact } from "@/components/CurrentlyReadingBentoReact";
 import { CurrentlyPlayingBentoReact } from "@/components/CurrentlyPlayingBentoReact";
-import { inspirations, CATEGORY_LABELS, CATEGORY_ICONS, INSPIRATION_CATEGORIES } from "@/data/inspirations";
+import { inspirations, CATEGORY_LABELS, INSPIRATION_CATEGORIES } from "@/data/inspirations";
 
 // Group by category
 const byCategory = INSPIRATION_CATEGORIES.map((cat) => ({
   key: cat,
   label: CATEGORY_LABELS[cat],
-  icon: CATEGORY_ICONS[cat],
   items: inspirations.filter((i) => i.category === cat),
 })).filter((g) => g.items.length > 0);
+
+// Accent colors per category — gives each section a distinct feel
+const categoryAccents: Record<string, { pill: string; bar: string }> = {
+  paper: { pill: "border-indigo-400/50 bg-indigo-50 text-indigo-700 dark:border-indigo-400/30 dark:bg-indigo-500/10 dark:text-indigo-300", bar: "bg-indigo-500" },
+  book: { pill: "border-amber-400/50 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300", bar: "bg-amber-500" },
+  person: { pill: "border-emerald-400/50 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300", bar: "bg-emerald-500" },
+  resource: { pill: "border-purple-400/50 bg-purple-50 text-purple-700 dark:border-purple-400/30 dark:bg-purple-500/10 dark:text-purple-300", bar: "bg-purple-500" },
+};
 ---
 
 <Layout title="Inspirations | Kostas Georgiou">
   <div class="relative">
-    <div class="relative space-y-16 md:space-y-24">
+    <div class="relative space-y-16 md:space-y-20">
       <!-- Hero -->
       <div class="mx-auto text-balance pt-14 md:pt-16">
         <GridWrapper>
@@ -56,61 +63,80 @@ const byCategory = INSPIRATION_CATEGORIES.map((cat) => ({
       </section>
 
       <!-- Curated inspirations list -->
-      {byCategory.map((group) => (
-        <section>
-          <div class="px-4 pb-4">
-            <h2 class="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-text-secondary">
-              <span>{group.icon}</span>
-              {group.label}
-              <span class="text-text-tertiary">({group.items.length})</span>
-            </h2>
-          </div>
-          <ul class="flex flex-col">
-            {group.items.map((item) => (
-              <li>
-                <div class="block rounded-lg transition-colors hover:bg-white/60">
-                  <div class="grid h-full grid-cols-1 md:grid-cols-12">
-                    <div class="hidden space-y-1 p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-3">
-                      {item.author && (
-                        <span class="text-sm text-text-secondary">{item.author}</span>
-                      )}
-                    </div>
-                    <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
-                    <div class="col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
-                      <div class="z-10 text-balance">
-                        <h3 class="mb-2 text-base font-medium leading-6 tracking-tight text-text-primary md:text-lg md:leading-tight">
+      {byCategory.map((group) => {
+        const accent = categoryAccents[group.key] || categoryAccents.paper;
+        return (
+          <section>
+            <GridWrapper>
+              <div class="mb-6 flex items-center gap-3">
+                <span
+                  class:list={[
+                    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest",
+                    accent.pill,
+                  ]}
+                >
+                  {group.label}
+                </span>
+                <div class="h-px flex-1 bg-border-primary/50"></div>
+                <span class="font-mono text-xs text-text-tertiary">{group.items.length}</span>
+              </div>
+            </GridWrapper>
+
+            <ul class="flex flex-col">
+              {group.items.map((item, idx) => (
+                <li>
+                  <a
+                    href={item.link || "#"}
+                    target={item.link ? "_blank" : undefined}
+                    rel={item.link ? "noopener noreferrer" : undefined}
+                    class:list={[
+                      "block transition-colors",
+                      item.link ? "hover:bg-white/60 cursor-pointer" : "cursor-default",
+                    ]}
+                    data-umami-event={item.link ? `inspiration-${group.key}-${idx}` : undefined}
+                  >
+                    <article class="grid h-full grid-cols-1 px-4 md:grid-cols-12">
+                      {/* Left: author / meta */}
+                      <div class="hidden items-start pt-5 md:col-span-3 md:col-start-1 md:flex lg:col-span-3">
+                        <div class="space-y-1">
+                          {item.author && (
+                            <span class="font-mono text-sm text-text-secondary">{item.author}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Dashed divider */}
+                      <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
+
+                      {/* Right: content */}
+                      <div class="col-span-8 flex w-full flex-grow flex-col py-5 md:col-start-5 md:col-end-12 md:px-4">
+                        <h3 class="mb-1 text-base font-medium leading-6 tracking-tight text-text-primary md:text-lg md:leading-tight">
                           {item.title}
                         </h3>
                         {item.author && (
-                          <span class="mb-2 inline-block text-sm text-text-secondary md:hidden">
+                          <span class="mb-2 inline-block font-mono text-xs text-text-tertiary md:hidden">
                             {item.author}
                           </span>
                         )}
-                        <p class="mb-3 text-base leading-6 text-text-secondary">
+                        <p class="text-sm leading-relaxed text-text-secondary">
                           {item.description}
                         </p>
                         {item.link && (
-                          <a
-                            href={item.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="flex items-center text-sm font-medium text-indigo-600"
-                            data-umami-event={`inspiration-click-${item.title.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}`}
-                          >
+                          <div class="mt-3 flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-400">
                             <span class="text-sm leading-6">View</span>
-                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
-                          </a>
+                            <svg class="relative ml-2 mt-px overflow-visible transition-transform group-hover:translate-x-0.5" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="h-0 w-full border-t border-border-primary/50"></div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+                    </article>
+                  </a>
+                  <div class="h-0 w-full border-t border-border-primary/50"></div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
 
       <GetInTouchReact client:visible />
     </div>

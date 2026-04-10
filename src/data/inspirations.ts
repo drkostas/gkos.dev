@@ -2,6 +2,9 @@
  * Curated inspirations — books, papers, researchers, and resources that
  * shaped Kostas's thinking and work. Displayed on /inspirations.
  *
+ * PLACEHOLDER DATA — will be replaced with user's actual picks.
+ * 5 items per category to test styling at realistic density.
+ *
  * Add new items at the TOP so they appear first.
  */
 
@@ -11,57 +14,55 @@ export interface Inspiration {
   description: string;
   link?: string;
   category: "paper" | "book" | "person" | "resource";
-  image?: string; // optional icon/cover URL
 }
 
 export const INSPIRATION_CATEGORIES = ["paper", "book", "person", "resource"] as const;
 
 export const inspirations: Inspiration[] = [
-  // Papers
+  // ── Papers (5) ──
   {
     title: "Masked Autoencoders Are Scalable Vision Learners",
-    author: "He et al.",
+    author: "He et al., 2021",
     description: "The MAE paper changed how I think about self-supervised pre-training. Cross-Scale MAE is a direct descendant.",
     link: "https://arxiv.org/abs/2111.06377",
     category: "paper",
   },
   {
     title: "Learning Transferable Visual Models From Natural Language Supervision",
-    author: "Radford et al. (CLIP)",
+    author: "Radford et al. (CLIP), 2021",
     description: "CLIP bridged vision and language in a way that made MEDiC possible. The zero-shot transfer paradigm reshaped my research.",
     link: "https://arxiv.org/abs/2103.00020",
     category: "paper",
   },
   {
     title: "An Image is Worth 16x16 Words",
-    author: "Dosovitskiy et al. (ViT)",
+    author: "Dosovitskiy et al. (ViT), 2020",
     description: "Vision Transformers proved that attention can replace convolutions. Every model I've trained since 2021 builds on this.",
     link: "https://arxiv.org/abs/2010.11929",
     category: "paper",
   },
   {
-    title: "A Simple Framework for Contrastive Learning of Visual Representations",
-    author: "Chen et al. (SimCLR)",
+    title: "A Simple Framework for Contrastive Learning",
+    author: "Chen et al. (SimCLR), 2020",
     description: "SimCLR's elegance convinced me that self-supervised learning was the future. My mCL-LC paper extends these ideas to aerial imagery.",
     link: "https://arxiv.org/abs/2002.05709",
     category: "paper",
   },
   {
     title: "Attention Is All You Need",
-    author: "Vaswani et al.",
+    author: "Vaswani et al., 2017",
     description: "The paper that started the transformer revolution. Hard to overstate its impact on everything I work on today.",
     link: "https://arxiv.org/abs/1706.03762",
     category: "paper",
   },
-  {
-    title: "Deep Residual Learning for Image Recognition",
-    author: "He et al. (ResNet)",
-    description: "Skip connections seem obvious in hindsight — but they unlocked depth in neural networks and paved the way for everything after.",
-    link: "https://arxiv.org/abs/1512.03385",
-    category: "paper",
-  },
 
-  // Books
+  // ── Books (5) ──
+  {
+    title: "On Intelligence",
+    author: "Jeff Hawkins",
+    description: "A framework for understanding the brain that changed how I think about neural architectures and representation learning.",
+    category: "book",
+  },
   {
     title: "Deep Learning",
     author: "Goodfellow, Bengio, Courville",
@@ -79,17 +80,17 @@ export const inspirations: Inspiration[] = [
   {
     title: "The Pragmatic Programmer",
     author: "Hunt & Thomas",
-    description: "Career-shaping advice. I re-read chapters every time I start a new project.",
+    description: "Career-shaping advice on craft. I re-read chapters every time I start a new project.",
     category: "book",
   },
   {
     title: "Thinking, Fast and Slow",
     author: "Daniel Kahneman",
-    description: "Not a tech book, but it fundamentally shaped how I approach experiment design and evaluate results.",
+    description: "Not a tech book, but it shaped how I approach experiment design and evaluate results.",
     category: "book",
   },
 
-  // People
+  // ── People (5) ──
   {
     title: "Dr. Hairong Qi",
     description: "My PhD advisor at UTK. Taught me how to think rigorously about problems and write papers that matter.",
@@ -98,7 +99,7 @@ export const inspirations: Inspiration[] = [
   },
   {
     title: "Andrej Karpathy",
-    description: "His blog posts and lectures (CS231n) were my gateway into deep learning. Still the clearest explainer in the field.",
+    description: "His lectures (CS231n) and blog posts were my gateway into deep learning. Still the clearest explainer in the field.",
     link: "https://karpathy.ai/",
     category: "person",
   },
@@ -108,14 +109,25 @@ export const inspirations: Inspiration[] = [
     link: "https://yann.lecun.com/",
     category: "person",
   },
+  {
+    title: "Kaiming He",
+    description: "ResNet, MAE, Masked Autoencoders — his work is in the backbone of almost every model I've ever trained.",
+    link: "https://scholar.google.com/citations?user=DhtAFkwAAAAJ",
+    category: "person",
+  },
+  {
+    title: "Jeremy Howard",
+    description: "Fast.ai taught me that you don't need a PhD to do deep learning. Turns out having one helps anyway.",
+    link: "https://www.fast.ai/",
+    category: "person",
+  },
 
-  // Resources
+  // ── Resources (5) ──
   {
     title: "arXiv",
     description: "My daily reading list. Where I keep up with everything happening in ML and computer vision.",
     link: "https://arxiv.org/",
     category: "resource",
-    image: "https://cdn.simpleicons.org/arxiv",
   },
   {
     title: "Papers With Code",
@@ -124,29 +136,28 @@ export const inspirations: Inspiration[] = [
     category: "resource",
   },
   {
-    title: "Yannic Kilcher's YouTube",
-    description: "Best paper walkthroughs on the internet. Saves me hours of reading dense notation.",
+    title: "Yannic Kilcher",
+    description: "Best paper walkthroughs on YouTube. Saves hours of reading dense notation.",
     link: "https://www.youtube.com/@YannicKilcher",
     category: "resource",
   },
   {
     title: "Two Minute Papers",
-    description: "Quick pulse on what's exciting in AI research. Great for discovering papers outside my niche.",
+    description: "Quick pulse on what's exciting in AI research. Great for papers outside my niche.",
     link: "https://www.youtube.com/@TwoMinutePapers",
+    category: "resource",
+  },
+  {
+    title: "Lex Fridman Podcast",
+    description: "Long-form conversations with researchers I admire. Commute fuel.",
+    link: "https://lexfridman.com/podcast/",
     category: "resource",
   },
 ];
 
 export const CATEGORY_LABELS: Record<string, string> = {
-  paper: "Papers",
-  book: "Books",
-  person: "People",
-  resource: "Resources",
-};
-
-export const CATEGORY_ICONS: Record<string, string> = {
-  paper: "📄",
-  book: "📚",
-  person: "👤",
-  resource: "🔗",
+  paper: "Papers that shaped my research",
+  book: "Books I keep coming back to",
+  person: "People I learn from",
+  resource: "Where I stay current",
 };
