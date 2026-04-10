@@ -23,7 +23,7 @@ export function SpeakingBentoReact() {
   ];
 
   return (
-    <a href="/speaking" className="block">
+    <a href="/inspirations" className="block">
       <div
         className="group relative flex flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white overflow-hidden h-[276px]"
         onMouseEnter={() => setIsHovered(true)}
@@ -128,7 +128,7 @@ export function SpeakingBentoReact() {
             <motion.span className="mt-16" initial={{ y: 0 }} animate={{ y: isHovered ? -6 : 0 }} transition={{ duration: 0.6, ease: "easeOut", delay: 0.2, type: "spring", stiffness: 150 }}>
               <span className="relative">
                 <svg width="76" height="76" viewBox="0 0 76 76" fill="none"><rect width="76" height="76" rx="38" fill="#F7F7F8" /><rect x="0.75" y="0.75" width="74.5" height="74.5" rx="37.25" stroke="#D6DADE" strokeOpacity="0.5" strokeWidth="1.5" /></svg>
-                <img className="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/kostas_poster_headshot.jpg" alt="" />
+                <img className="absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover" src="/kostas_poster.jpg" alt="" />
               </span>
             </motion.span>
           </div>
@@ -137,8 +137,8 @@ export function SpeakingBentoReact() {
           <div className="absolute inset-0 h-full w-full bg-gradient-to-t from-white"></div>
           <div className="absolute bottom-6 left-6 z-50 grid h-full grid-cols-2 grid-rows-2 items-end gap-8">
             <div className="col-1 row-start-2 text-balance">
-              <h2 className="mb-2 font-medium text-text-primary">Speaking</h2>
-              <p className="text-text-secondary">Talks, podcasts, tutorials and more</p>
+              <h2 className="mb-2 font-medium text-text-primary">Inspirations</h2>
+              <p className="text-text-secondary">Books, papers, people that shape my thinking</p>
             </div>
           </div>
         </div>

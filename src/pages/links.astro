@@ -3,7 +3,7 @@ import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
 import { AnimatedProfilePicture } from "@/components/ProfilePicture";
 import FeaturedBlogCard from "@/components/FeaturedBlogCard.astro";
-import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { GetInTouchReact } from "@/components/GetInTouchReact";
 import { siteMetadata } from "@/data/siteMetadata";
 import { getCollection } from "astro:content";
 
@@ -25,7 +25,7 @@ const featuredArticles = allBlogPosts.slice(0, 4);
       <GridWrapper>
         <div class="mx-auto max-w-xl text-center md:mt-8">
           <p class="leading-8 text-text-secondary">
-            I'm a front-end developer, team lead, blogger and international public speaker.
+            I'm a PhD ML Engineer, researcher, open-source contributor and conference speaker.
           </p>
         </div>
       </GridWrapper>
@@ -111,7 +111,7 @@ const featuredArticles = allBlogPosts.slice(0, 4);
         </ul>
       </GridWrapper>
 
-      <NewsletterSignUpReact client:visible />
+      <GetInTouchReact client:visible />
     </div>
   </div>
 </Layout>

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
 const lineVariants = {
@@ -19,8 +20,26 @@ const card2Variants = {
 };
 
 export function CommunityWallBentoReact() {
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/wall/messages")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setCount(Array.isArray(data.messages) ? data.messages.length : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
-    <motion.div initial="initial" whileHover="hover">
+    <motion.a href="/community-wall" initial="initial" whileHover="hover" className="block">
       <div className="group relative flex flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white overflow-hidden h-[276px]">
         <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100"></div>
         {/* Link arrow */}
@@ -95,9 +114,15 @@ export function CommunityWallBentoReact() {
           <div className="col-1 z-10 row-start-2">
             <h2 className="mb-2 font-medium text-text-primary">Community Wall</h2>
             <p className="text-text-secondary">Let everyone know you were here</p>
+            {count !== null && count > 0 && (
+              <p className="mt-2 font-mono text-xs text-text-tertiary">
+                <span className="font-semibold text-text-secondary">{count}</span>{" "}
+                {count === 1 ? "note" : "notes"} on the wall
+              </p>
+            )}
           </div>
         </div>
       </div>
-    </motion.div>
+    </motion.a>
   );
 }

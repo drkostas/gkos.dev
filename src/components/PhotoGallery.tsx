@@ -172,7 +172,7 @@ export function PhotoGallery({
       y: "8px",
       zIndex: 30,
       direction: "right" as Direction,
-      src: "/kostas_headshot.jpg",
+      src: "/kostas_igarss.jpg",
     },
     {
       id: 4,

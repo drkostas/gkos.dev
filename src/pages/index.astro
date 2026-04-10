@@ -9,32 +9,26 @@ import AboutMeBento from "@/components/AboutMeBento.astro";
 import { ConnectionsBentoReact } from "@/components/ConnectionsBentoReact";
 import ToolboxBento from "@/components/ToolboxBento.astro";
 import CalendarBento from "@/components/CalendarBento.astro";
-import FeaturedBlogCard from "@/components/FeaturedBlogCard.astro";
+import { FeaturedBlogCardReact } from "@/components/FeaturedBlogCardReact";
 import ChangelogBento from "@/components/ChangelogBento.astro";
 import { SpeakingBentoReact } from "@/components/SpeakingBentoReact";
 import { CommunityWallBentoReact } from "@/components/CommunityWallBentoReact";
-import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { ExploreModeBannerReact } from "@/components/ExploreModeBannerReact";
+import { getCollection } from "astro:content";
 
-const featuredArticles = [
-  {
-    slug: "build-link-previews-with-playwright-and-the-popover-api",
-    imageName: "link_preview_cover.jpeg",
-    title: "Build Link Previews with Playwright and the Popover API",
-    summary: "Wikipedia-style link previews can make your blog feel more polished. In this tutorial, we'll build a system that captures screenshots at build time and displays them using the native Popover API with smooth CSS animations.",
-  },
-  {
-    slug: "a-modern-table-of-contents-in-nextjs-with-css-anchor-positioning",
-    imageName: "toc_nextjs_modern_css.jpeg",
-    title: "A Modern Table of Contents in Next.js with CSS Anchor Positioning",
-    summary: "In this tutorial, you'll learn how to build a floating table of contents component for your Next.js blog that tracks the reader's scroll position and highlights the active section with a smooth animated dot.",
-  },
-  {
-    slug: "how-to-use-signal-forms-in-angular",
-    imageName: "angular-signal-forms.jpeg",
-    title: "How to Use Signal Forms in Angular 21 (With Examples)",
-    summary: "In this post, you'll learn how Angular's new Signal Forms dramatically simplify form creation, improve performance through fine-grained reactivity, and eliminate the boilerplate and workarounds required by Reactive Forms.",
-  },
-];
+// Pull the 3 most recent published posts from the actual collection.
+// When the collection is empty, this is an empty array and the Blog section
+// falls through to the empty state.
+const featuredArticles = (await getCollection("blog"))
+  .filter((post) => !post.data.draft)
+  .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf())
+  .slice(0, 3)
+  .map((post) => ({
+    slug: post.id,
+    imageName: post.data.imageName,
+    title: post.data.title,
+    summary: post.data.summary,
+  }));
 ---
 
 {/* Animation delays matching Kostas's */}
@@ -51,7 +45,7 @@ const featuredArticles = [
               className="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]"
               client:load
             >
-              Hey, I'm Kostas! <br /> ML Engineer, Researcher && Builder.
+              Hey, I'm Kostas! <br /> ML Engineer, Researcher and Builder.
             </AnimatedText>
           </GridWrapper>
           <GridWrapper>
@@ -62,7 +56,7 @@ const featuredArticles = [
                 className="leading-8 text-text-secondary"
                 client:load
               >
-                I'm a PhD ML Engineer at Amazon who ships AI products, publishes research at NeurIPS && WACV, and contributes to open source with 8,300+ GitHub followers.
+                I'm a PhD ML Engineer at Amazon who ships AI products, publishes research at NeurIPS and WACV, and contributes to open source with 8,300+ GitHub followers.
               </AnimatedText>
             </div>
           </GridWrapper>
@@ -85,7 +79,7 @@ const featuredArticles = [
           </GridWrapper>
           <GridWrapper>
             <h2 class="mx-auto max-w-lg text-balance text-center text-3xl font-medium leading-10 tracking-tight text-text-primary md:text-4xl">
-              Here's what sets me apart and makes me unique
+              A quick snapshot of what I do
             </h2>
           </GridWrapper>
         </div>
@@ -96,7 +90,7 @@ const featuredArticles = [
               <AboutMeBento />
             </div>
             <div class="md:col-span-12 lg:col-span-7 lg:row-span-8">
-              <ConnectionsBentoReact linkTo="/connections" client:visible />
+              <ConnectionsBentoReact variant="workbench" linkTo="/workbench" client:visible />
             </div>
             <div class="md:col-span-7 md:row-start-1 lg:col-span-5 lg:row-span-7">
               <ToolboxBento />
@@ -118,23 +112,34 @@ const featuredArticles = [
           </GridWrapper>
           <GridWrapper>
             <h2 class="mx-auto max-w-lg text-center text-3xl font-medium leading-10 tracking-tighter text-text-primary md:text-4xl">
-              I like sharing my experiments && knowledge with others
+              I like sharing my experiments and knowledge with others
             </h2>
           </GridWrapper>
         </div>
 
         <div class="z-10">
           <GridWrapper>
-            <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-              {featuredArticles.map((post) => (
-                <FeaturedBlogCard
-                  slug={post.slug}
-                  imageName={post.imageName}
-                  title={post.title}
-                  summary={post.summary}
-                />
-              ))}
-            </ul>
+            {featuredArticles.length > 0 ? (
+              <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+                {featuredArticles.map((post, index) => (
+                  <FeaturedBlogCardReact
+                    slug={post.slug}
+                    imageName={post.imageName}
+                    title={post.title}
+                    summary={post.summary}
+                    direction={index % 2 === 0 ? "left" : "right"}
+                    client:visible
+                  />
+                ))}
+              </ul>
+            ) : (
+              <div class="mx-auto max-w-md rounded-2xl border border-dashed border-border-primary bg-bg-primary p-8 text-center">
+                <p class="text-text-secondary">
+                  New posts are brewing. Check back soon or follow along on{" "}
+                  <a href="https://github.com/drkostas" class="font-medium text-indigo-600">GitHub</a>.
+                </p>
+              </div>
+            )}
           </GridWrapper>
         </div>
       </section>
@@ -149,7 +154,7 @@ const featuredArticles = [
           </GridWrapper>
           <GridWrapper>
             <h2 class="text-center text-3xl font-medium leading-10 tracking-tighter text-text-primary md:mx-auto md:max-w-lg md:text-4xl">
-              My site is a playful sandbox. Explore, experiment, && say hello
+              My site is a playful sandbox. Explore, experiment, and say hello
             </h2>
           </GridWrapper>
         </div>
@@ -165,9 +170,9 @@ const featuredArticles = [
         </GridWrapper>
       </section>
 
-      <!-- Newsletter Section -->
+      <!-- Explore mode banner -->
       <section>
-        <NewsletterSignUpReact client:visible />
+        <ExploreModeBannerReact client:load />
       </section>
     </div>
   </section>

@@ -7,7 +7,7 @@ export const siteMetadata = {
   language: "en-us",
   siteUrl: "https://gkos.dev",
   siteRepo: "https://github.com/drkostas/portfolio-v2",
-  avatarImage: "/kostas_headshot.jpg",
+  avatarImage: "/kostas_neurips_square.jpg",
   socialBanner: "/og-image.png",
   email: "mailto:gkos.mldev@gmail.com",
   github: "https://github.com/drkostas",

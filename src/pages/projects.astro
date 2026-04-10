@@ -1,77 +1,321 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
+import { GetInTouchReact } from "@/components/GetInTouchReact";
+import { FeaturedProjectCardReact } from "@/components/FeaturedProjectCardReact";
+import { projects, PROJECT_CATEGORIES } from "@/data/projects";
 
-interface Project {
-  title: string;
-  description: string;
-  image: string;
-  url: string;
-}
+const featuredProjects = projects.filter((p) => p.featured);
 
-const projects: Project[] = [
-  {
-    title: "Commit Your Code Conference Website",
-    description:
-      "A web development conference for charity, the Commit Your Code Conference website was designed and built by me using Figma, Next.js and Tailwind CSS.",
-    image: "/projects/commit_your_code_project.jpeg",
-    url: "https://www.commityourcode.com/",
-  },
-  {
-    title: "Pomegradient",
-    description:
-      "Pomegradient is a web-based gradient solution that allows you to find, save and craft gradients with a creative community!",
-    image: "/projects/pomegradient_project.jpeg",
-    url: "https://www.pomegradient.com/",
-  },
-];
+// Initial state: all projects visible, featured shown. Client JS reads the
+// URL ?category= on load and applies the filter, so direct links/bookmarks
+// still work without SSR. This lets the page be fully static (prerendered).
+const initialCategory = "";
 ---
 
 <Layout title="Projects | Kostas Georgiou">
-  <div class="relative space-y-16">
-    <GridWrapper>
-      <h1 class="mx-auto mt-16 max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
-        A collection of my favorite works.
+  <div class="mt-14 md:mt-16">
+    <GridWrapper class="mb-16">
+      <h1
+        id="projects-heading"
+        class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]"
+      >
+        A collection of projects I've built and shipped.
       </h1>
     </GridWrapper>
 
-    <GridWrapper class="space-y-12">
-      {projects.map((project) => (
-        <div class="space-y-12">
-          <GridWrapper class="px-10">
-            <img src={project.image} alt={project.title} class="drama-shadow rounded-xl" />
-          </GridWrapper>
-          <GridWrapper class="px-10">
-            <div class="max-w-2xl text-balance">
-              <h2 class="mb-3 text-2xl font-medium leading-6 tracking-tight text-slate-900 md:leading-none">
-                {project.title}
-              </h2>
-              <p class="mb-3 flex-grow text-base leading-6 text-text-secondary">
-                {project.description}
-              </p>
-              <a
-                class="inline-flex items-center text-sm font-medium text-indigo-600"
-                href={project.url}
-              >
-                Visit {project.title}
-                <svg
-                  class="relative ml-2.5 mt-px overflow-visible"
-                  width="3"
-                  height="6"
-                  viewBox="0 0 3 6"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M0 0L3 3L0 6"></path>
-                </svg>
-              </a>
-            </div>
-          </GridWrapper>
+    {/* Featured section — hidden when a category is active */}
+    <div id="featured-section" class:list={["mb-16", initialCategory ? "hidden" : ""]}>
+      <GridWrapper>
+        <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {featuredProjects.map((project, index) => (
+            <FeaturedProjectCardReact
+              slug={project.slug}
+              name={project.name}
+              image={project.image}
+              description={project.description}
+              tags={project.tags}
+              direction={index % 2 === 0 ? "left" : "right"}
+              client:load
+            />
+          ))}
+        </ul>
+      </GridWrapper>
+    </div>
+
+    <div>
+      <!-- Category pills -->
+      <div class="border-b border-border-primary/50 px-4 pb-6">
+        <div id="category-pills" class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-category=""
+            class:list={[
+              "category-pill rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              !initialCategory
+                ? "border-dark-primary bg-dark-primary text-white"
+                : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
+            ]}
+          >
+            All
+          </button>
+          {PROJECT_CATEGORIES.map((cat) => (
+            <button
+              type="button"
+              data-category={cat.toLowerCase()}
+              class:list={[
+                "category-pill rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                cat.toLowerCase() === initialCategory
+                  ? "border-dark-primary bg-dark-primary text-white"
+                  : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
+              ]}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
-      ))}
-    </GridWrapper>
+      </div>
+
+      <!-- Project list — all projects rendered, visibility toggled by JS -->
+      <ul id="project-list" class="flex flex-col">
+        {projects.map((project) => (
+          <li
+            id={`project-${project.slug}`}
+            data-category={project.category.toLowerCase()}
+            class={initialCategory && project.category.toLowerCase() !== initialCategory ? "hidden" : ""}
+          >
+            <div class="block rounded-lg transition-colors hover:bg-white/60">
+              <article>
+                <div class="group grid h-full grid-cols-1 md:grid-cols-12">
+                  <div class="hidden p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-2">
+                    <span class="inline-block rounded-full border border-border-primary px-2 py-0.5 font-mono text-xs text-text-secondary">
+                      {project.category}
+                    </span>
+                  </div>
+                  <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
+                  <div class="group col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
+                    <div class="z-10 text-balance">
+                      <h2 class="mb-3 text-base font-medium leading-6 tracking-tight text-text-primary md:leading-none">
+                        {project.name}
+                      </h2>
+                      <p class="mb-3 flex-grow text-base leading-6 text-text-secondary">
+                        {project.description}
+                      </p>
+                      <div class="mb-3 flex flex-wrap gap-1.5">
+                        {project.tags.map((tag) => (
+                          <span class="rounded-full border border-border-primary px-2 py-0.5 text-xs text-text-secondary">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      <div class="flex flex-wrap gap-4">
+                        {project.source_code && (
+                          <a
+                            href={project.source_code}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="flex items-center text-sm font-medium text-indigo-600"
+                          >
+                            <span class="text-sm leading-6">Source</span>
+                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
+                          </a>
+                        )}
+                        {project.live && (
+                          <a
+                            href={project.live}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="flex items-center text-sm font-medium text-indigo-600"
+                          >
+                            <span class="text-sm leading-6">Live</span>
+                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
+                          </a>
+                        )}
+                        {project.demo && (
+                          <a
+                            href={project.demo}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="flex items-center text-sm font-medium text-indigo-600"
+                          >
+                            <span class="text-sm leading-6">Demo</span>
+                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
+                          </a>
+                        )}
+                        {project.pypi && (
+                          <a
+                            href={project.pypi}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="flex items-center text-sm font-medium text-indigo-600"
+                          >
+                            <span class="text-sm leading-6">PyPi</span>
+                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
+                          </a>
+                        )}
+                        {project.scholar && (
+                          <a
+                            href={project.scholar}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="flex items-center text-sm font-medium text-indigo-600"
+                          >
+                            <span class="text-sm leading-6">Paper</span>
+                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+            <div class="h-0 w-full border-t border-border-primary/50"></div>
+          </li>
+        ))}
+      </ul>
+      <!-- Empty state — shown by JS when no projects match the filter -->
+      <div id="empty-state" class="hidden py-12">
+        <div class="mx-auto max-w-md rounded-2xl border border-dashed border-border-primary/60 bg-bg-primary/50 p-10 text-center">
+          <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-primary">
+            <svg class="h-5 w-5 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+              <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+            </svg>
+          </div>
+          <h3 class="font-medium text-text-primary">No projects in this category</h3>
+          <p class="mt-1 text-sm text-text-secondary">Try a different filter or check back soon.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-16">
+      <GetInTouchReact client:visible />
+    </div>
   </div>
 </Layout>
+
+<script>
+  // Client-side category filtering — no page reload, preserves scroll position.
+  const ACTIVE_CLS = ["border-dark-primary", "bg-dark-primary", "text-white"];
+  const INACTIVE_CLS = ["border-border-primary", "text-text-secondary", "hover:border-purple-primary", "hover:text-purple-primary"];
+
+  const pills = document.querySelectorAll<HTMLButtonElement>("#category-pills .category-pill");
+  const items = document.querySelectorAll<HTMLLIElement>("#project-list > li[data-category]");
+  const featured = document.getElementById("featured-section");
+  const emptyState = document.getElementById("empty-state");
+  const heading = document.getElementById("projects-heading");
+
+  // Measure featured section's total space (height + margins from space-y)
+  // once on page load while it's visible. This is used for deterministic
+  // scroll compensation when toggling — avoids async layout timing bugs.
+  let featuredSpace = 0;
+  if (featured && !featured.classList.contains("hidden")) {
+    const rect = featured.getBoundingClientRect();
+    const cs = getComputedStyle(featured);
+    featuredSpace = rect.height + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+  }
+
+  function setCategory(category: string) {
+    // Update pill active state
+    pills.forEach((pill) => {
+      const isActive = pill.dataset.category === category;
+      ACTIVE_CLS.forEach((c) => pill.classList.toggle(c, isActive));
+      INACTIVE_CLS.forEach((c) => pill.classList.toggle(c, !isActive));
+    });
+
+    // Toggle featured section (only visible when "All" = empty string).
+    // Use the pre-measured featuredSpace (captured on page load when featured
+    // is visible) so we don't depend on post-toggle layout timing.
+    if (featured) {
+      const wasHidden = featured.classList.contains("hidden");
+      const shouldHide = category !== "";
+
+      if (wasHidden && !shouldHide) {
+        featured.classList.remove("hidden");
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const target = Math.min(window.scrollY + featuredSpace, max);
+        window.scrollTo({ top: Math.max(0, target), behavior: "instant" });
+      } else if (!wasHidden && shouldHide) {
+        featured.classList.add("hidden");
+        window.scrollTo({ top: Math.max(0, window.scrollY - featuredSpace), behavior: "instant" });
+      }
+    }
+
+    // Filter project items
+    let visibleCount = 0;
+    items.forEach((item) => {
+      const matches = !category || item.dataset.category === category;
+      item.classList.toggle("hidden", !matches);
+      if (matches) visibleCount++;
+    });
+
+    // Show/hide empty state
+    emptyState?.classList.toggle("hidden", visibleCount > 0);
+
+    // Heading stays fixed — the active pill already indicates the category,
+    // and changing the heading text shifts its line count which breaks
+    // scroll position stability.
+
+    // Update URL without reload
+    const url = category ? `/projects?category=${encodeURIComponent(category)}` : "/projects";
+    history.pushState({ category }, "", url);
+  }
+
+  // Wire up pill clicks
+  pills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      setCategory(pill.dataset.category || "");
+    });
+  });
+
+  // Handle browser back/forward navigation
+  window.addEventListener("popstate", (e) => {
+    const category = e.state?.category ?? new URL(window.location.href).searchParams.get("category")?.toLowerCase() ?? "";
+    setCategory(category);
+  });
+
+  // On load: apply filter from URL (handles direct links / bookmarks).
+  // The page is prerendered with all items visible; this applies the filter
+  // client-side without a flash because it runs synchronously before paint.
+  const initialCat = new URL(window.location.href).searchParams.get("category")?.toLowerCase() ?? "";
+  if (initialCat) setCategory(initialCat);
+  history.replaceState({ category: initialCat }, "");
+</script>
+
+<style is:global>
+  .project-highlight {
+    animation: project-pulse 2s ease-out;
+  }
+  @keyframes project-pulse {
+    0% {
+      background-color: rgba(155, 123, 247, 0);
+      box-shadow: 0 0 0 0 rgba(155, 123, 247, 0);
+    }
+    15% {
+      background-color: rgba(155, 123, 247, 0.18);
+      box-shadow: 0 0 0 3px rgba(155, 123, 247, 0.35);
+    }
+    100% {
+      background-color: rgba(155, 123, 247, 0);
+      box-shadow: 0 0 0 0 rgba(155, 123, 247, 0);
+    }
+  }
+  :global(.dark) .project-highlight {
+    animation: project-pulse-dark 2s ease-out;
+  }
+  @keyframes project-pulse-dark {
+    0% {
+      background-color: rgba(167, 139, 250, 0);
+      box-shadow: 0 0 0 0 rgba(167, 139, 250, 0);
+    }
+    15% {
+      background-color: rgba(167, 139, 250, 0.22);
+      box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.45);
+    }
+    100% {
+      background-color: rgba(167, 139, 250, 0);
+      box-shadow: 0 0 0 0 rgba(167, 139, 250, 0);
+    }
+  }
+</style>

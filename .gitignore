@@ -21,3 +21,4 @@ tests/diff-*.png
 !public/**/*.png
 !public/**/*.jpeg
 !public/**/*.jpg
+.vercel

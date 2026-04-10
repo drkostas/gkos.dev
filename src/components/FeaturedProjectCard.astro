@@ -1,0 +1,35 @@
+---
+interface Props {
+  name: string;
+  image: string;
+  description: string;
+  tags: string[];
+  href: string;
+  class?: string;
+}
+
+const { name, image, description, tags, href, class: className } = Astro.props;
+---
+
+<li class:list={["z-50 flex h-full flex-col rounded-3xl border border-border-primary bg-bg-primary p-2", className]}>
+  <a class="flex h-full flex-col rounded-2xl" href={href} target="_blank" rel="noopener noreferrer">
+    <img
+      src={image}
+      alt={name}
+      class="h-[280px] rounded-2xl object-cover md:h-[225px]"
+    />
+    <div class="my-4 flex w-full flex-grow flex-col space-y-3 text-balance px-4">
+      <h2 class="text-lg font-medium leading-7 tracking-tight text-text-primary">
+        {name}
+      </h2>
+      <p class="flex-grow leading-7 text-text-secondary">{description}</p>
+      <div class="flex flex-wrap gap-1.5 pt-2">
+        {tags.slice(0, 4).map((tag) => (
+          <span class="rounded-full border border-border-primary px-2 py-0.5 text-xs text-text-secondary">
+            {tag}
+          </span>
+        ))}
+      </div>
+    </div>
+  </a>
+</li>

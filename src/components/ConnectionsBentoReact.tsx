@@ -1,6 +1,103 @@
 import { motion, useAnimation } from "framer-motion";
 
-function ConnectionCircle({
+// ----------------------------------------------------------------------------
+// Variant data — the orbit widget can be themed as "workbench" (tool logos
+// orbiting Kostas) or "inspirations" (academic/learning sources orbiting
+// Kostas). Central image stays the same either way; only the satellites,
+// title, and description change.
+// ----------------------------------------------------------------------------
+
+type Satellite = {
+  src: string;
+  top: string;
+  left: string;
+  delay: number;
+  sizeClass?: string;
+  paddingClass?: string;
+  alt: string;
+};
+
+type MobileSatellite = {
+  src: string;
+  positionClass: string;
+  sizeClass: string;
+  alt: string;
+};
+
+type Variant = {
+  title: string;
+  description: string;
+  centralSrc: string;
+  centralAlt: string;
+  satellites: Satellite[];
+  mobileSatellites: MobileSatellite[];
+};
+
+// Two icon sources: simple-icons (primary) and iconify (fallback for icons
+// that render incorrectly or aren't in simple-icons).
+const icon = (slug: string) => `https://cdn.simpleicons.org/${slug}`;
+const iconify = (slug: string) => `https://api.iconify.design/${slug}.svg`;
+
+// Reusable icon references — defined once so desktop + mobile variants stay in sync.
+const LOGOS = {
+  pytorch: icon("pytorch"),
+  huggingface: iconify("logos:hugging-face-icon"),
+  python: icon("python"),
+  typescript: icon("typescript"),
+  nextjs: icon("nextdotjs"),
+  arxiv: iconify("simple-icons:arxiv"),
+  googleScholar: iconify("simple-icons:googlescholar"),
+  openai: iconify("simple-icons:openai"),
+  youtube: icon("youtube"),
+  spotify: icon("spotify"),
+};
+
+const VARIANTS: Record<"workbench" | "inspirations", Variant> = {
+  workbench: {
+    title: "Workbench",
+    description: "Frameworks and services I ship with every day.",
+    centralSrc: "/kostas_neurips_square.jpg",
+    centralAlt: "Kostas",
+    satellites: [
+      { src: LOGOS.pytorch, top: "55%", left: "23%", delay: 0.1, sizeClass: "w-12 h-12", alt: "PyTorch" },
+      { src: LOGOS.huggingface, top: "53%", left: "67%", delay: 0.3, alt: "HuggingFace" },
+      { src: LOGOS.python, top: "4%", left: "32%", delay: 0.2, sizeClass: "w-14 h-14", alt: "Python" },
+      { src: LOGOS.nextjs, top: "15%", left: "78%", delay: 0.4, sizeClass: "w-10 h-10", alt: "Next.js" },
+      { src: LOGOS.typescript, top: "5%", left: "7%", delay: 0.5, sizeClass: "w-9 h-9", alt: "TypeScript" },
+    ],
+    mobileSatellites: [
+      { src: LOGOS.python, positionClass: "left-4 top-6 md:left-24", sizeClass: "w-10 h-10", alt: "Python" },
+      { src: LOGOS.pytorch, positionClass: "bottom-20 left-14 md:left-52", sizeClass: "w-12 h-12", alt: "PyTorch" },
+      { src: LOGOS.huggingface, positionClass: "right-16 top-4 md:right-52", sizeClass: "w-14 h-14", alt: "HuggingFace" },
+      { src: LOGOS.nextjs, positionClass: "bottom-20 right-4 md:right-12", sizeClass: "w-11 h-11", alt: "Next.js" },
+    ],
+  },
+  inspirations: {
+    title: "Inspirations",
+    description: "Books, papers, and people that shape my thinking.",
+    centralSrc: "/kostas_neurips_square.jpg",
+    centralAlt: "Kostas",
+    satellites: [
+      { src: LOGOS.arxiv, top: "55%", left: "23%", delay: 0.1, sizeClass: "w-12 h-12", alt: "arXiv" },
+      { src: LOGOS.googleScholar, top: "53%", left: "67%", delay: 0.3, alt: "Google Scholar" },
+      { src: LOGOS.openai, top: "4%", left: "32%", delay: 0.2, sizeClass: "w-14 h-14", alt: "OpenAI" },
+      { src: LOGOS.youtube, top: "15%", left: "78%", delay: 0.4, sizeClass: "w-10 h-10", alt: "YouTube" },
+      { src: LOGOS.spotify, top: "5%", left: "7%", delay: 0.5, sizeClass: "w-9 h-9", alt: "Spotify" },
+    ],
+    mobileSatellites: [
+      { src: LOGOS.arxiv, positionClass: "left-4 top-6 md:left-24", sizeClass: "w-10 h-10", alt: "arXiv" },
+      { src: LOGOS.openai, positionClass: "bottom-20 left-14 md:left-52", sizeClass: "w-12 h-12", alt: "OpenAI" },
+      { src: LOGOS.googleScholar, positionClass: "right-16 top-4 md:right-52", sizeClass: "w-14 h-14", alt: "Google Scholar" },
+      { src: LOGOS.youtube, positionClass: "bottom-20 right-4 md:right-12", sizeClass: "w-11 h-11", alt: "YouTube" },
+    ],
+  },
+};
+
+// ----------------------------------------------------------------------------
+// Inner primitives
+// ----------------------------------------------------------------------------
+
+function SatelliteCircle({
   children,
   sizeClass = "w-16 h-16",
   paddingClass = "p-1",
@@ -12,16 +109,32 @@ function ConnectionCircle({
   className?: string;
 }) {
   return (
-    <div className={`border-bg-secondary rounded-full border bg-[#EDEEF0] ${sizeClass} ${paddingClass} ${className || ""}`}>
+    <div
+      className={`border-bg-secondary rounded-full border bg-[#EDEEF0] ${sizeClass} ${paddingClass} ${className || ""}`}
+    >
       {children}
     </div>
   );
 }
 
-function AnimatedConnectionCircle({
-  src, sizeClass = "w-16 h-16", paddingClass = "p-1", top, left, delay, controls,
+function AnimatedSatellite({
+  src,
+  alt,
+  sizeClass = "w-16 h-16",
+  paddingClass = "p-1",
+  top,
+  left,
+  delay,
+  controls,
 }: {
-  src: string; sizeClass?: string; paddingClass?: string; top: string; left: string; delay: number; controls: any;
+  src: string;
+  alt: string;
+  sizeClass?: string;
+  paddingClass?: string;
+  top: string;
+  left: string;
+  delay: number;
+  controls: any;
 }) {
   return (
     <motion.div
@@ -35,9 +148,9 @@ function AnimatedConnectionCircle({
       style={{ top, left }}
       className={`absolute ${sizeClass} ${paddingClass} z-10`}
     >
-      <ConnectionCircle sizeClass={sizeClass} paddingClass={paddingClass}>
-        <img className="rounded-full" src={src} alt="Connection" />
-      </ConnectionCircle>
+      <SatelliteCircle sizeClass={sizeClass} paddingClass={paddingClass}>
+        <img className="h-full w-full rounded-full object-contain" src={src} alt={alt} />
+      </SatelliteCircle>
     </motion.div>
   );
 }
@@ -67,7 +180,18 @@ function BackgroundPattern() {
   );
 }
 
-export function ConnectionsBentoReact({ linkTo }: { linkTo?: string }) {
+// ----------------------------------------------------------------------------
+// Main component
+// ----------------------------------------------------------------------------
+
+export function ConnectionsBentoReact({
+  variant = "workbench",
+  linkTo,
+}: {
+  variant?: "workbench" | "inspirations";
+  linkTo?: string;
+}) {
+  const preset = VARIANTS[variant];
   const controls = useAnimation();
 
   const content = (
@@ -111,38 +235,37 @@ export function ConnectionsBentoReact({ linkTo }: { linkTo?: string }) {
                   </filter>
                 </defs>
               </svg>
-              <img className="absolute left-1/2 top-1/2 h-[100px] w-[100px] -translate-x-1/2 -translate-y-1/2 transform rounded-full" src="/kostas_poster.jpg" alt="" />
+              <img
+                className="absolute left-1/2 top-1/2 h-[100px] w-[100px] -translate-x-1/2 -translate-y-1/2 transform rounded-full object-cover"
+                src={preset.centralSrc}
+                alt={preset.centralAlt}
+              />
             </div>
           </span>
 
-          {/* Desktop animated circles */}
+          {/* Desktop animated satellites */}
           <span className="hidden md:block">
-            <AnimatedConnectionCircle src="/amy_dutton.jpg" top="55%" left="23%" delay={0.1} sizeClass="w-12 h-12" controls={controls} />
-            <AnimatedConnectionCircle src="/james_q_quick.jpg" top="53%" left="67%" delay={0.3} controls={controls} />
-            <AnimatedConnectionCircle src="/colby_fayock.jpg" top="4%" left="32%" delay={0.2} sizeClass="w-14 h-14" controls={controls} />
-            <AnimatedConnectionCircle src="/sarah_drasner.jpg" top="15%" left="78%" delay={0.4} sizeClass="w-10 h-10" controls={controls} />
-            <AnimatedConnectionCircle src="/shashi_lo.jpg" top="5%" left="7%" delay={0.5} sizeClass="w-9 h-9" controls={controls} />
+            {preset.satellites.map((sat, i) => (
+              <AnimatedSatellite key={i} {...sat} controls={controls} />
+            ))}
           </span>
 
-          {/* Mobile static circles */}
+          {/* Mobile static satellites */}
           <span className="lg:hidden">
-            <ConnectionCircle sizeClass="w-10 h-10" className="absolute left-4 top-6 md:left-24">
-              <img className="rounded-full" src="/shashi_lo.jpg" alt="Connection" />
-            </ConnectionCircle>
-            <ConnectionCircle sizeClass="w-12 h-12" className="absolute bottom-20 left-14 md:left-52">
-              <img className="rounded-full" src="/amy_dutton.jpg" alt="Connection" />
-            </ConnectionCircle>
-            <ConnectionCircle sizeClass="w-14 h-14" className="absolute right-16 top-4 md:right-52">
-              <img className="rounded-full" src="/james_q_quick.jpg" alt="Connection" />
-            </ConnectionCircle>
-            <ConnectionCircle sizeClass="w-11 h-11" className="absolute bottom-20 right-4 md:right-12">
-              <img className="rounded-full" src="/colby_fayock.jpg" alt="Connection" />
-            </ConnectionCircle>
+            {preset.mobileSatellites.map((sat, i) => (
+              <SatelliteCircle
+                key={i}
+                sizeClass={sat.sizeClass}
+                className={`absolute ${sat.positionClass}`}
+              >
+                <img className="h-full w-full rounded-full object-contain" src={sat.src} alt={sat.alt} />
+              </SatelliteCircle>
+            ))}
           </span>
         </div>
         <div className="z-20 mt-auto w-full text-balance text-center">
-          <h2 className="text-base font-medium text-text-primary">Connections</h2>
-          <p className="mt-1 text-text-secondary">An evolving list of people I've met and those I wish to meet.</p>
+          <h2 className="text-base font-medium text-text-primary">{preset.title}</h2>
+          <p className="mt-1 text-text-secondary">{preset.description}</p>
         </div>
       </div>
     </div>

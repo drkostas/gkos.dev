@@ -1,7 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { GetInTouchReact } from "@/components/GetInTouchReact";
 import { ReadingProgress } from "@/components/ReadingProgress";
 import { getCollection, getEntry, render } from "astro:content";
 
@@ -66,6 +66,6 @@ function formatDate(date: Date) {
       </GridWrapper>
     </div>
 
-    <NewsletterSignUpReact client:visible />
+    <GetInTouchReact client:visible />
   </article>
 </Layout>
