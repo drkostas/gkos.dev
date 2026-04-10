@@ -8,6 +8,7 @@ type GitHubData = {
   publicRepos: number;
   contributions: number;
   weeks: number[][];
+  coffeeCups: number;
 };
 
 type PyPIData = {
@@ -150,6 +151,49 @@ export function GitHubStatsReact() {
         <StatCard label="Followers">
           <CountUp target={data?.followers ?? 0} label="Followers" />
         </StatCard>
+      </div>
+    </div>
+  );
+}
+
+export function CoffeeCupsReact() {
+  const [cups, setCups] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stats/github")
+      .then((r) => r.json())
+      .then((d) => setCups(d.coffeeCups ?? 0))
+      .catch(() => {});
+  }, []);
+
+  const perDay = cups !== null && cups > 0 ? (cups / 365).toFixed(1) : "0";
+
+  return (
+    <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
+      <div className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <span className="absolute text-2xl" style={{ left: "10%", top: "20%", opacity: 0.15, transform: "rotate(-15deg)" }}>&#9749;</span>
+        <span className="absolute text-2xl" style={{ left: "75%", top: "15%", opacity: 0.15, transform: "rotate(10deg)" }}>&#9749;</span>
+        <span className="absolute text-2xl" style={{ left: "85%", top: "60%", opacity: 0.15, transform: "rotate(-8deg)" }}>&#9749;</span>
+        <span className="absolute text-2xl" style={{ left: "15%", top: "70%", opacity: 0.15, transform: "rotate(12deg)" }}>&#9749;</span>
+      </div>
+      <div className="relative z-20 flex h-full flex-col">
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl dark:bg-[rgba(120,90,30,0.5)]">
+          &#9749;
+        </div>
+        <h2 className="mb-2 font-medium text-text-primary">Coffee Consumed</h2>
+        <p className="text-sm text-text-secondary">Estimated from commits</p>
+        <div className="mt-auto">
+          <div className="flex items-baseline gap-1">
+            <span className="text-3xl font-semibold tabular-nums tracking-tight text-purple-primary">
+              ~{cups !== null ? cups.toLocaleString() : "—"}
+            </span>
+            <span className="text-sm text-text-secondary">cups</span>
+          </div>
+          <p className="mt-2 text-xs text-text-tertiary">
+            ~{perDay} cups/day · scales with commit intensity
+          </p>
+        </div>
       </div>
     </div>
   );

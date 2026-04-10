@@ -15,6 +15,16 @@ export const GET: APIRoute = async () => {
     getUserContributions("drkostas"),
   ]);
 
+  // Coffee cups: each day's contribution level (0-4) = coffees that day.
+  // Level 0 (no commits) = 0 cups, level 4 (heavy day) = 4 cups.
+  // This gives a realistic ~1-2 cups/day average for an active developer.
+  let coffeeCups = 0;
+  if (contributions) {
+    coffeeCups = contributions.weeks
+      .flat()
+      .reduce((sum, day) => sum + day.level, 0);
+  }
+
   return new Response(
     JSON.stringify({
       stars: repoStats.totalStars,
@@ -22,7 +32,8 @@ export const GET: APIRoute = async () => {
       followers: userStats?.followers ?? 0,
       publicRepos: userStats?.publicRepos ?? 0,
       contributions: contributions?.totalContributions ?? 0,
-      weeks: contributions?.weeks ?? [],
+      weeks: contributions?.weeks.map((w) => w.map((d) => d.level)) ?? [],
+      coffeeCups,
     }),
     {
       status: 200,
