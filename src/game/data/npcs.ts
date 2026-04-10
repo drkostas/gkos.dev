@@ -308,11 +308,11 @@ const ROUTE_NPCS: NPCDefinition[] = [
     speakerName: "Fisherman",
     animated: true,
   },
-  // Girl_2 at arbitrary position (68, 85) — ShiftMD mention
+  // Girl_2 — ShiftMD mention
   {
     id: "npc_r110_girl_2",
     spriteKey: "girl_2",
-    position: { x: 68, y: 85 },
+    position: { x: 66, y: 87 },
     facingDirection: Direction.LEFT,
     movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,

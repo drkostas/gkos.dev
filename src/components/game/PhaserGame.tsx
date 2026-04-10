@@ -20,6 +20,7 @@ import { GameLoadingScreen } from "./GameLoadingScreen";
 export default function PhaserGame() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadProgress, setLoadProgress] = useState(0);
+  const [assetsReady, setAssetsReady] = useState(false);
   const [loadComplete, setLoadComplete] = useState(false);
 
   // Wire Phaser's loader progress to the React loading screen
@@ -27,24 +28,21 @@ export default function PhaserGame() {
     game.events.on("step", () => {
       const bootScene = game.scene.getScene("BootScene");
       if (bootScene && bootScene.load) {
-        const progress = bootScene.load.progress * 100;
-        setLoadProgress(progress);
+        setLoadProgress(bootScene.load.progress * 100);
       }
     });
-    game.events.on("ready", () => {
-      // Scene manager signals all scenes are ready
-    });
-    // Listen for OverworldScene create — means assets are loaded and game is playable
+
+    // Wait for OverworldScene to be active — assets loaded, world built
     const checkScene = () => {
       const overworld = game.scene.getScene("OverworldScene");
       if (overworld && overworld.scene.isActive()) {
         setLoadProgress(100);
-        setLoadComplete(true);
+        setAssetsReady(true);
+        // Don't setLoadComplete yet — wait for user interaction to start BGM
       } else {
         requestAnimationFrame(checkScene);
       }
     };
-    // Start checking after a frame
     requestAnimationFrame(checkScene);
   }, []);
 
@@ -139,7 +137,12 @@ export default function PhaserGame() {
         ref={containerRef}
         style={{ width: "100%", height: "100%", background: "#000" }}
       />
-      <GameLoadingScreen progress={loadProgress} isComplete={loadComplete} />
+      <GameLoadingScreen
+        progress={loadProgress}
+        assetsReady={assetsReady}
+        isComplete={loadComplete}
+        onStart={() => setLoadComplete(true)}
+      />
       <DialogBox />
       <StartMenu />
     </div>
