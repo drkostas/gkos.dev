@@ -51,7 +51,7 @@ export function CommunityWallBentoReact() {
         </div>
 
         {/* Dots pattern */}
-        <div className="absolute top-0 h-full w-full bg-[radial-gradient(#e5e7eb_1px,transparent_2px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+        <div className="absolute top-0 h-full w-full bg-[radial-gradient(rgb(var(--color-border-primary)/0.4)_1px,transparent_2px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
 
         {/* Card 1 */}
         <motion.svg
