@@ -5,6 +5,15 @@ import { GetInTouchReact } from "@/components/GetInTouchReact";
 import { ScrapbookBentoReact } from "@/components/ScrapbookBentoReact";
 import { CurrentlyReadingBentoReact } from "@/components/CurrentlyReadingBentoReact";
 import { CurrentlyPlayingBentoReact } from "@/components/CurrentlyPlayingBentoReact";
+import { inspirations, CATEGORY_LABELS, CATEGORY_ICONS, INSPIRATION_CATEGORIES } from "@/data/inspirations";
+
+// Group by category
+const byCategory = INSPIRATION_CATEGORIES.map((cat) => ({
+  key: cat,
+  label: CATEGORY_LABELS[cat],
+  icon: CATEGORY_ICONS[cat],
+  items: inspirations.filter((i) => i.category === cat),
+})).filter((g) => g.items.length > 0);
 ---
 
 <Layout title="Inspirations | Kostas Georgiou">
@@ -24,7 +33,7 @@ import { CurrentlyPlayingBentoReact } from "@/components/CurrentlyPlayingBentoRe
         </GridWrapper>
         <GridWrapper>
           <p class="mx-auto mt-6 max-w-2xl text-center leading-8 text-text-secondary">
-            A living collection of the things I find myself coming back to. The papers I reread, the books I recommend, and the podcasts I don't miss.
+            A living collection of the things I find myself coming back to. The papers I reread, the books I recommend, and the researchers I follow.
           </p>
         </GridWrapper>
       </div>
@@ -45,6 +54,63 @@ import { CurrentlyPlayingBentoReact } from "@/components/CurrentlyPlayingBentoRe
           </div>
         </GridWrapper>
       </section>
+
+      <!-- Curated inspirations list -->
+      {byCategory.map((group) => (
+        <section>
+          <div class="px-4 pb-4">
+            <h2 class="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-text-secondary">
+              <span>{group.icon}</span>
+              {group.label}
+              <span class="text-text-tertiary">({group.items.length})</span>
+            </h2>
+          </div>
+          <ul class="flex flex-col">
+            {group.items.map((item) => (
+              <li>
+                <div class="block rounded-lg transition-colors hover:bg-white/60">
+                  <div class="grid h-full grid-cols-1 md:grid-cols-12">
+                    <div class="hidden space-y-1 p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-3">
+                      {item.author && (
+                        <span class="text-sm text-text-secondary">{item.author}</span>
+                      )}
+                    </div>
+                    <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
+                    <div class="col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
+                      <div class="z-10 text-balance">
+                        <h3 class="mb-2 text-base font-medium leading-6 tracking-tight text-text-primary md:text-lg md:leading-tight">
+                          {item.title}
+                        </h3>
+                        {item.author && (
+                          <span class="mb-2 inline-block text-sm text-text-secondary md:hidden">
+                            {item.author}
+                          </span>
+                        )}
+                        <p class="mb-3 text-base leading-6 text-text-secondary">
+                          {item.description}
+                        </p>
+                        {item.link && (
+                          <a
+                            href={item.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="flex items-center text-sm font-medium text-indigo-600"
+                            data-umami-event={`inspiration-click-${item.title.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}`}
+                          >
+                            <span class="text-sm leading-6">View</span>
+                            <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="h-0 w-full border-t border-border-primary/50"></div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
 
       <GetInTouchReact client:visible />
     </div>
