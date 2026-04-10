@@ -74,6 +74,16 @@ body.modal-open {
 .dark .bg-indigo-200 { background-color: rgb(60 60 130 / 0.4); }
 /* group-hover shadow override — purple glow is invisible on dark bg anyway */
 .dark .group-hover\:shadow-xl { --tw-shadow-color: transparent; }
+/* Hardcoded white gradients — swap to surface-aware colors in dark mode.
+   Covers from-white, via-white, to-white used in fade overlays across
+   CalendarBento, ChangelogBento, SpeakingBento, CurrentlyReadingBento, etc. */
+.dark .from-white { --tw-gradient-from: rgb(var(--color-surface)); }
+.dark .via-white { --tw-gradient-via: rgb(var(--color-surface)); }
+.dark .from-white\/75 { --tw-gradient-from: rgb(var(--color-surface) / 0.75); }
+.dark .bg-white\/75 { background-color: rgb(var(--color-surface) / 0.75); }
+/* group-hover from-bg-white (ToolboxBento) */
+.dark .group-hover\:from-bg-white { --tw-gradient-from: rgb(var(--color-surface)); }
+.dark .group:hover .group-hover\:from-bg-white { --tw-gradient-from: rgb(var(--color-surface)); }
 .dark .text-slate-900 { color: rgb(var(--color-text-primary)); }
 .dark .text-gray-500 { color: rgb(var(--color-text-secondary)); }
 .dark .text-gray-300 { color: rgb(var(--color-text-tertiary)); }

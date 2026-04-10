@@ -35,7 +35,7 @@ export function FeaturedBlogCardReact({
       <a className="flex h-full flex-col rounded-2xl" href={`/blog/${slug}`}>
         <img
           src={imageSrc}
-          alt=""
+          alt={title}
           className="h-[280px] rounded-2xl object-cover md:h-[225px]"
         />
         <div className="my-4 flex w-full flex-grow flex-col space-y-4 text-balance px-4">
