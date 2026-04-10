@@ -1,57 +1,99 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef } from "react";
+import { useState } from "react";
 
-const stickerRotations = [-8, 12, -5, 10];
-const stickerYOffsets = [12, -8, 15, -10];
+type StickerData = {
+  src: string;
+  width: number;
+  caption: string;
+};
+
+const stickerRotations = [-6, 8, -4, 10, -8, 5];
+const stickerYOffsets = [8, -6, 10, -8, 6, -4];
+
+// Key tools and platforms that define the workflow.
+const DEFAULT_STICKERS: StickerData[] = [
+  {
+    src: "https://cdn.simpleicons.org/pytorch",
+    width: 72,
+    caption: "PyTorch powers every paper — MEDiC, Cross-Scale MAE, MaskDistill.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/arxiv",
+    width: 72,
+    caption: "Daily reading list for ML and computer vision.",
+  },
+  {
+    src: "https://api.iconify.design/logos:hugging-face-icon.svg",
+    width: 72,
+    caption: "Where I publish trained models and find pretrained backbones.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/openai",
+    width: 72,
+    caption: "CLIP and GPT changed how I think about multi-modal AI.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/googlescholar",
+    width: 60,
+    caption: "102+ citations. The scoreboard that keeps me publishing.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/python",
+    width: 72,
+    caption: "7 PyPI packages, 10 papers, every side project.",
+  },
+];
 
 function Sticker({
-  children,
-  index = 1,
-  caption,
+  sticker,
+  index,
 }: {
-  children: React.ReactNode;
+  sticker: StickerData;
   index: number;
-  caption?: string;
 }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [isCaptionVisible, setIsCaptionVisible] = useState(false);
-  const initialRotation = stickerRotations[index % stickerRotations.length];
-  const initialY = stickerYOffsets[index % stickerYOffsets.length];
+  const [isHovered, setIsHovered] = useState(false);
+  const rotation = stickerRotations[index % stickerRotations.length];
+  const yOff = stickerYOffsets[index % stickerYOffsets.length];
 
   return (
     <motion.div
-      variants={{
-        hidden: { opacity: 0, scale: 0.9, y: 10 },
-        shown: { opacity: 1, scale: 1, y: initialY },
-      }}
-      style={{ zIndex: isDragging ? 1000 : undefined }}
-      className="relative cursor-grab active:cursor-grabbing"
+      className="relative flex items-center justify-center"
+      initial={{ opacity: 0, scale: 0.8, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: yOff }}
+      transition={{ delay: index * 0.08, type: "spring", stiffness: 200 }}
     >
       <motion.div
-        className="flex-shrink-1 relative h-fit min-w-[96px] drop-shadow-lg"
+        className="relative cursor-grab drop-shadow-md active:cursor-grabbing"
         drag
         dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
         dragTransition={{ power: 0.1, bounceStiffness: 200 }}
         dragElastic={0.8}
-        style={{ rotate: initialRotation }}
-        whileDrag={{ scale: 1.2, zIndex: 1000 }}
-        onHoverStart={() => { setIsCaptionVisible(true); setIsDragging(true); }}
-        onHoverEnd={() => { setIsCaptionVisible(false); setIsDragging(false); }}
-        onDragEnd={() => { setIsCaptionVisible(false); setIsDragging(false); }}
+        style={{ rotate: rotation }}
+        whileHover={{ scale: 1.15, rotate: 0, zIndex: 50 }}
+        whileDrag={{ scale: 1.2, zIndex: 100 }}
+        onHoverStart={() => setIsHovered(true)}
+        onHoverEnd={() => setIsHovered(false)}
       >
-        <div className="pointer-events-none select-none">{children}</div>
+        <img
+          width={sticker.width}
+          src={sticker.src}
+          alt={sticker.caption.split(".")[0]}
+          className="pointer-events-none select-none"
+          draggable={false}
+        />
 
         <AnimatePresence>
-          {caption && isCaptionVisible && (
+          {isHovered && sticker.caption && (
             <motion.div
               key="caption"
-              initial={{ opacity: 0, y: -48, scale: 0.5 }}
-              animate={{ opacity: 1, y: 0, scale: 0.9 }}
-              exit={{ opacity: 0, y: -48, scale: 0.5 }}
-              style={{ left: "50%", x: "-50%" }}
-              className="pointer-events-none absolute top-full z-10 mx-auto mt-2 min-w-[160px] max-w-screen-sm select-none text-balance rounded-sm bg-white/95 px-3 py-2 text-center text-[10px] text-black backdrop-blur-3xl"
+              initial={{ opacity: 0, y: 8, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.9 }}
+              transition={{ duration: 0.15 }}
+              className="pointer-events-none absolute left-1/2 top-full z-[100] mt-3 w-[180px] -translate-x-1/2 rounded-lg bg-dark-primary px-3 py-2 text-center text-[10px] leading-snug text-white shadow-lg dark:bg-zinc-800"
             >
-              {caption}
+              {sticker.caption}
+              <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-dark-primary dark:bg-zinc-800" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -60,83 +102,32 @@ function Sticker({
   );
 }
 
-type Sticker = {
-  src: string;
-  width: number;
-  caption: string;
-};
-
-// Stickers represent key inspirations — the tools and platforms that shaped
-// Kostas's research and engineering workflow.
-const DEFAULT_STICKERS: Sticker[] = [
-  {
-    src: "https://cdn.simpleicons.org/pytorch",
-    width: 96,
-    caption: "PyTorch powers every paper I've published — MEDiC, Cross-Scale MAE, MaskDistill, all built on it.",
-  },
-  {
-    src: "https://cdn.simpleicons.org/arxiv",
-    width: 96,
-    caption: "My daily reading list. Where I keep up with everything happening in ML and computer vision.",
-  },
-  {
-    src: "https://api.iconify.design/logos:hugging-face-icon.svg",
-    width: 96,
-    caption: "Where I publish trained models and the first place I look for pretrained backbones.",
-  },
-  {
-    src: "https://cdn.simpleicons.org/openai",
-    width: 96,
-    caption: "CLIP and GPT changed how I think about multi-modal AI. MEDiC distills directly from CLIP.",
-  },
-  {
-    src: "https://cdn.simpleicons.org/googlescholar",
-    width: 80,
-    caption: "102+ citations and counting. The scoreboard that keeps me publishing.",
-  },
-  {
-    src: "https://cdn.simpleicons.org/python",
-    width: 96,
-    caption: "7 PyPI packages, 10 papers, and every side project. The language I reach for first, every time.",
-  },
-];
-
 export function ScrapbookBentoReact({
   stickers = DEFAULT_STICKERS,
 }: {
-  stickers?: Sticker[];
+  stickers?: StickerData[];
 }) {
-  const container = {
-    hidden: { opacity: 0 },
-    shown: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 },
-    },
-  };
-
   return (
-    <div className="group relative flex flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white h-[220px]">
-      <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
-      <h2 className="mb-2 font-medium text-text-primary">Scrapbook</h2>
-      <div className="absolute top-0 h-[220px] w-full overflow-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_2px)] [background-size:14px_14px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_50%,black_40%,transparent_100%)]" />
-      <div className="w-full rounded-3xl p-6">
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="shown"
-          className="-mt-8 grid h-full w-full grid-cols-4 items-center gap-4"
-        >
+    <div className="group relative flex h-full min-h-[260px] flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 transition-colors hover:bg-white">
+      <div className="user-select-none pointer-events-none absolute inset-0 z-30 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
+
+      {/* Dot pattern bg */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(#e5e7eb_1px,transparent_2px)] [background-size:14px_14px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_50%,black_40%,transparent_100%)]" />
+
+      <div className="relative z-20 mb-3 flex items-start justify-between">
+        <div>
+          <h2 className="font-medium text-text-primary">Scrapbook</h2>
+          <p className="text-xs text-text-tertiary">tools of the trade</p>
+        </div>
+      </div>
+
+      {/* Sticker grid — overflow visible so tooltips aren't clipped */}
+      <div className="relative z-20 flex flex-1 items-center justify-center overflow-visible">
+        <div className="grid w-full grid-cols-3 gap-6 px-2 lg:grid-cols-6 lg:gap-4">
           {stickers.map((s, i) => (
-            <Sticker key={i} caption={s.caption} index={i}>
-              <img
-                width={s.width}
-                src={s.src}
-                className="max-w-[100px] xs:max-w-none"
-                draggable={false}
-              />
-            </Sticker>
+            <Sticker key={i} sticker={s} index={i} />
           ))}
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -32,7 +32,7 @@ export function FavoritePaperBentoReact({
       className="block h-full"
       data-umami-event="favorite-paper-click"
     >
-      <div className="group relative flex h-full min-h-[280px] flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-colors hover:bg-white">
+      <div className="group relative flex h-full min-h-[280px] flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 transition-colors hover:bg-white">
         <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-rose-400/15 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
 
         {/* Header */}
