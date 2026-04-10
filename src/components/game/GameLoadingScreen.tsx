@@ -174,19 +174,19 @@ export function GameLoadingScreen({
                 <span className="flex items-center gap-1.5">
                   <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">A</kbd>
                   <span className="text-text-tertiary/50">/</span>
+                  <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
+                  <span className="text-text-tertiary/50">/</span>
                   <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">Space</kbd>
                   Interact
                 </span>
                 <span className="flex items-center gap-1.5">
                   <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">S</kbd>
                   <span className="text-text-tertiary/50">/</span>
-                  <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">Esc</kbd>
-                  <span className="text-text-tertiary/50">/</span>
                   <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">Backspace</kbd>
                   Back
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
+                  <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">Esc</kbd>
                   <span className="text-text-tertiary/50">/</span>
                   <kbd className="rounded border border-border-primary bg-bg-primary px-1.5 py-0.5 font-mono text-[10px]">M</kbd>
                   Menu
