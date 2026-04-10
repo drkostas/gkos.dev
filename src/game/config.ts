@@ -10,6 +10,9 @@ export const PIXEL_SCALE = 3;
  * Creates a Phaser game config that fills the entire browser window.
  * Uses Scale.RESIZE so the canvas follows the window size. Camera zoom
  * is applied in the scene to keep tiles at a crisp integer pixel scale.
+ *
+ * Pixel-perfect settings (pixelArt + roundPixels + antialias:false) are
+ * important to avoid vertical/horizontal "bleed" lines at tile edges.
  */
 export function createGameConfig(
   parent: HTMLElement,
@@ -20,6 +23,14 @@ export function createGameConfig(
     width: window.innerWidth,
     height: window.innerHeight,
     pixelArt: true,
+    antialias: false,
+    roundPixels: true,
+    render: {
+      pixelArt: true,
+      antialias: false,
+      antialiasGL: false,
+      roundPixels: true,
+    },
     scale: {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.NO_CENTER,

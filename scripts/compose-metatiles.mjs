@@ -33,8 +33,16 @@ const META_PX = 16; // Metatile size (16x16 = 2x2 tiles)
 const TILES_PER_ROW_IN_PNG = 16; // 128px / 8px per tile
 const COMPOSED_COLUMNS = 16; // Metatiles per row in output tileset
 
-const MAP_WIDTH = 40;
-const MAP_HEIGHT = 20;
+const MAP_WIDTH = 140;  // 50 (route117) + 40 (mauville) + 50 (route118)
+const MAP_HEIGHT = 120; // 50 (route111) + 20 (mauville) + 50 (route110)
+
+// Tileset extrusion: number of pixels added around each metatile to prevent
+// texture bleeding at tile boundaries when rendered at non-integer zoom.
+// With EXTRUDE=1: margin=1, spacing=2, each metatile sits in a (META_PX+2) cell.
+const EXTRUDE = 1;
+const CELL_PX = META_PX + 2 * EXTRUDE;   // 18 pixels per metatile cell
+const TS_MARGIN = EXTRUDE;                // 1 pixel outer margin
+const TS_SPACING = 2 * EXTRUDE;           // 2 pixels between metatiles
 
 // ─── Palette Loading ─────────────────────────────────────────────────────────
 
@@ -203,6 +211,82 @@ const mauvilleMetatiles = parseMetatiles(
 // Combined metatile list: general (0-511) + mauville (512-1021)
 const allMetatiles = [...generalMetatiles, ...mauvilleMetatiles];
 console.log(`  Total metatiles: ${allMetatiles.length}`);
+
+// ─── Metatile Attributes (behavior + layerType) ─────────────────────────────
+// 2 bytes per metatile in pret's extracted format:
+//   bits  0-7:  behavior (walkability/interaction type)
+//   bits 12-15: layerType (0 = top renders above player, 1 = below)
+//
+// Behavior constants from pokeemerald's metatile_behaviors.h:
+//   0x10 MB_POND_WATER                  — impassable without surf
+//   0x11 MB_INTERIOR_DEEP_WATER         — impassable
+//   0x12 MB_DEEP_WATER                  — impassable
+//   0x13 MB_WATERFALL                   — impassable
+//   0x14 MB_SOOTOPOLIS_DEEP_WATER       — impassable
+//   0x15 MB_OCEAN_WATER                 — impassable
+//   0x16 MB_PUDDLE                      — WALKABLE (splash effect)
+//   0x17 MB_SHALLOW_WATER               — WALKABLE (ankle-deep)
+//   0x18 MB_UNUSED_SOOTOPOLIS_DEEP_WATER — impassable
+//   0x19 MB_NO_SURFACING                — impassable (water-visual)
+//   0x1A MB_UNUSED_SOOTOPOLIS_DEEP_WATER_2 — impassable
+// Our "no surf" game blocks everything in the water range EXCEPT
+// puddles (0x16) and shallow water (0x17).
+const genAttrsBuf = readFileSync(resolve(RAW, "general_metatile_attributes.bin"));
+const mauAttrsBuf = readFileSync(resolve(RAW, "mauville_metatile_attributes.bin"));
+const metatileBehaviors = new Array(allMetatiles.length).fill(0);
+for (let i = 0; i < genAttrsBuf.length / 2; i++) {
+  metatileBehaviors[i] = genAttrsBuf.readUInt16LE(i * 2) & 0xff;
+}
+for (let i = 0; i < mauAttrsBuf.length / 2; i++) {
+  metatileBehaviors[512 + i] = mauAttrsBuf.readUInt16LE(i * 2) & 0xff;
+}
+
+/** True if this metatile is water that the player shouldn't walk on. */
+function isWaterBehavior(behavior) {
+  if (behavior >= 0x10 && behavior <= 0x15) return true;
+  if (behavior >= 0x18 && behavior <= 0x1a) return true;
+  return false;
+}
+
+/**
+ * Ledge behavior → direction the player can hop OFF the ledge.
+ * From pokeemerald's metatile_behaviors.h:
+ *   0x38 MB_JUMP_EAST   → hop east (player walks right off the ledge)
+ *   0x39 MB_JUMP_WEST   → hop west
+ *   0x3a MB_JUMP_NORTH  → hop north
+ *   0x3b MB_JUMP_SOUTH  → hop south
+ */
+const LEDGE_BEHAVIORS = {
+  0x38: "right",
+  0x39: "left",
+  0x3a: "up",
+  0x3b: "down",
+};
+
+// Pre-compute the set of water metatile IDs so the map parser can mark them.
+const waterMetatiles = new Set();
+for (let m = 0; m < allMetatiles.length; m++) {
+  if (isWaterBehavior(metatileBehaviors[m])) waterMetatiles.add(m);
+}
+console.log(`  Water metatiles: ${waterMetatiles.size}`);
+
+// Pre-compute the ledge metatile → direction map.
+const ledgeMetatileDirection = {};
+for (let m = 0; m < allMetatiles.length; m++) {
+  const dir = LEDGE_BEHAVIORS[metatileBehaviors[m]];
+  if (dir) ledgeMetatileDirection[m] = dir;
+}
+console.log(`  Ledge metatiles: ${Object.keys(ledgeMetatileDirection).length}`);
+
+// Grass metatiles — MB_TALL_GRASS (0x02), MB_LONG_GRASS (0x03),
+// MB_SHORT_GRASS (0x07). Player walking into these tiles triggers a
+// brief rustle animation in OverworldScene.
+const GRASS_BEHAVIORS = new Set([0x02, 0x03, 0x07, 0x09]);
+const grassMetatiles = new Set();
+for (let m = 0; m < allMetatiles.length; m++) {
+  if (GRASS_BEHAVIORS.has(metatileBehaviors[m])) grassMetatiles.add(m);
+}
+console.log(`  Grass metatiles: ${grassMetatiles.size}`);
 
 // ─── Metatile Rendering ──────────────────────────────────────────────────────
 
@@ -399,53 +483,139 @@ const rows = Math.ceil(totalMetatiles / COMPOSED_COLUMNS);
 const tilesetWidth = COMPOSED_COLUMNS * META_PX;
 const tilesetHeight = rows * META_PX;
 
+// Extruded dimensions (1 px extrusion around each metatile).
+// Layout:  [margin=1] [meta][ext=1][ext=1][meta][ext=1][ext=1][meta] ... [margin=1]
+// Effective cell stride = META_PX + TS_SPACING = 18, with one outer margin.
+const extrudedWidth = TS_MARGIN + COMPOSED_COLUMNS * META_PX + (COMPOSED_COLUMNS - 1) * TS_SPACING + TS_MARGIN;
+const extrudedHeight = TS_MARGIN + rows * META_PX + (rows - 1) * TS_SPACING + TS_MARGIN;
+
 console.log(
-  `  Tileset dimensions: ${tilesetWidth}x${tilesetHeight} (${COMPOSED_COLUMNS} columns, ${rows} rows, ${totalMetatiles} metatiles)`,
+  `  Tileset dimensions (raw): ${tilesetWidth}x${tilesetHeight} (${COMPOSED_COLUMNS} columns, ${rows} rows, ${totalMetatiles} metatiles)`,
+);
+console.log(
+  `  Tileset dimensions (extruded): ${extrudedWidth}x${extrudedHeight} (margin=${TS_MARGIN}, spacing=${TS_SPACING})`,
 );
 
-// --- Bottom-layer tileset ---
-const bottomBuf = Buffer.alloc(tilesetWidth * tilesetHeight * 4, 0);
+/**
+ * For a metatile at (col, row) in the atlas grid, compute the pixel
+ * coordinates of its top-left corner inside the EXTRUDED tileset image.
+ */
+function extrudedPos(col, row) {
+  return {
+    x: TS_MARGIN + col * (META_PX + TS_SPACING),
+    y: TS_MARGIN + row * (META_PX + TS_SPACING),
+  };
+}
+
+/**
+ * After rendering all metatiles into their center positions inside an
+ * extruded buffer, copy each metatile's edge pixels outward into the
+ * surrounding EXTRUDE-pixel border. This prevents texture bleeding at
+ * tile boundaries when rendered at non-integer camera positions or zoom.
+ *
+ * Only copies edges INTO THE EXTRUDED BORDER of the SAME metatile —
+ * never into a neighbor's space (spacing=2 guarantees 1px on each side
+ * is the current metatile's own extruded edge).
+ */
+function extrudeEdges(buf, bufW) {
+  const write = (dstX, dstY, srcX, srcY) => {
+    const sO = (srcY * bufW + srcX) * 4;
+    const dO = (dstY * bufW + dstX) * 4;
+    buf[dO] = buf[sO];
+    buf[dO + 1] = buf[sO + 1];
+    buf[dO + 2] = buf[sO + 2];
+    buf[dO + 3] = buf[sO + 3];
+  };
+
+  for (let m = 0; m < totalMetatiles; m++) {
+    const col = m % COMPOSED_COLUMNS;
+    const row = Math.floor(m / COMPOSED_COLUMNS);
+    const { x: cx, y: cy } = extrudedPos(col, row);
+    // top edge
+    for (let px = 0; px < META_PX; px++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx + px, cy - i, cx + px, cy);
+      }
+    }
+    // bottom edge
+    for (let px = 0; px < META_PX; px++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx + px, cy + META_PX - 1 + i, cx + px, cy + META_PX - 1);
+      }
+    }
+    // left edge
+    for (let py = 0; py < META_PX; py++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx - i, cy + py, cx, cy + py);
+      }
+    }
+    // right edge
+    for (let py = 0; py < META_PX; py++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx + META_PX - 1 + i, cy + py, cx + META_PX - 1, cy + py);
+      }
+    }
+    // corners
+    for (let i = 1; i <= EXTRUDE; i++) {
+      for (let j = 1; j <= EXTRUDE; j++) {
+        write(cx - i, cy - j, cx, cy);                                           // top-left
+        write(cx + META_PX - 1 + i, cy - j, cx + META_PX - 1, cy);               // top-right
+        write(cx - i, cy + META_PX - 1 + j, cx, cy + META_PX - 1);               // bottom-left
+        write(cx + META_PX - 1 + i, cy + META_PX - 1 + j, cx + META_PX - 1, cy + META_PX - 1); // bottom-right
+      }
+    }
+  }
+}
+
+// --- Bottom-layer tileset (extruded) ---
+const bottomBuf = Buffer.alloc(extrudedWidth * extrudedHeight * 4, 0);
 for (let m = 0; m < totalMetatiles; m++) {
   const col = m % COMPOSED_COLUMNS;
   const row = Math.floor(m / COMPOSED_COLUMNS);
-  renderMetatileLayer(bottomBuf, tilesetWidth, col * META_PX, row * META_PX, m, "bottom");
+  const { x, y } = extrudedPos(col, row);
+  renderMetatileLayer(bottomBuf, extrudedWidth, x, y, m, "bottom");
 }
+extrudeEdges(bottomBuf, extrudedWidth);
 
 const bottomOutPath = resolve(ROOT, "public/game/tilesets/mauville_bottom.png");
 await sharp(bottomBuf, {
-  raw: { width: tilesetWidth, height: tilesetHeight, channels: 4 },
+  raw: { width: extrudedWidth, height: extrudedHeight, channels: 4 },
 })
   .png()
   .toFile(bottomOutPath);
 console.log(`  Written: ${bottomOutPath}`);
 
-// --- Top-layer tileset ---
-const topBuf = Buffer.alloc(tilesetWidth * tilesetHeight * 4, 0);
+// --- Top-layer tileset (extruded) ---
+const topBuf = Buffer.alloc(extrudedWidth * extrudedHeight * 4, 0);
 for (let m = 0; m < totalMetatiles; m++) {
   const col = m % COMPOSED_COLUMNS;
   const row = Math.floor(m / COMPOSED_COLUMNS);
-  renderMetatileLayer(topBuf, tilesetWidth, col * META_PX, row * META_PX, m, "top");
+  const { x, y } = extrudedPos(col, row);
+  renderMetatileLayer(topBuf, extrudedWidth, x, y, m, "top");
 }
+extrudeEdges(topBuf, extrudedWidth);
 
 const topOutPath = resolve(ROOT, "public/game/tilesets/mauville_top.png");
 await sharp(topBuf, {
-  raw: { width: tilesetWidth, height: tilesetHeight, channels: 4 },
+  raw: { width: extrudedWidth, height: extrudedHeight, channels: 4 },
 })
   .png()
   .toFile(topOutPath);
 console.log(`  Written: ${topOutPath}`);
 
-// --- Composed tileset (both layers merged, for reference) ---
-const composedBuf = Buffer.alloc(tilesetWidth * tilesetHeight * 4, 0);
+// --- Composed tileset (both layers merged, extruded, for reference) ---
+const composedBuf = Buffer.alloc(extrudedWidth * extrudedHeight * 4, 0);
 for (let m = 0; m < totalMetatiles; m++) {
   const col = m % COMPOSED_COLUMNS;
   const row = Math.floor(m / COMPOSED_COLUMNS);
-  renderMetatile(composedBuf, tilesetWidth, col * META_PX, row * META_PX, m);
+  const { x, y } = extrudedPos(col, row);
+  renderMetatile(composedBuf, extrudedWidth, x, y, m);
 }
+extrudeEdges(composedBuf, extrudedWidth);
 
 const composedOutPath = resolve(ROOT, "public/game/tilesets/mauville_composed.png");
 await sharp(composedBuf, {
-  raw: { width: tilesetWidth, height: tilesetHeight, channels: 4 },
+  raw: { width: extrudedWidth, height: extrudedHeight, channels: 4 },
 })
   .png()
   .toFile(composedOutPath);
@@ -456,22 +626,33 @@ console.log(`  Written: ${composedOutPath}`);
 console.log("Parsing map layout...");
 
 const mapBin = readFileSync(
-  resolve(ROOT, "public/game/maps/emerald-raw/MauvilleCity/map.bin"),
+  resolve(ROOT, "public/game/maps/emerald-raw/MauvilleStitched/map.bin"),
 );
 
 const mapData = []; // metatile IDs
 const collisionData = []; // 0 or 1
-const elevationData = []; // 0-15
+const flipData = []; // 0..3 (bit 0 = xflip, bit 1 = yflip)
+
+// Custom repurposed bits (elevation was never used):
+//   bit 14 = horizontal flip
+//   bit 15 = vertical   flip
+const FLIP_X_BIT = 1 << 14;
+const FLIP_Y_BIT = 1 << 15;
 
 for (let i = 0; i < mapBin.length; i += 2) {
   const word = mapBin.readUInt16LE(i);
   const metatileId = word & 0x3ff;
   const collision = (word >> 10) & 0x3;
-  const elevation = (word >> 12) & 0xf;
+  const flipX = (word & FLIP_X_BIT) !== 0;
+  const flipY = (word & FLIP_Y_BIT) !== 0;
 
   mapData.push(metatileId);
-  collisionData.push(collision !== 0 ? 1 : 0);
-  elevationData.push(elevation);
+  // Base collision from the map.bin bits, OR the metatile is water
+  // (which is walkable via surf in the original game but we force
+  // impassable because our game has no surf).
+  const isWater = waterMetatiles.has(metatileId);
+  collisionData.push(collision !== 0 || isWater ? 1 : 0);
+  flipData.push((flipX ? 1 : 0) | (flipY ? 2 : 0));
 }
 
 console.log(
@@ -514,20 +695,33 @@ console.log("Generating Tiled JSON map...");
 const BOTTOM_FIRSTGID = 1;
 const TOP_FIRSTGID = totalMetatiles + 1;
 
-const groundLayerData = mapData.map((id) => id + BOTTOM_FIRSTGID);
+// Tiled flip-bit encoding in 32-bit GIDs (Phaser respects these):
+//   0x80000000 = flipped horizontally
+//   0x40000000 = flipped vertically
+//   0x20000000 = flipped diagonally (unused here)
+const TILED_FLIP_H = 0x80000000;
+const TILED_FLIP_V = 0x40000000;
+
+const groundLayerData = mapData.map((id, i) => {
+  let gid = id + BOTTOM_FIRSTGID;
+  const f = flipData[i];
+  if (f & 1) gid |= TILED_FLIP_H;
+  if (f & 2) gid |= TILED_FLIP_V;
+  return gid;
+});
 
 // Determine which metatiles have non-transparent top layers by checking rendered pixels.
 // A metatile's top layer is "empty" if all 16x16 pixels are fully transparent (alpha=0).
+// Use the extruded buffer; skip the 1px extrusion border when sampling.
 const metatileTopHasContent = new Set();
 for (let m = 0; m < totalMetatiles; m++) {
   const col = m % COMPOSED_COLUMNS;
   const row = Math.floor(m / COMPOSED_COLUMNS);
-  const baseX = col * META_PX;
-  const baseY = row * META_PX;
+  const { x: baseX, y: baseY } = extrudedPos(col, row);
   let hasOpaque = false;
   for (let py = 0; py < META_PX && !hasOpaque; py++) {
     for (let px = 0; px < META_PX && !hasOpaque; px++) {
-      const off = ((baseY + py) * tilesetWidth + (baseX + px)) * 4;
+      const off = ((baseY + py) * extrudedWidth + (baseX + px)) * 4;
       if (topBuf[off + 3] > 0) hasOpaque = true;
     }
   }
@@ -546,40 +740,8 @@ const aboveLayerData = mapData.map((id) =>
 // Grid Engine reads the ge_collide property to know this layer defines collision.
 const collisionLayerData = collisionData.map((c) => (c !== 0 ? BOTTOM_FIRSTGID : 0));
 
-// ── Extra collision: borders + unreachable rooftop areas ──
-// The original game prevents access to these via adjacent route maps.
-// Since we don't have route transitions yet, we block them explicitly.
-let extraCollision = 0;
-
-// Block all 4 borders
-for (let x = 0; x < MAP_WIDTH; x++) {
-  if (!collisionLayerData[x]) { collisionLayerData[x] = BOTTOM_FIRSTGID; extraCollision++; }
-  const bot = (MAP_HEIGHT - 1) * MAP_WIDTH + x;
-  if (!collisionLayerData[bot]) { collisionLayerData[bot] = BOTTOM_FIRSTGID; extraCollision++; }
-}
-for (let y = 0; y < MAP_HEIGHT; y++) {
-  if (!collisionLayerData[y * MAP_WIDTH]) { collisionLayerData[y * MAP_WIDTH] = BOTTOM_FIRSTGID; extraCollision++; }
-  const right = y * MAP_WIDTH + MAP_WIDTH - 1;
-  if (!collisionLayerData[right]) { collisionLayerData[right] = BOTTOM_FIRSTGID; extraCollision++; }
-}
-
-// Block rows 0-4 (north rooftops, unreachable without Route 111)
-for (let y = 0; y <= 4; y++) {
-  for (let x = 0; x < MAP_WIDTH; x++) {
-    const idx = y * MAP_WIDTH + x;
-    if (!collisionLayerData[idx]) { collisionLayerData[idx] = BOTTOM_FIRSTGID; extraCollision++; }
-  }
-}
-
-// Block rows 11-12 (south building rooftops, unreachable from the road)
-for (let y = 11; y <= 12; y++) {
-  for (let x = 0; x < MAP_WIDTH; x++) {
-    const idx = y * MAP_WIDTH + x;
-    if (!collisionLayerData[idx]) { collisionLayerData[idx] = BOTTOM_FIRSTGID; extraCollision++; }
-  }
-}
-
-console.log(`  Extra collision tiles added: ${extraCollision}`);
+// Stitched map: just use the original map.bin collision bits.
+// No extra border or rooftop blocking — routes now surround Mauville.
 console.log(`  Total collision: ${collisionLayerData.filter(c => c > 0).length}/${mapData.length}`);
 
 const tiledMap = {
@@ -600,21 +762,9 @@ const tiledMap = {
       y: 0,
     },
     {
-      data: aboveLayerData,
-      height: MAP_HEIGHT,
-      id: 2,
-      name: "Above",
-      opacity: 1,
-      type: "tilelayer",
-      visible: true,
-      width: MAP_WIDTH,
-      x: 0,
-      y: 0,
-    },
-    {
       data: collisionLayerData,
       height: MAP_HEIGHT,
-      id: 3,
+      id: 2,
       name: "Collision",
       opacity: 1,
       type: "tilelayer",
@@ -631,7 +781,7 @@ const tiledMap = {
       ],
     },
   ],
-  nextlayerid: 4,
+  nextlayerid: 3,
   nextobjectid: 1,
   orientation: "orthogonal",
   renderorder: "right-down",
@@ -643,11 +793,11 @@ const tiledMap = {
       columns: COMPOSED_COLUMNS,
       firstgid: BOTTOM_FIRSTGID,
       image: "../tilesets/mauville_bottom.png",
-      imageheight: tilesetHeight,
-      imagewidth: tilesetWidth,
-      margin: 0,
+      imageheight: extrudedHeight,
+      imagewidth: extrudedWidth,
+      margin: TS_MARGIN,
       name: "mauville_bottom",
-      spacing: 0,
+      spacing: TS_SPACING,
       tilecount: totalMetatiles,
       tileheight: META_PX,
       tilewidth: META_PX,
@@ -660,19 +810,6 @@ const tiledMap = {
         },
       ],
     },
-    {
-      columns: COMPOSED_COLUMNS,
-      firstgid: TOP_FIRSTGID,
-      image: "../tilesets/mauville_top.png",
-      imageheight: tilesetHeight,
-      imagewidth: tilesetWidth,
-      margin: 0,
-      name: "mauville_top",
-      spacing: 0,
-      tilecount: totalMetatiles,
-      tileheight: META_PX,
-      tilewidth: META_PX,
-    },
   ],
   type: "map",
   version: "1.10",
@@ -683,6 +820,38 @@ const mapOutPath = resolve(ROOT, "public/game/maps/mauville.json");
 writeFileSync(mapOutPath, JSON.stringify(tiledMap, null, 2));
 console.log(`  Written: ${mapOutPath}`);
 
+// ─── Export Ledge Positions ───────────────────────────────────────────────
+//
+// Scan the stitched map for tiles whose metatile has a MB_JUMP_* behavior
+// and export their positions + hop direction. OverworldScene loads this
+// file and uses it to handle one-way ledge movement.
+const ledges = [];
+for (let y = 0; y < MAP_HEIGHT; y++) {
+  for (let x = 0; x < MAP_WIDTH; x++) {
+    const metatileId = mapData[y * MAP_WIDTH + x];
+    const dir = ledgeMetatileDirection[metatileId];
+    if (dir) ledges.push({ x, y, direction: dir });
+  }
+}
+const ledgesPath = resolve(ROOT, "public/game/maps/ledges.json");
+writeFileSync(ledgesPath, JSON.stringify(ledges, null, 2));
+console.log(`  Ledges: ${ledges.length} in stitched map → ${ledgesPath}`);
+
+// ─── Export Grass Positions ───────────────────────────────────────────────
+// Positions of tall/long/short grass in the stitched map. OverworldScene
+// uses these to trigger a rustle animation when the player walks onto
+// one of these tiles.
+const grassTiles = [];
+for (let y = 0; y < MAP_HEIGHT; y++) {
+  for (let x = 0; x < MAP_WIDTH; x++) {
+    const metatileId = mapData[y * MAP_WIDTH + x];
+    if (grassMetatiles.has(metatileId)) grassTiles.push({ x, y });
+  }
+}
+const grassPath = resolve(ROOT, "public/game/maps/grass.json");
+writeFileSync(grassPath, JSON.stringify(grassTiles, null, 2));
+console.log(`  Grass tiles: ${grassTiles.length} → ${grassPath}`);
+
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
 console.log("\nDone!");
@@ -691,6 +860,6 @@ console.log(`  Top tileset:    ${topOutPath}`);
 console.log(`  Composed:       ${composedOutPath}`);
 console.log(`  Map:            ${mapOutPath}`);
 console.log(
-  `  Tileset size: ${tilesetWidth}x${tilesetHeight} (${totalMetatiles} metatiles in ${COMPOSED_COLUMNS}x${rows} grid)`,
+  `  Tileset size (extruded): ${extrudedWidth}x${extrudedHeight} (${totalMetatiles} metatiles in ${COMPOSED_COLUMNS}x${rows} grid, margin=${TS_MARGIN}, spacing=${TS_SPACING})`,
 );
 console.log(`  Map size: ${MAP_WIDTH}x${MAP_HEIGHT} metatiles (${MAP_WIDTH * META_PX}x${MAP_HEIGHT * META_PX} pixels)`);

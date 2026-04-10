@@ -13,7 +13,26 @@ export const GameEvents = {
   ENCOUNTER_CHOICE: "game:encounter-choice",
   SHOW_MENU: "game:show-menu",
   MENU_CLOSE: "game:menu-close",
+  /** Debug mode: overlays semi-transparent tile coords so user can point at exact positions. */
+  TOGGLE_DEBUG: "game:toggle-debug",
 } as const;
+
+/**
+ * Read the persisted debug-mode state from localStorage.
+ * Defaults to false if never set.
+ */
+export function getDebugMode(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem("gkos:explore:debug") === "1";
+}
+
+/**
+ * Persist the debug-mode state to localStorage.
+ */
+export function setDebugMode(enabled: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem("gkos:explore:debug", enabled ? "1" : "0");
+}
 
 export interface DialogPayload {
   lines: string[];

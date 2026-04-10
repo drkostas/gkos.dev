@@ -3,6 +3,8 @@ import {
   GameEvents,
   emitGameEvent,
   onGameEvent,
+  getDebugMode,
+  setDebugMode,
 } from "@/game/EventBridge";
 import TrainerCard from "./TrainerCard";
 import PokedexList from "./PokedexList";
@@ -89,10 +91,15 @@ export default function StartMenu() {
           setSubScreen("save-confirm");
           setSaveStep("confirm");
           break;
-        case "OPTION":
-          // Navigate to normal site
-          window.location.href = "/";
+        case "OPTION": {
+          // Toggle debug overlay (tile coordinates). Persisted in
+          // localStorage so the setting survives page reloads.
+          const next = !getDebugMode();
+          setDebugMode(next);
+          emitGameEvent(GameEvents.TOGGLE_DEBUG, next);
+          closeMenu();
           break;
+        }
         case "EXIT":
           closeMenu();
           break;

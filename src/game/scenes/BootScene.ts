@@ -35,7 +35,12 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
 
-    // NPC spritesheets — same 144x32 9-frame format as Brendan
+    // NPC spritesheets — same 144x32 9-frame format as Brendan.
+    // NOTE: DO NOT add sprites with a different frame layout (like
+    // little_boy which is 144x16, or old_man which is 48x32). Adding
+    // them here with the wrong dimensions causes them to render as
+    // a wide strip showing all 9 frames side-by-side — which looks
+    // like a row of duplicate NPCs in the scene.
     const npcSprites = [
       "boy_3",
       "rich_boy",
@@ -43,6 +48,16 @@ export class BootScene extends Phaser.Scene {
       "woman_4",
       "school_kid_m",
       "fat_man",
+      // Route NPCs (added when routes were stitched in)
+      "woman_1",
+      "woman_2",
+      "lass",
+      "girl_2",
+      "girl_3",
+      "fisherman",
+      "youngster",
+      "man_1",
+      "pokefan_f",
     ];
     for (const name of npcSprites) {
       this.load.spritesheet(name, `/game/sprites/emerald/${name}.png`, {
@@ -55,6 +70,23 @@ export class BootScene extends Phaser.Scene {
     this.load.spritesheet("item_ball", "/game/sprites/emerald/item_ball.png", {
       frameWidth: 16,
       frameHeight: 16,
+    });
+
+    // Snorlax blocker — 32x32 single frame (static, doesn't animate).
+    // Sourced from pokeemerald's big_snorlax_doll.png. It occupies 2x2
+    // tile visual footprint but only sits on 1 grid tile (collision).
+    this.load.spritesheet("snorlax", "/game/sprites/emerald/snorlax.png", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+
+    // Old Man (day care guy) — 48x32 = 3 frames of 16x32.
+    // Loaded as 3-frame spritesheet to match the actual file size.
+    // Used as a non-animated NPC (Grid Engine won't use walk animation
+    // since the mapping expects 9 frames).
+    this.load.spritesheet("old_man", "/game/sprites/emerald/old_man.png", {
+      frameWidth: 16,
+      frameHeight: 32,
     });
   }
 

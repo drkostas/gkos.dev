@@ -36,7 +36,12 @@ export interface ObstructiveTile {
  * right, and walk off in those directions. Can't enter from above or
  * exit going up. The fence visually occupies the top of the tile.
  */
-export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = [
+/** Offset for the stitched route map (Mauville origin in the 140x120 map). */
+const OFFSET_X = 50;
+const OFFSET_Y = 50;
+
+/** Raw obstructive tiles in ORIGINAL Mauville coords. */
+const MAUVILLE_OBSTRUCTIVE_RAW: ObstructiveTile[] = [
   // Signs (8 tiles)
   { x: 19, y: 7, blockedEdges: ["bottom"] },
   { x: 23, y: 5, blockedEdges: ["bottom"] },
@@ -46,8 +51,13 @@ export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = [
   { x: 25, y: 14, blockedEdges: ["bottom"] },
   { x: 33, y: 6, blockedEdges: ["bottom"] },
   { x: 11, y: 15, blockedEdges: ["bottom"] },
-
 ];
+
+export const MAUVILLE_OBSTRUCTIVE: ObstructiveTile[] = MAUVILLE_OBSTRUCTIVE_RAW.map((t) => ({
+  ...t,
+  x: t.x + OFFSET_X,
+  y: t.y + OFFSET_Y,
+}));
 
 /**
  * Check if movement from source to target is blocked by an obstructive edge.
