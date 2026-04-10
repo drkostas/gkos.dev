@@ -24,7 +24,7 @@ export function BookshelfBentoReact({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   return (
-    <div className="group relative flex h-full min-h-[280px] flex-col overflow-visible rounded-2xl border border-border-primary bg-bg-primary p-6 transition-colors hover:bg-white">
+    <div className="group relative flex h-full flex-col overflow-visible rounded-2xl border border-border-primary bg-bg-primary p-6 transition-colors hover:bg-white">
       <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-amber-400/15 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
 
       {/* Header */}
@@ -84,11 +84,11 @@ export function BookshelfBentoReact({
                   <motion.div
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="absolute -top-16 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-dark-primary px-3 py-2 text-center shadow-lg dark:bg-zinc-800"
+                    className="absolute -top-16 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-zinc-900 px-3 py-2 text-center shadow-lg"
                   >
                     <p className="text-xs font-semibold text-white">{book.title}</p>
-                    <p className="text-[10px] text-gray-400">{book.author}</p>
-                    <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-dark-primary dark:bg-zinc-800" />
+                    <p className="text-[10px] text-zinc-400">{book.author}</p>
+                    <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-zinc-900" />
                   </motion.div>
                 )}
               </motion.div>

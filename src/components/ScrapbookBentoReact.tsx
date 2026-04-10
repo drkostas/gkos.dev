@@ -90,10 +90,10 @@ function Sticker({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.9 }}
               transition={{ duration: 0.15 }}
-              className="pointer-events-none absolute left-1/2 top-full z-[100] mt-3 w-[180px] -translate-x-1/2 rounded-lg bg-dark-primary px-3 py-2 text-center text-[10px] leading-snug text-white shadow-lg dark:bg-zinc-800"
+              className="pointer-events-none absolute left-1/2 top-full z-[100] mt-3 w-[180px] -translate-x-1/2 rounded-lg bg-zinc-900 px-3 py-2 text-center text-[10px] leading-snug text-white shadow-lg"
             >
               {sticker.caption}
-              <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-dark-primary dark:bg-zinc-800" />
+              <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-zinc-900" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -111,8 +111,8 @@ export function ScrapbookBentoReact({
     <div className="group relative flex h-full min-h-[260px] flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 transition-colors hover:bg-white">
       <div className="user-select-none pointer-events-none absolute inset-0 z-30 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
 
-      {/* Dot pattern bg */}
-      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(#e5e7eb_1px,transparent_2px)] [background-size:14px_14px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_50%,black_40%,transparent_100%)]" />
+      {/* Dot pattern bg — uses CSS custom property so it adapts to dark mode */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(rgb(var(--color-border-primary)/0.4)_1px,transparent_2px)] [background-size:14px_14px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_50%,black_40%,transparent_100%)]" />
 
       <div className="relative z-20 mb-3 flex items-start justify-between">
         <div>

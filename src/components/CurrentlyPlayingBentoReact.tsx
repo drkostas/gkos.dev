@@ -64,7 +64,7 @@ export function CurrentlyPlayingBentoReact() {
 
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="block h-full">
-      <div className="group relative flex flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white overflow-hidden h-[300px]">
+      <div className="group relative flex h-full flex-col overflow-clip rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white">
         <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
         <div className="flex flex-col">
           <div className="z-10 h-full">
