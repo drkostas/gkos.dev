@@ -5,7 +5,7 @@ import { getCollection } from "astro:content";
 import { getWallMessageCount } from "@/lib/supabase";
 import { SiteViewsCardReact } from "@/components/SiteViewsCardReact";
 import { UmamiStatsReact } from "@/components/UmamiStatsReact";
-import { GitHubStatsReact, PyPIStatsReact } from "@/components/LiveStatsReact";
+import { GitHubStatsReact, PyPIStatsReact, CoffeeCupsReact } from "@/components/LiveStatsReact";
 import { projects } from "@/data/projects";
 
 const allBlogPosts = (await getCollection("blog")).filter((p) => !p.data.draft);
@@ -26,8 +26,8 @@ const readingTime = readingMinutes >= 60
   ? `${Math.floor(readingMinutes / 60)}h ${readingMinutes % 60}m`
   : `${readingMinutes}m`;
 const totalArticles = totalPosts;
-// ~1 cup per 500 words, purely for flavor.
-const coffeeCups = Math.round(wordsWritten / 500);
+// Coffee cups are now dynamic — calculated from GitHub commit intensity
+// in the CoffeeCupsReact island (fetches /api/stats/github).
 
 // Categories pulled from published post frontmatter. Empty when there's no content yet.
 const categoryCounts = new Map<string, number>();
@@ -128,32 +128,9 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
 
           <!-- Most Viewed Article: skipped to match baseline (no Supabase data) -->
 
-          <!-- Coffee Consumed -->
+          <!-- Coffee Consumed — dynamic, based on commit intensity -->
           <div class="md:col-span-5">
-            <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
-              <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-              <!-- Floating coffee decorations -->
-              <div class="pointer-events-none absolute inset-0 overflow-hidden">
-                <span class="absolute text-2xl" style="left: 10%; top: 20%; opacity: 0.15; transform: rotate(-15deg);">&#9749;</span>
-                <span class="absolute text-2xl" style="left: 75%; top: 15%; opacity: 0.15; transform: rotate(10deg);">&#9749;</span>
-                <span class="absolute text-2xl" style="left: 85%; top: 60%; opacity: 0.15; transform: rotate(-8deg);">&#9749;</span>
-                <span class="absolute text-2xl" style="left: 15%; top: 70%; opacity: 0.15; transform: rotate(12deg);">&#9749;</span>
-              </div>
-              <div class="relative z-20 flex h-full flex-col">
-                <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl">&#9749;</div>
-                <h2 class="mb-2 font-medium text-text-primary">Coffee Consumed</h2>
-                <p class="text-sm text-text-secondary">Estimated fuel</p>
-                <div class="mt-auto">
-                  <div class="flex items-baseline gap-1">
-                    <span class="text-3xl font-semibold tracking-tight text-purple-primary">
-                      ~<span class="count-up" data-target={coffeeCups}>0</span>
-                    </span>
-                    <span class="text-sm text-text-secondary">cups</span>
-                  </div>
-                  <p class="mt-2 text-xs text-text-tertiary">1 cup per 500 words</p>
-                </div>
-              </div>
-            </div>
+            <CoffeeCupsReact client:load />
           </div>
 
           <!-- Words Written -->
