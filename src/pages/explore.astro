@@ -1,59 +1,64 @@
 ---
-import Layout from "@/layouts/Layout.astro";
-import GridWrapper from "@/components/GridWrapper.astro";
+import GameLayout from "@/layouts/GameLayout.astro";
+import { GameLoadingScreen } from "@/components/game/GameLoadingScreen";
 ---
 
-<Layout title="Explore Mode | Kostas Georgiou">
-  <div class="relative">
-    <div class="relative space-y-16 md:space-y-24">
-      <div class="mx-auto text-balance pt-14 md:pt-16">
-        <GridWrapper>
-          <div class="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
-            <span>Explore Mode</span>
-          </div>
-        </GridWrapper>
-        <GridWrapper>
-          <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
-            A playable version of my portfolio.
-          </h1>
-        </GridWrapper>
-        <GridWrapper>
-          <p class="mx-auto mt-8 max-w-xl text-center leading-8 text-text-secondary">
-            Soon you'll be able to walk around a pixel-art world where buildings are pages, Pokemon are my projects, NPCs are my papers and blog posts, and gym badges are the skills I've picked up along the way.
-          </p>
-        </GridWrapper>
-        <GridWrapper>
-          <div class="mx-auto mt-12 max-w-md rounded-2xl border border-border-primary bg-bg-primary p-8 text-center">
-            <div class="mb-4 flex justify-center text-purple-primary">
-              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="6" x2="10" y1="11" y2="11" />
-                <line x1="8" x2="8" y1="9" y2="13" />
-                <line x1="15" x2="15.01" y1="12" y2="12" />
-                <line x1="18" x2="18.01" y1="10" y2="10" />
-                <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258A4 4 0 0 0 17.32 5z" />
-              </svg>
-            </div>
-            <p class="font-mono text-xs uppercase tracking-widest text-purple-primary">Under Construction</p>
-            <p class="mt-3 text-text-secondary">
-              Explore mode is being built with Phaser 3. Check back soon.
-            </p>
-          </div>
-        </GridWrapper>
-        <GridWrapper>
-          <div class="mt-12 text-center">
-            <a
-              href="/"
-              class="group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden rounded-full bg-indigo-600 px-5 py-3 text-sm font-medium text-white ring-1 ring-indigo-600 shadow-[0_1px_theme(colors.white/0.07)_inset,0_1px_3px_theme(colors.gray.900/0.2)] transition duration-300 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-full before:bg-gradient-to-b before:from-white/20 before:opacity-50 before:transition-opacity hover:before:opacity-100 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:rounded-full after:bg-gradient-to-b after:from-white/10 after:from-[46%] after:to-[54%] after:mix-blend-overlay"
+<GameLayout title="Explore Mode | Kostas Georgiou">
+  <!--
+    When the game is ready (feature/pokemon-explore merged):
+    Replace the placeholder below with <PhaserGame client:only="react" />
+    The GameLoadingScreen will be driven by Phaser's loader progress events.
+
+    For now: show the loading screen at 0% as a design preview, with the
+    "under construction" message below it.
+  -->
+  <div class="relative h-full">
+    <!-- Loading screen preview (static, shows the design) -->
+    <GameLoadingScreen progress={0} isComplete={false} client:load />
+
+    <!-- Under construction content — visible behind/below loading screen -->
+    <div class="flex h-full flex-col items-center justify-center px-6">
+      <div class="max-w-md text-center">
+        <div class="mb-6 flex justify-center">
+          <div class="flex h-20 w-20 items-center justify-center rounded-2xl border border-border-primary bg-bg-primary">
+            <svg
+              class="h-10 w-10 text-purple-primary"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 12H5" />
-                <path d="m12 19-7-7 7-7" />
-              </svg>
-              Back to normal mode
-            </a>
+              <line x1="6" x2="10" y1="11" y2="11" />
+              <line x1="8" x2="8" y1="9" y2="13" />
+              <line x1="15" x2="15.01" y1="12" y2="12" />
+              <line x1="18" x2="18.01" y1="10" y2="10" />
+              <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258A4 4 0 0 0 17.32 5z" />
+            </svg>
           </div>
-        </GridWrapper>
+        </div>
+        <h1 class="mb-3 text-2xl font-medium tracking-tight text-text-primary">
+          Explore Mode
+        </h1>
+        <p class="mb-2 font-mono text-xs uppercase tracking-widest text-purple-primary">
+          Under Construction
+        </p>
+        <p class="mb-8 text-sm leading-relaxed text-text-secondary">
+          Walk around a pixel-art world where buildings are pages, Pokemon are projects,
+          and NPCs share papers and blog posts. Built with Phaser 3.
+        </p>
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 rounded-full border border-border-primary px-5 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-purple-primary hover:text-purple-primary"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5" />
+            <path d="m12 19-7-7 7-7" />
+          </svg>
+          Back to normal mode
+        </a>
       </div>
     </div>
   </div>
-</Layout>
+</GameLayout>
