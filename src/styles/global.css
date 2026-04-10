@@ -7,6 +7,25 @@ body.modal-open {
 }
 
 /* =========================================
+   Hatched sidebars — diagonal pattern using the border-primary CSS var
+   so it adapts to dark mode. Opacity kept low (0.35) so it adds depth
+   without dominating the page edges.
+   ========================================= */
+.hatched-sidebar {
+  background-image: linear-gradient(
+    45deg,
+    rgb(var(--color-border-primary) / 0.35) 12.5%,
+    transparent 12.5%,
+    transparent 50%,
+    rgb(var(--color-border-primary) / 0.35) 50%,
+    rgb(var(--color-border-primary) / 0.35) 62.5%,
+    transparent 62.5%,
+    transparent 100%
+  );
+  background-size: 5px 5px;
+}
+
+/* =========================================
    Color System — CSS Custom Properties
    All colors defined as "R G B" for Tailwind alpha support.
    Switching .dark on <html> swaps all colors automatically.
@@ -38,8 +57,23 @@ body.modal-open {
 
 /* Override Tailwind defaults that use hardcoded colors */
 .dark .bg-white { background-color: rgb(var(--color-surface)); }
+.dark .bg-white\/50 { background-color: rgb(var(--color-surface) / 0.5); }
 .dark .hover\:bg-white:hover { background-color: rgb(var(--color-surface)); }
 .dark .hover\:bg-white\/60:hover { background-color: rgb(var(--color-surface) / 0.6); }
+/* group-hover variants — the simple selector covers Tailwind v3's
+   static class; the .group:hover variant catches the runtime state. */
+.dark .group-hover\:bg-white { background-color: rgb(var(--color-surface)); }
+.dark .group:hover .group-hover\:bg-white { background-color: rgb(var(--color-surface)); }
+/* group-hover gradient overrides (e.g. changelog card fade overlays) */
+.dark .group:hover .group-hover\:from-white { --tw-gradient-from: rgb(var(--color-surface)); }
+.dark .group:hover .group-hover\:via-white\/75 { --tw-gradient-via: rgb(var(--color-surface) / 0.75); }
+/* Icon badge backgrounds — keep subtle in dark mode */
+.dark .bg-amber-100 { background-color: rgb(120 90 30 / 0.5); }
+.dark .bg-emerald-100 { background-color: rgb(20 80 50 / 0.5); }
+.dark .bg-indigo-100 { background-color: rgb(50 50 120 / 0.5); }
+.dark .bg-indigo-200 { background-color: rgb(60 60 130 / 0.4); }
+/* group-hover shadow override — purple glow is invisible on dark bg anyway */
+.dark .group-hover\:shadow-xl { --tw-shadow-color: transparent; }
 .dark .text-slate-900 { color: rgb(var(--color-text-primary)); }
 .dark .text-gray-500 { color: rgb(var(--color-text-secondary)); }
 .dark .text-gray-300 { color: rgb(var(--color-text-tertiary)); }
@@ -92,6 +126,11 @@ body.modal-open {
 /* Newsletter section — keep original dark-primary gray, LIGHTER than dark page = strong contrast */
 .dark .bg-dark-primary {
   background-color: rgb(60 60 63);
+}
+/* Dark panels (explore banner, get-in-touch, etc.) that use bg-dark-primary
+   need a real dark bg in dark mode instead of the inverted light value. */
+.dark .dark-panel.bg-dark-primary {
+  background-color: rgb(var(--color-surface-secondary));
 }
 /* Newsletter internal text must stay light (card is mid-gray, not dark like page) */
 .dark .bg-dark-primary .text-gray-300,
@@ -169,6 +208,12 @@ body.modal-open {
 .dark .text-gray-400 { color: rgb(var(--color-text-tertiary)); }
 .dark .text-white { color: rgb(255 255 255); } /* keep white text white */
 .dark .placeholder-gray-400::placeholder { color: rgb(var(--color-text-tertiary)); }
+
+/* Indigo link accents — lighten for readability on dark backgrounds */
+.dark .text-indigo-600 { color: rgb(165 180 252); } /* indigo-300 */
+
+/* Logo — invert so the black outline reads as white on dark bg */
+.dark img[src$="gkos_logo.png"] { filter: invert(1); }
 
 /* Border overrides */
 .dark .border-\[\#E2E3E5\] { border-color: rgb(42 42 46); }

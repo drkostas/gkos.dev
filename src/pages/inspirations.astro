@@ -1,0 +1,52 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import GridWrapper from "@/components/GridWrapper.astro";
+import { GetInTouchReact } from "@/components/GetInTouchReact";
+import { ScrapbookBentoReact } from "@/components/ScrapbookBentoReact";
+import { CurrentlyReadingBentoReact } from "@/components/CurrentlyReadingBentoReact";
+import { CurrentlyPlayingBentoReact } from "@/components/CurrentlyPlayingBentoReact";
+---
+
+<Layout title="Inspirations | Kostas Georgiou">
+  <div class="relative">
+    <div class="relative space-y-16 md:space-y-24">
+      <!-- Hero -->
+      <div class="mx-auto text-balance pt-14 md:pt-16">
+        <GridWrapper>
+          <div class="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
+            <span>Inspirations</span>
+          </div>
+        </GridWrapper>
+        <GridWrapper>
+          <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
+            Books, papers, and people that shape my thinking.
+          </h1>
+        </GridWrapper>
+        <GridWrapper>
+          <p class="mx-auto mt-6 max-w-2xl text-center leading-8 text-text-secondary">
+            A living collection of the things I find myself coming back to. The papers I reread, the books I recommend, and the podcasts I don't miss.
+          </p>
+        </GridWrapper>
+      </div>
+
+      <!-- Widgets: Scrapbook + Currently Reading + Recent Favorite -->
+      <section>
+        <GridWrapper>
+          <div class="grid grid-cols-1 gap-2 lg:grid-cols-12">
+            <div class="lg:col-span-3 lg:row-span-6">
+              <CurrentlyPlayingBentoReact client:visible />
+            </div>
+            <div class="hidden lg:col-span-9 lg:row-span-5 lg:block">
+              <ScrapbookBentoReact client:visible />
+            </div>
+            <div class="lg:col-span-12 lg:row-span-4">
+              <CurrentlyReadingBentoReact client:visible />
+            </div>
+          </div>
+        </GridWrapper>
+      </section>
+
+      <GetInTouchReact client:visible />
+    </div>
+  </div>
+</Layout>

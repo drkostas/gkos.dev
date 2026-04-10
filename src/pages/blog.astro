@@ -3,9 +3,9 @@ export const prerender = false;
 
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { GetInTouchReact } from "@/components/GetInTouchReact";
 import { BlogSearch } from "@/components/BlogSearch";
-import FeaturedBlogCard from "@/components/FeaturedBlogCard.astro";
+import { FeaturedBlogCardReact } from "@/components/FeaturedBlogCardReact";
 import { getCollection } from "astro:content";
 
 const allBlogPosts = (await getCollection("blog"))
@@ -44,26 +44,24 @@ function formatDate(date: Date) {
   <div class="mt-14 space-y-16 md:mt-16">
     <GridWrapper>
       <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
-        {currentCategory ? `Articles about ${currentCategory}` : "Insightful && helpful content curated for you."}
+        {currentCategory ? `Articles about ${currentCategory}` : "Insightful and helpful content curated for you."}
       </h1>
     </GridWrapper>
 
-    {!currentCategory && (
+    {!currentCategory && allBlogPosts.length > 0 && (
     <GridWrapper>
       <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-        {allBlogPosts.length > 0 ? (
-          allBlogPosts.slice(0, 4).map((post, index) => (
-            <FeaturedBlogCard
-              slug={post.id}
-              imageName={post.data.imageName}
-              title={post.data.title}
-              summary={post.data.summary}
-              class={index === 3 ? "hidden md:block lg:hidden" : undefined}
-            />
-          ))
-        ) : (
-          <p>Nothing to see here yet...</p>
-        )}
+        {allBlogPosts.slice(0, 4).map((post, index) => (
+          <FeaturedBlogCardReact
+            slug={post.id}
+            imageName={post.data.imageName}
+            title={post.data.title}
+            summary={post.data.summary}
+            direction={index % 2 === 0 ? "left" : "right"}
+            className={index === 3 ? "hidden md:flex lg:hidden" : undefined}
+            client:visible
+          />
+        ))}
       </ul>
     </GridWrapper>
     )}
@@ -122,9 +120,6 @@ function formatDate(date: Date) {
                           {formatDate(post.data.publishedAt)}
                         </time>
                       </div>
-                      <span class="text-text-secondary">
-                        <span class="font-mono text-xs text-text-secondary">0 reads</span>
-                      </span>
                     </div>
                     <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
                     <div class="group col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
@@ -163,11 +158,26 @@ function formatDate(date: Date) {
             </li>
           ))
         ) : (
-          <p>Nothing to see here yet...</p>
+          <li class="py-12">
+            <div class="mx-auto max-w-md rounded-2xl border border-dashed border-border-primary/60 bg-bg-primary/50 p-10 text-center">
+              <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-primary">
+                <svg class="h-5 w-5 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                </svg>
+              </div>
+              <h3 class="font-medium text-text-primary">No posts yet</h3>
+              <p class="mt-1 text-sm text-text-secondary">
+                {currentCategory
+                  ? `Nothing published in ${currentCategory} yet.`
+                  : "New posts are brewing. Check back soon."}
+              </p>
+            </div>
+          </li>
         )}
       </ul>
     </div>
 
-    <NewsletterSignUpReact client:visible />
+    <GetInTouchReact client:visible />
   </div>
 </Layout>

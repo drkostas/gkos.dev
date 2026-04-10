@@ -1,14 +1,17 @@
 ---
 import BentoCard from "./BentoCard.astro";
+import { getCollection } from "astro:content";
 
-// Top 4 entries from Kostas's changelog collection (sorted by publishedAt desc).
-// Use noon UTC to avoid timezone off-by-one issues when formatting to local date.
-const changelogItems = [
-  { title: "Wikipedia-Style Link Previews", publishedAt: "2026-01-01T12:00:00Z" },
-  { title: "Table of Contents with Animated Indicator", publishedAt: "2025-12-31T12:00:00Z" },
-  { title: "New Stats Page", publishedAt: "2025-12-30T12:00:00Z" },
-  { title: "Interactive Code Playgrounds!", publishedAt: "2025-11-15T12:00:00Z" },
-];
+// Pull the 4 most recent changelog entries from the actual collection.
+// Falls through to an empty state when there's nothing published yet.
+const changelogItems = (await getCollection("changelog"))
+  .filter((c) => !c.data.draft)
+  .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf())
+  .slice(0, 4)
+  .map((c) => ({
+    title: c.data.title,
+    publishedAt: c.data.publishedAt.toISOString(),
+  }));
 
 const getTopPosition = (index: number) => {
   const basePosition = -30;
@@ -28,27 +31,33 @@ const formatDate = (dateStr: string) =>
   <div class="border-px absolute left-1/2 top-0 h-full w-2 -translate-x-1/2 transform border-x border-[#A5AEB8]/10 bg-[#D6DADE]/35"></div>
   <!-- Timeline -->
   <div class="relative">
-    <div class="absolute left-0 right-0 top-0 transition-transform duration-500 ease-in-out group-hover:-translate-y-6">
-      {changelogItems.map((item, index) => (
-        <div
-          class:list={["absolute", index % 2 === 1 ? "right-0" : "left-0"]}
-          style={`top: ${getTopPosition(index)};`}
-        >
-          <span
-            class:list={[
-              "absolute top-[27px] hidden h-px w-[20px] bg-border-primary md:inline-block",
-              index % 2 === 1 ? "left-[-20px]" : "right-[-20px]",
-            ]}
-          ></span>
-          <div class="z-10 inline-block w-[160px] space-y-px rounded-xl border border-border-primary bg-white px-3 py-2.5 text-xs">
-            <p class="overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-text-secondary">
-              {item.title}
-            </p>
-            <time datetime={item.publishedAt}>{formatDate(item.publishedAt)}</time>
+    {changelogItems.length > 0 ? (
+      <div class="absolute left-0 right-0 top-0 transition-transform duration-500 ease-in-out group-hover:-translate-y-6">
+        {changelogItems.map((item, index) => (
+          <div
+            class:list={["absolute", index % 2 === 1 ? "right-0" : "left-0"]}
+            style={`top: ${getTopPosition(index)};`}
+          >
+            <span
+              class:list={[
+                "absolute top-[27px] hidden h-px w-[20px] bg-border-primary md:inline-block",
+                index % 2 === 1 ? "left-[-20px]" : "right-[-20px]",
+              ]}
+            ></span>
+            <div class="z-10 inline-block w-[160px] space-y-px rounded-xl border border-border-primary bg-white px-3 py-2.5 text-xs">
+              <p class="overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-text-secondary">
+                {item.title}
+              </p>
+              <time datetime={item.publishedAt}>{formatDate(item.publishedAt)}</time>
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    ) : (
+      <div class="flex h-[140px] items-center justify-center px-4 text-center text-xs text-text-tertiary">
+        First changelog entries are coming soon.
+      </div>
+    )}
   </div>
   <!-- Gradient overlay -->
   <div class="absolute inset-0 h-full w-full bg-gradient-to-t from-white to-transparent"></div>

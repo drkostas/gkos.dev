@@ -17,6 +17,16 @@ interface Props {
 }
 
 const { title = siteMetadata.title, description = siteMetadata.description } = Astro.props;
+
+// Cloudflare Web Analytics — only loads in production with a configured token.
+// Get the token from Cloudflare Dashboard → Web Analytics → Add a site → JS snippet.
+// Set CLOUDFLARE_ANALYTICS_TOKEN in Vercel project env vars.
+const cloudflareAnalyticsToken = import.meta.env.CLOUDFLARE_ANALYTICS_TOKEN;
+// Umami self-hosted analytics — per-page views, click events, referrers.
+// UMAMI_WEBSITE_ID is the UUID assigned by Umami after adding the site.
+// The script is proxied through /u/script.js to avoid ad-blockers.
+const umamiWebsiteId = import.meta.env.UMAMI_WEBSITE_ID ?? process.env.UMAMI_WEBSITE_ID;
+const isProd = import.meta.env.PROD;
 ---
 
 <!doctype html>
@@ -25,9 +35,21 @@ const { title = siteMetadata.title, description = siteMetadata.description } = A
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="alternate icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="alternate" type="application/rss+xml" title={title} href="/rss.xml" />
     <title>{title}</title>
+    <!-- Open Graph / Social sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={`${siteMetadata.siteUrl}${siteMetadata.socialBanner}`} />
+    <meta property="og:url" content={siteMetadata.siteUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={`${siteMetadata.siteUrl}${siteMetadata.socialBanner}`} />
+    <meta name="twitter:site" content={siteMetadata.twitterHandle} />
     <!-- Prevent FOUC: apply dark mode before paint -->
     <script is:inline>
       (function() {
@@ -44,28 +66,56 @@ const { title = siteMetadata.title, description = siteMetadata.description } = A
       }
     </style>
   </head>
-  <body class="flex min-h-screen flex-col font-sans md:max-w-7xl lg:mx-auto lg:flex-row">
+  <body class="flex min-h-screen flex-col font-sans md:max-w-[87rem] lg:mx-auto lg:flex-row">
     <main class="relative flex flex-1 flex-col overflow-x-hidden border-x border-border-primary/50">
       <Navbar />
-      <div class="grid flex-1 grid-cols-1 lg:grid-cols-[32px_1fr_32px]">
-        <!-- Left hatched sidebar -->
-        <div class="hidden w-full border-r border-border-primary opacity-75 [background-image:linear-gradient(45deg,theme(colors.border-primary)_12.50%,transparent_12.50%,transparent_50%,theme(colors.border-primary)_50%,theme(colors.border-primary)_62.50%,transparent_62.50%,transparent_100%)] [background-size:5px_5px] lg:block"></div>
+      <!-- Hatched sidebar grid. The center column has lg:px-6 for breathing room
+           between content and the border edges. max-w on body is 87rem (1392px)
+           to compensate so the inner content width stays ~1216px as before.
+           Footer is inside the grid so the hatched sidebars extend the full height. -->
+      <div class="grid flex-1 grid-cols-1 lg:grid-cols-[64px_1fr_64px]">
+        <!-- Left sidebar — subtle diagonal hatch for depth, theme-aware via CSS vars -->
+        <div
+          class="hatched-sidebar hidden w-full border-r border-border-primary lg:block"
+        ></div>
 
         <!-- Center content -->
-        <div class="relative col-span-1 px-3 lg:px-0">
+        <div class="relative col-span-1 px-3 lg:px-6">
           <!-- BgGradient -->
           <div
             style="background: linear-gradient(to bottom, #6C47FF00 0%, #6C47FF 50%, #6C47FF00 100%); opacity: 6%;"
             class="pointer-events-none absolute left-1/2 top-0 -z-10 h-full w-[840px] -translate-x-1/2 overflow-visible blur-3xl"
           ></div>
           <slot />
+          <Footer />
         </div>
 
-        <!-- Right hatched sidebar -->
-        <div class="hidden w-full border-l border-border-primary opacity-75 [background-image:linear-gradient(45deg,theme(colors.border-primary)_12.50%,transparent_12.50%,transparent_50%,theme(colors.border-primary)_50%,theme(colors.border-primary)_62.50%,transparent_62.50%,transparent_100%)] [background-size:5px_5px] lg:block"></div>
+        <!-- Right sidebar — same subtle hatch -->
+        <div
+          class="hatched-sidebar hidden w-full border-l border-border-primary lg:block"
+        ></div>
       </div>
-      <Footer />
     </main>
     <BackToTop client:load />
+    {
+      isProd && cloudflareAnalyticsToken && (
+        <script
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon={`{"token": "${cloudflareAnalyticsToken}"}`}
+        />
+      )
+    }
+    {
+      isProd && umamiWebsiteId && (
+        <script
+          async
+          is:inline
+          data-astro-rerun
+          src="https://cloud.umami.is/script.js"
+          data-website-id={umamiWebsiteId}
+        />
+      )
+    }
   </body>
 </html>

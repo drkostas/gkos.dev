@@ -60,30 +60,42 @@ function Sticker({
   );
 }
 
-const stickers = [
+type Sticker = {
+  src: string;
+  width: number;
+  caption: string;
+};
+
+const DEFAULT_STICKERS: Sticker[] = [
   {
-    src: "/that_conf_sticker.png",
-    width: 80,
-    caption: "THAT Conference was my favorite tech event of 2024! I even kicked off my speaking season with my very first talk of the year there!",
-  },
-  {
-    src: "/c3_conf_sticker.png",
+    src: "https://cdn.simpleicons.org/pytorch",
     width: 96,
-    caption: `I became an international speaker at C3 Dev Fest, where I shared insights on "The Power of a Second Brain in a Developer's Workflow."`,
+    caption: "PyTorch has powered every paper I've published. MEDiC, Cross-Scale MAE, MaskDistill — all born on top of it.",
   },
   {
-    src: "/lotr_sticker.png",
-    width: 130,
-    caption: "I'm a huge Lord of the Rings nerd and host an epic 3-day marathon every year to watch the extended editions with friends and family.",
+    // simple-icons doesn't render the HuggingFace logo cleanly, so pull it
+    // from iconify's logos collection like we do in ConnectionsBentoReact.
+    src: "https://api.iconify.design/logos:hugging-face-icon.svg",
+    width: 96,
+    caption: "HuggingFace is where I publish my trained models and the first place I look for pretrained backbones.",
   },
   {
-    src: "/cyc_sticker.png",
-    width: 160,
-    caption: "I helped create, organize, and speak at the inaugural Commit Your Code Conference in 2024, where every penny went to charity!",
+    src: "https://cdn.simpleicons.org/python",
+    width: 96,
+    caption: "Python is the language I've shipped 7 PyPI packages in and the one I reach for first, every time.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/arxiv",
+    width: 96,
+    caption: "arXiv is my daily reading list. It's where I keep up with everything happening in ML.",
   },
 ];
 
-export function ScrapbookBentoReact() {
+export function ScrapbookBentoReact({
+  stickers = DEFAULT_STICKERS,
+}: {
+  stickers?: Sticker[];
+}) {
   const container = {
     hidden: { opacity: 0 },
     shown: {

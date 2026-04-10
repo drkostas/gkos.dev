@@ -10,7 +10,7 @@ const peakIndex = bars.findIndex(b => b.height === Math.max(...bars.map(b => b.h
 
 export function StatsBentoReact() {
   const [isHovered, setIsHovered] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLAnchorElement>(null);
 
   const mouseX = useSpring(50, { stiffness: 300, damping: 30 });
 
@@ -41,7 +41,8 @@ export function StatsBentoReact() {
   });
 
   return (
-    <div
+    <a
+      href="/stats"
       className="group relative flex h-full min-h-[200px] flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white overflow-hidden"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -136,6 +137,6 @@ export function StatsBentoReact() {
           />
         </svg>
       </div>
-    </div>
+    </a>
   );
 }

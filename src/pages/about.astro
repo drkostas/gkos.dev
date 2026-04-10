@@ -1,13 +1,11 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { NewsletterSignUpReact } from "@/components/NewsletterSignUpReact";
+import { GetInTouchReact } from "@/components/GetInTouchReact";
 import Resume from "@/components/Resume.astro";
 import { ConnectionsBentoReact } from "@/components/ConnectionsBentoReact";
-import { CurrentlyPlayingBentoReact } from "@/components/CurrentlyPlayingBentoReact";
-import { ScrapbookBentoReact } from "@/components/ScrapbookBentoReact";
-import { CurrentlyReadingBentoReact } from "@/components/CurrentlyReadingBentoReact";
 import { StatsBentoReact } from "@/components/StatsBentoReact";
+import { StravaActivityBentoReact } from "@/components/StravaActivityBentoReact";
 import { AboutTrackPattern } from "@/components/AboutTrackPattern";
 import { TimelineReact } from "@/components/TimelineReact";
 import { Photo } from "@/components/Photo";
@@ -34,7 +32,7 @@ const shadowBoxHeight = 278;
               <span>{timeOfDayGreeting}</span>
             </div>
             <h1 class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl lg:text-left lg:text-6xl lg:leading-[64px]">
-              I'm Kostas, a PhD ML Engineer && Applied Scientist.
+              I'm Kostas, a PhD ML Engineer and Applied Scientist.
             </h1>
           </div>
           <div class="order-1 my-12 flex-shrink-0 lg:order-2 lg:my-0">
@@ -44,7 +42,7 @@ const shadowBoxHeight = 278;
                   <Photo width={140} height={140} src="/kostas_neurips_square.jpg" alt="Kostas Georgiou" direction="left" client:visible />
                 </div>
                 <div class="relative z-30">
-                  <Photo width={140} height={140} src="/kostas_neurips_square.jpg" alt="Kostas Georgiou" direction="right" client:visible />
+                  <Photo width={140} height={140} src="/kostas_poster.jpg" alt="Kostas Georgiou" direction="right" client:visible />
                 </div>
                 <div class="relative z-20 translate-y-4">
                   <Photo width={140} height={140} src="/kostas_poster.jpg" alt="Kostas Georgiou" direction="left" client:visible />
@@ -78,7 +76,7 @@ const shadowBoxHeight = 278;
             <AboutTrackPattern client:visible />
           </div>
 
-          <!-- Section 1: Programming origins -->
+          <!-- Section 1: Where it started -->
           <div class="grid grid-cols-1 gap-8 py-12 pr-12 lg:grid-cols-2 lg:items-center lg:justify-between lg:py-32 lg:pb-20 xl:py-32">
             <div class="flex flex-col items-center text-left lg:order-2 lg:items-start">
               <div class="mb-8 lg:hidden">
@@ -86,14 +84,14 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_speaking.jpg" alt="A headshot" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_poster_portrait.jpg" alt="Kostas at a poster session" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                My programming origins
+                Where it started
               </h2>
               <p class="mb-6 text-base leading-8 text-text-secondary">
-                When Apple unveiled the first iPad with its beautiful 1024x768 display, I knew I had to create for it. I taught myself mobile development while freelancing, and soon I was shipping iOS and Android apps. One of my games even climbed above Angry Birds in the charts for a while—which still makes me smile when I think about it.
+                I grew up in Greece where I first fell in love with programming, writing scripts to automate things, building small tools, and endlessly tinkering. I studied Computer Science and quickly gravitated toward machine learning, fascinated by the idea of teaching machines to see and understand the world.
               </p>
             </div>
             <div class="hidden lg:order-1 lg:block">
@@ -101,12 +99,12 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_speaking.jpg" alt="A headshot" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_poster_portrait.jpg" alt="Kostas at a poster session" />
               </div>
             </div>
           </div>
 
-          <!-- Section 2: Finding Way to Web -->
+          <!-- Section 2: The research path -->
           <div class="grid grid-cols-1 gap-8 py-24 lg:grid-cols-2 lg:items-center lg:justify-between lg:pl-12">
             <div class="flex flex-col items-center text-left lg:items-start">
               <div class="mb-8 lg:hidden">
@@ -114,14 +112,14 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_speaking.jpg" alt="Speaking at C3 Conf!" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_igarss_portrait.jpg" alt="Presenting at IGARSS" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                Finding My Way to Web
+                The research path
               </h2>
               <p class="mb-6 text-base leading-8 text-text-secondary">
-                Despite my love for mobile development, the web kept calling my name. With my eye for design, frontend felt like the perfect playground. I dove into HTML, CSS, and JavaScript—with React in 2016 becoming my game-changer. A few months later and I had landed my first full-time web dev role and never looked back.
+                I moved to the US to pursue my PhD at the University of Tennessee's Bredesen Center, working with Dr. Hairong Qi on computer vision and self-supervised learning. That journey led to 10 published papers at venues like NeurIPS, WACV, and IGARSS, and taught me how to push the boundaries of what's possible with limited labeled data.
               </p>
             </div>
             <div class="hidden lg:block">
@@ -129,12 +127,12 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_poster.jpg" alt="Speaking at C3 Conf!" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_igarss_portrait.jpg" alt="Presenting at IGARSS" />
               </div>
             </div>
           </div>
 
-          <!-- Section 3: Life Beyond Code -->
+          <!-- Section 3: Building and shipping -->
           <div class="grid grid-cols-1 gap-8 pr-12 lg:grid-cols-2 lg:items-center lg:justify-between xl:py-24">
             <div class="flex flex-col items-center text-left lg:order-2 lg:items-start">
               <div class="mb-8 lg:hidden">
@@ -142,17 +140,14 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="A headshot" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_neurips_portrait.jpg" alt="At NeurIPS" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                Life Beyond Code
+                Building and shipping
               </h2>
               <p class="mb-6 text-base leading-8 text-text-secondary">
-                When I met PeggyJean, I knew pretty quickly she was the one. After proposing, we had grand wedding plans – until COVID happened. We pivoted (developer joke!) and had a small, intimate ceremony in 2020 that turned out more perfect than we could have imagined.
-              </p>
-              <p class="mb-6 text-base leading-8 text-text-secondary">
-                Family has always been my center, and seeing ours grow has been life's greatest joy. Our daughter ElizaJane arrived in 2021, bringing endless wonder to our days, and little Renny joined our crew in 2023, completing our circle.
+                Research is only half the story. I love shipping things. At Amazon as an Applied Scientist, I build AI products that serve millions. On the side, I've co-founded FleetSmart.ai for maritime AI, built ShiftMD for shift scheduling, and created XpensAI for expense management. I've published 7 PyPI packages and maintain open-source projects that have earned me 8,300+ GitHub followers.
               </p>
             </div>
             <div class="hidden lg:block">
@@ -160,12 +155,12 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="A headshot" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_neurips_portrait.jpg" alt="At NeurIPS" />
               </div>
             </div>
           </div>
 
-          <!-- Section 4: These Days -->
+          <!-- Section 4: Beyond the terminal -->
           <div class="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center lg:justify-between lg:py-32 lg:pl-12 xl:py-24">
             <div class="flex flex-col items-center text-left lg:items-start">
               <div class="mb-8 lg:hidden">
@@ -173,17 +168,14 @@ const shadowBoxHeight = 278;
                   <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                     <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                   </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_neurips_square.jpg" alt="A headshot" />
+                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="Surfing" />
                 </div>
               </div>
               <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                These Days
+                Beyond the terminal
               </h2>
               <p class="mb-6 text-base leading-8 text-text-secondary">
-                Currently, I'm leading teams at LogicGate as a Senior Frontend Engineer where we're building some pretty awesome stuff. Speaking at tech conferences has become a regular part of my year.
-              </p>
-              <p class="mb-6 text-base leading-8 text-text-secondary">
-                When I'm not working, you'll find me on creative coding side projects, writing for my blog, failing spectacularly at games with friends, or—best of all—hanging out with my family, usually with coffee nearby and dad jokes at the ready.
+                When I'm not training models or reviewing PRs, you'll find me surfing, exploring new places, or getting way too competitive at board games. I'm originally from Greece, currently based in the US, and always chasing the next thing that excites me, whether that's a new research direction, a side project idea, or a wave.
               </p>
             </div>
             <div class="hidden lg:block">
@@ -191,7 +183,7 @@ const shadowBoxHeight = 278;
                 <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
                   <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
                 </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_neurips_square.jpg" alt="A headshot" />
+                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="Surfing" />
               </div>
             </div>
           </div>
@@ -231,33 +223,27 @@ const shadowBoxHeight = 278;
           </GridWrapper>
           <GridWrapper>
             <h2 class="mx-auto max-w-lg text-balance text-center text-3xl font-medium leading-10 tracking-tight text-text-primary">
-              Here's what sets me apart and makes me unique
+              A bit more about me, in widgets
             </h2>
           </GridWrapper>
         </div>
 
         <GridWrapper>
-          <div class="grid grid-cols-1 gap-2 lg:grid-cols-12">
-            <div class="lg:col-span-3 lg:row-span-6">
-              <CurrentlyPlayingBentoReact client:visible />
-            </div>
-            <div class="hidden lg:col-span-7 lg:row-span-5 lg:block">
-              <ScrapbookBentoReact client:visible />
-            </div>
-            <div class="hidden lg:col-span-2 lg:col-start-11 lg:row-span-10 lg:block lg:min-h-[50px]">
-              <CurrentlyReadingBentoReact client:visible />
-            </div>
-            <div class="lg:col-span-7 lg:row-span-8">
-              <ConnectionsBentoReact linkTo="/connections" client:visible />
+          <div class="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:grid-rows-8">
+            <div class="lg:col-span-9 lg:row-span-8">
+              <ConnectionsBentoReact variant="inspirations" linkTo="/inspirations" client:visible />
             </div>
             <div class="lg:col-span-3 lg:row-span-4">
               <StatsBentoReact client:visible />
+            </div>
+            <div class="lg:col-span-3 lg:row-span-4">
+              <StravaActivityBentoReact client:visible />
             </div>
           </div>
         </GridWrapper>
       </section>
 
-      <NewsletterSignUpReact client:visible />
+      <GetInTouchReact client:visible />
     </div>
   </div>
 </Layout>

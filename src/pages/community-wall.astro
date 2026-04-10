@@ -1,6 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
+import { CommunityWallReact } from "@/components/CommunityWallReact";
 ---
 
 <Layout title="Community Wall | Kostas Georgiou">
@@ -15,50 +16,16 @@ import GridWrapper from "@/components/GridWrapper.astro";
           <p class="mx-auto max-w-2xl text-center text-lg text-text-secondary">
             Leave a message, share your thoughts, or just say hello.
           </p>
-          <p class="mx-auto hidden max-w-2xl text-center text-lg text-text-secondary md:block">
+          <p class="mx-auto hidden max-w-2xl text-center text-sm text-text-tertiary md:block">
             Click and drag to explore all the messages scattered across the canvas.
           </p>
-        </div>
-        <!-- Desktop Add Button -->
-        <div class="hidden pb-2 text-center md:block">
-          <a
-            href="/community-wall?show=true"
-            class="group relative isolate inline-flex items-center justify-center overflow-hidden rounded-full bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white ring-1 ring-indigo-600 shadow-[0_1px_theme(colors.white/0.07)_inset,0_1px_3px_theme(colors.gray.900/0.2)] transition duration-300 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-full before:bg-gradient-to-b before:from-white/20 before:opacity-50 before:transition-opacity hover:before:opacity-100 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:rounded-full after:bg-gradient-to-b after:from-white/10 after:from-[46%] after:to-[54%] after:mix-blend-overlay"
-          >
-            Leave a note
-          </a>
         </div>
       </div>
     </GridWrapper>
   </div>
 
-  <!-- Desktop: Infinite Canvas placeholder -->
-  <GridWrapper class="hidden md:block">
-    <div class="relative min-h-[600px] overflow-hidden rounded-2xl border border-border-primary bg-bg-primary">
-      <!-- Dot pattern background like infinite canvas -->
-      <div class="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_2px)] [background-size:20px_20px]"></div>
-      <div class="flex h-full min-h-[600px] items-center justify-center">
-        <p class="text-text-tertiary">Community messages canvas (requires Supabase backend)</p>
-      </div>
-    </div>
+  <!-- Canvas (handles modal + dragging in one React island) -->
+  <GridWrapper class="pb-16">
+    <CommunityWallReact client:load />
   </GridWrapper>
-
-  <!-- Mobile: Grid layout with sticky add button -->
-  <div class="block min-h-screen md:hidden">
-    <div class="flex flex-wrap justify-center gap-12 p-6 pb-40">
-      <p class="text-text-tertiary">No messages yet. Be the first!</p>
-    </div>
-    <div class="pointer-events-none sticky bottom-0 -mt-40 mb-8 flex h-32 items-end justify-center bg-gradient-to-b from-transparent to-zinc-300 pb-8">
-      <a href="/community-wall?show=true">
-        <button
-          class="group pointer-events-auto flex h-[60px] w-[60px] items-center justify-center rounded-full bg-dark-primary shadow-lg transition-transform hover:scale-110"
-          aria-label="Add new item"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="text-gray-400 group-hover:text-gray-200">
-            <path d="M12 4V20M4 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
-      </a>
-    </div>
-  </div>
 </Layout>

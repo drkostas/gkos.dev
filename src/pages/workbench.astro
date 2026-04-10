@@ -1,0 +1,103 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import GridWrapper from "@/components/GridWrapper.astro";
+import { GetInTouchReact } from "@/components/GetInTouchReact";
+import { workbenchItems, WORKBENCH_CATEGORIES } from "@/data/workbench";
+
+// Group items by category, preserving the category order
+const itemsByCategory = WORKBENCH_CATEGORIES.map((category) => ({
+  category,
+  items: workbenchItems.filter((item) => item.category === category),
+}));
+---
+
+<Layout title="Workbench | Kostas Georgiou">
+  <div class="relative">
+    <div class="relative space-y-16 md:space-y-24">
+      <div class="mx-auto text-balance pt-14 md:pt-16">
+        <GridWrapper>
+          <div class="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
+            <span>Workbench</span>
+          </div>
+        </GridWrapper>
+        <GridWrapper>
+          <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
+            Frameworks and services I keep in my workbench.
+          </h1>
+        </GridWrapper>
+        <GridWrapper>
+          <p class="mx-auto mt-6 max-w-2xl text-center leading-8 text-text-secondary">
+            A living list of the tools I reach for every day — from research to production. Each one has a short note on where I use it and why.
+          </p>
+        </GridWrapper>
+      </div>
+
+      {itemsByCategory.map(({ category, items }) => (
+        <section class="space-y-8">
+          <GridWrapper>
+            <div class="text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
+              <span>{category}</span>
+            </div>
+          </GridWrapper>
+
+          <GridWrapper>
+            <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {items.map((item) => (
+                <a
+                  href={item.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group block h-full transform-gpu transition-transform duration-300 ease-out will-change-transform hover:-translate-y-1"
+                >
+                  <div class="relative flex h-full min-h-[154px] flex-col justify-between overflow-hidden rounded-[20px] border border-border-primary bg-bg-primary p-6 transition-all duration-300 ease-out group-hover:border-purple-primary/40 group-hover:bg-white group-hover:shadow-xl group-hover:shadow-purple-primary/10">
+                    <!-- Subtle gradient sheen that fades in on hover -->
+                    <div class="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-purple-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100"></div>
+
+                    <div class="flex h-full flex-col space-y-4">
+                      <div class="flex items-center gap-3">
+                        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-[#EDEEF0] p-2 transition-all duration-300 ease-out group-hover:-rotate-6 group-hover:scale-110 group-hover:border-purple-primary/40">
+                          <img
+                            class="h-8 w-8 object-contain transition-transform duration-300 group-hover:scale-110"
+                            src={item.imgSrc}
+                            alt={item.title}
+                            loading="lazy"
+                          />
+                        </div>
+                        <p class="text-base font-semibold leading-5 text-text-primary">
+                          {item.title}
+                        </p>
+                      </div>
+                      <p class="flex-grow leading-6 text-text-secondary">
+                        {item.description}
+                      </p>
+                    </div>
+                    <span class="mt-4 inline-flex items-center justify-end gap-1 text-right">
+                      <span class="text-sm text-purple-primary/50 transition-colors duration-300 group-hover:text-purple-primary">
+                        Visit
+                      </span>
+                      <svg
+                        class="h-3 w-3 -translate-x-1 text-purple-primary/0 transition-all duration-300 group-hover:translate-x-0 group-hover:text-purple-primary"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M7 17L17 7" />
+                        <path d="M7 7h10v10" />
+                      </svg>
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </GridWrapper>
+        </section>
+      ))}
+
+      <GetInTouchReact client:visible />
+    </div>
+  </div>
+</Layout>
