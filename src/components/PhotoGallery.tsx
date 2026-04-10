@@ -1,5 +1,5 @@
 import { motion, useMotionValue } from "framer-motion";
-import { useEffect, useState, forwardRef, type Ref, type ReactNode } from "react";
+import { useEffect, useState, type Ref, type ReactNode } from "react";
 
 type Direction = "left" | "right";
 
