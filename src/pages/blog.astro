@@ -84,7 +84,7 @@ function formatDate(date: Date) {
             class:list={[
               "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
               !currentCategory
-                ? "border-dark-primary bg-dark-primary text-white"
+                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                 : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
             ]}
           >
@@ -96,7 +96,7 @@ function formatDate(date: Date) {
               class:list={[
                 "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                 cat.toLowerCase() === currentCategory
-                  ? "border-dark-primary bg-dark-primary text-white"
+                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                   : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
               ]}
             >

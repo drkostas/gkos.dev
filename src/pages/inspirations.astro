@@ -33,10 +33,10 @@ import { ResourcesBentoReact } from "@/components/ResourcesBentoReact";
         </GridWrapper>
       </div>
 
-      <!-- Row 1: Favorite Paper (hero) + Currently Reading -->
+      <!-- Row 1: Favorite Paper + Currently Reading + Spotify -->
       <section>
         <GridWrapper>
-          <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-12">
+          <div class="grid auto-rows-[minmax(320px,auto)] grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-12">
             <div class="md:col-span-1 lg:col-span-5">
               <FavoritePaperBentoReact client:visible />
             </div>
@@ -53,7 +53,7 @@ import { ResourcesBentoReact } from "@/components/ResourcesBentoReact";
       <!-- Row 2: Bookshelf + Scrapbook -->
       <section>
         <GridWrapper>
-          <div class="grid grid-cols-1 gap-2 lg:grid-cols-12">
+          <div class="grid auto-rows-[minmax(300px,auto)] grid-cols-1 gap-2 lg:grid-cols-12">
             <div class="lg:col-span-4">
               <BookshelfBentoReact client:visible />
             </div>
@@ -67,7 +67,7 @@ import { ResourcesBentoReact } from "@/components/ResourcesBentoReact";
       <!-- Row 3: People + Resources -->
       <section>
         <GridWrapper>
-          <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-12">
+          <div class="grid auto-rows-[minmax(320px,auto)] grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-12">
             <div class="md:col-span-1 lg:col-span-5">
               <PeopleGridBentoReact client:visible />
             </div>
