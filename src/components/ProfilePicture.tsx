@@ -118,7 +118,7 @@ function ProfilePictureInner() {
               key={imageSrc}
               className="h-[100px] w-[100px] cursor-pointer rounded-full transition-opacity hover:opacity-90"
               src={imageSrc}
-              alt=""
+              alt="Kostas Georgiou"
               onClick={changeImage}
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
