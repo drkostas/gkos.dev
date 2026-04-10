@@ -66,28 +66,38 @@ type Sticker = {
   caption: string;
 };
 
+// Stickers represent key inspirations — the tools and platforms that shaped
+// Kostas's research and engineering workflow.
 const DEFAULT_STICKERS: Sticker[] = [
   {
     src: "https://cdn.simpleicons.org/pytorch",
     width: 96,
-    caption: "PyTorch has powered every paper I've published. MEDiC, Cross-Scale MAE, MaskDistill — all born on top of it.",
-  },
-  {
-    // simple-icons doesn't render the HuggingFace logo cleanly, so pull it
-    // from iconify's logos collection like we do in ConnectionsBentoReact.
-    src: "https://api.iconify.design/logos:hugging-face-icon.svg",
-    width: 96,
-    caption: "HuggingFace is where I publish my trained models and the first place I look for pretrained backbones.",
-  },
-  {
-    src: "https://cdn.simpleicons.org/python",
-    width: 96,
-    caption: "Python is the language I've shipped 7 PyPI packages in and the one I reach for first, every time.",
+    caption: "PyTorch powers every paper I've published — MEDiC, Cross-Scale MAE, MaskDistill, all built on it.",
   },
   {
     src: "https://cdn.simpleicons.org/arxiv",
     width: 96,
-    caption: "arXiv is my daily reading list. It's where I keep up with everything happening in ML.",
+    caption: "My daily reading list. Where I keep up with everything happening in ML and computer vision.",
+  },
+  {
+    src: "https://api.iconify.design/logos:hugging-face-icon.svg",
+    width: 96,
+    caption: "Where I publish trained models and the first place I look for pretrained backbones.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/openai",
+    width: 96,
+    caption: "CLIP and GPT changed how I think about multi-modal AI. MEDiC distills directly from CLIP.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/googlescholar",
+    width: 80,
+    caption: "102+ citations and counting. The scoreboard that keeps me publishing.",
+  },
+  {
+    src: "https://cdn.simpleicons.org/python",
+    width: 96,
+    caption: "7 PyPI packages, 10 papers, and every side project. The language I reach for first, every time.",
   },
 ];
 

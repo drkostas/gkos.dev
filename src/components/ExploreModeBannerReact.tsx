@@ -197,7 +197,7 @@ export function ExploreModeBannerReact() {
     <div className="relative pb-16">
       <div className="relative w-full before:absolute before:top-0 before:h-px before:bg-border-primary/50 before:-left-4 before:right-[-1rem] md:before:-left-8 md:before:right-[-2rem] lg:before:inset-x-0 after:-left-4 after:right-[-1rem] md:after:-left-8 md:after:right-[-2rem] lg:after:inset-x-0 after:absolute after:bottom-0 after:h-px after:bg-border-primary/50">
         <div className="relative overflow-x-clip">
-          <a href="/explore" className="group relative block">
+          <a href="/explore" className="group relative block" data-umami-event="explore-banner-click">
             <motion.div
               ref={cardRef}
               className="dark-panel drama-shadow relative overflow-hidden rounded-2xl bg-dark-primary p-14 md:p-[100px]"

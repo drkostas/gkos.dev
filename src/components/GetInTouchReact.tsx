@@ -193,6 +193,7 @@ export function GetInTouchReact({
                       <button
                         type="submit"
                         disabled={status === "loading"}
+                        data-umami-event="contact-form-submit"
                         className="group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden rounded-full bg-slate-100 px-5 py-3 text-sm font-medium text-slate-900 shadow-[0_1px_theme(colors.white/0.07)_inset,0_1px_3px_theme(colors.gray.900/0.2)] ring-1 ring-white transition duration-300 ease-[cubic-bezier(0.4,0.36,0,1)] before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-full before:bg-gradient-to-b before:from-white/20 before:opacity-50 before:transition-opacity before:duration-300 hover:before:opacity-100 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:rounded-full after:bg-gradient-to-b after:from-white/10 after:from-[46%] after:to-[54%] after:mix-blend-overlay disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {status === "loading" ? (
