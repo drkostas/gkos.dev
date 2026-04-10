@@ -1,9 +1,11 @@
 /**
  * Curated inspirations — books, papers, researchers, and resources that
- * shaped Kostas's thinking and work. Displayed on /inspirations.
+ * shaped Kostas's thinking and work.
  *
- * PLACEHOLDER DATA — will be replaced with user's actual picks.
- * 5 items per category to test styling at realistic density.
+ * Currently used as defaults in the bento widget components
+ * (FavoritePaperBentoReact, BookshelfBentoReact, etc.).
+ * Edit the DEFAULT_* constants in each component to update content,
+ * or wire this file as props when customizing.
  *
  * Add new items at the TOP so they appear first.
  */
