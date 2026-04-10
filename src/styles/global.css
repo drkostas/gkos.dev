@@ -185,11 +185,19 @@ body.modal-open {
   fill: rgb(var(--color-text-secondary));
 }
 
+/* SVG decorative fills — medium gray circles/rects used in CommunityWall, SpeakingBento */
+.dark svg circle[fill="#A5AEB8"] { fill: rgb(var(--color-text-tertiary)); }
+.dark svg rect[fill="#A5AEB8"] { fill: rgb(var(--color-text-tertiary)); }
+.dark svg rect[fill="#E5E7EB"] { fill: rgb(var(--color-border-primary)); }
+.dark svg rect[fill="#EDEEF2"] { fill: rgb(var(--color-surface-secondary)); }
+.dark svg rect[fill="#D1D5DB"] { fill: rgb(var(--color-border-primary)); }
+
 /* SVG dark strokes */
 .dark svg circle[stroke="#6C6D70"] { stroke: rgb(80 80 80); }
 .dark svg circle[stroke="#4D4E52"] { stroke: rgb(60 60 60); }
 .dark svg circle[stroke="#D6DADE"] { stroke: rgb(var(--color-border-primary)); }
 .dark svg rect[stroke="#D6DADE"] { stroke: rgb(var(--color-border-primary)); }
+.dark svg rect[stroke="#A5AEB8"] { stroke: rgb(var(--color-text-tertiary)); }
 
 /* ShadowBox inner backgrounds */
 .dark .bg-\[\#EDEEF0\] { background-color: rgb(var(--color-surface-secondary)); }
