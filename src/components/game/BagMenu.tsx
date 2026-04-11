@@ -502,7 +502,7 @@ const SCALED_FONT_SM = "3cqi";
 //   Cream item list      : x=112-231, y=16-143
 
 const overlayStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   inset: 0,
   zIndex: 250,
   display: "flex",

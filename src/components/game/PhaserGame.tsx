@@ -186,13 +186,11 @@ export default function PhaserGame() {
   return (
     <div
       style={{
-        position: "relative",
-        width: "100vw",
-        // Shrink vertically by the touch bar height so the Phaser
-        // canvas doesn't render behind the on-screen controls. On
-        // desktop `--touch-bar-h` is 0px so the game fills the
-        // whole viewport.
-        height: "calc(100vh - var(--touch-bar-h, 0px))",
+        // Fill the parent GameLayout slot (which is `flex-1` below
+        // the navbar). The touch controls are a transparent overlay
+        // ON TOP of the canvas — they don't shrink the game viewport.
+        position: "absolute",
+        inset: 0,
       }}
     >
       <div

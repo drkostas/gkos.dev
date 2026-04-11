@@ -54,11 +54,13 @@ export default function ExploreApp() {
     setIsTouch(isTouchDevice());
   }, []);
 
-  // Set the `--touch-bar-h` CSS variable on :root so CSS rules can
-  // reserve space at the bottom for the on-screen touch bar. On
-  // desktop this stays 0 and nothing reserves space.
+  // `--touch-bar-h` reserves BOTTOM space for dialog boxes / menus
+  // so text doesn't render under the player's thumbs. The touch
+  // controls themselves are a TRANSPARENT OVERLAY on top of the game
+  // canvas — they don't shrink the game viewport. Only UI elements
+  // that use `bottom: calc(... + var(--touch-bar-h))` respect it.
   useEffect(() => {
-    const h = isTouch ? "120px" : "0px";
+    const h = isTouch ? "140px" : "0px";
     document.documentElement.style.setProperty("--touch-bar-h", h);
     return () => {
       document.documentElement.style.setProperty("--touch-bar-h", "0px");

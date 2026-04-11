@@ -65,11 +65,22 @@ export function toggleRun(): boolean {
 }
 
 /**
- * Touch-device detection. We look at both `ontouchstart` (the older
- * but still widely supported signal) and `navigator.maxTouchPoints`
- * (the modern Pointer Events signal, handles iPad Safari etc.).
+ * Touch-device detection. Checks:
+ *   1. `?touch=1` URL param — forces touch mode for testing / Playwright
+ *      (so we can verify the touch UI on a regular desktop browser)
+ *   2. `ontouchstart` (the older but widely supported signal)
+ *   3. `navigator.maxTouchPoints` (the modern Pointer Events signal,
+ *      handles iPad Safari etc.)
  */
 export function isTouchDevice(): boolean {
   if (typeof window === "undefined") return false;
+  // Testing / force override
+  try {
+    if (new URLSearchParams(window.location.search).get("touch") === "1") {
+      return true;
+    }
+  } catch {
+    // Swallow malformed URL edge cases; fall through to normal detection.
+  }
   return "ontouchstart" in window || navigator.maxTouchPoints > 0;
 }

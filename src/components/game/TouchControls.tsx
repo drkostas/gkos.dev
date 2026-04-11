@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import {
   setTouchDirection,
   setTouchButton,
@@ -44,15 +44,53 @@ interface TouchControlsProps {
 }
 
 /**
- * Fire a synthetic `KeyboardEvent` so React overlays that listen via
- * `useGameKeyboard` pick up touch input. Bubble + cancelable so any
- * `preventDefault` guards behave as they would for real keystrokes.
+ * Synthetic KeyboardEvent dispatcher. Two subtleties here:
+ *
+ * 1. Dispatch on `document`, not `window`. Phaser's keyboard input
+ *    listens on document. React overlays that listen via `window`
+ *    still receive the event because DOM events bubble from document
+ *    UP to window.
+ *
+ * 2. Set `keyCode` alongside `key` and `code`. Phaser 3's key
+ *    matching uses numeric keyCode internally. Modern React listeners
+ *    use `event.key`. Setting all three keeps both happy.
  */
+const KEY_CODES: Record<string, { code: string; keyCode: number }> = {
+  a: { code: "KeyA", keyCode: 65 },
+  A: { code: "KeyA", keyCode: 65 },
+  s: { code: "KeyS", keyCode: 83 },
+  S: { code: "KeyS", keyCode: 83 },
+  Enter: { code: "Enter", keyCode: 13 },
+  Escape: { code: "Escape", keyCode: 27 },
+  " ": { code: "Space", keyCode: 32 },
+  ArrowUp: { code: "ArrowUp", keyCode: 38 },
+  ArrowDown: { code: "ArrowDown", keyCode: 40 },
+  ArrowLeft: { code: "ArrowLeft", keyCode: 37 },
+  ArrowRight: { code: "ArrowRight", keyCode: 39 },
+};
+
 function fireKey(type: "keydown" | "keyup", key: string): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new KeyboardEvent(type, { key, bubbles: true, cancelable: true }),
-  );
+  if (typeof document === "undefined") return;
+  const meta = KEY_CODES[key] ?? { code: key, keyCode: 0 };
+  const evt = new KeyboardEvent(type, {
+    key,
+    code: meta.code,
+    keyCode: meta.keyCode,
+    which: meta.keyCode,
+    bubbles: true,
+    cancelable: true,
+  });
+  // Some Phaser versions read keyCode from the readonly property
+  // directly; the constructor's `keyCode` option is ignored in
+  // newer browsers. Fall back to defineProperty so Phaser still
+  // sees the correct code.
+  try {
+    Object.defineProperty(evt, "keyCode", { value: meta.keyCode });
+    Object.defineProperty(evt, "which", { value: meta.keyCode });
+  } catch {
+    /* ignore */
+  }
+  document.dispatchEvent(evt);
 }
 
 export default function TouchControls({ visible }: TouchControlsProps) {
@@ -114,31 +152,44 @@ function DPad() {
     if (next) hapticTap();
   }, []);
 
-  const handleTouch = useCallback(
-    (e: React.TouchEvent) => {
+  // Native (non-passive) touch listeners so preventDefault actually
+  // works. React's synthetic onTouchStart / onTouchMove attach as
+  // PASSIVE listeners in modern React, which silently ignores
+  // preventDefault and triggers the page-scroll behavior.
+  useEffect(() => {
+    const pad = padRef.current;
+    if (!pad) return;
+    const onStart = (e: TouchEvent) => {
       e.preventDefault();
       const t = e.touches[0];
       if (!t) return;
       applyDir(dirFromTouch(t.clientX, t.clientY));
-    },
-    [dirFromTouch, applyDir],
-  );
-
-  const handleEnd = useCallback(
-    (e: React.TouchEvent) => {
+    };
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const t = e.touches[0];
+      if (!t) return;
+      applyDir(dirFromTouch(t.clientX, t.clientY));
+    };
+    const onEnd = (e: TouchEvent) => {
       e.preventDefault();
       applyDir(null);
-    },
-    [applyDir],
-  );
+    };
+    pad.addEventListener("touchstart", onStart, { passive: false });
+    pad.addEventListener("touchmove", onMove, { passive: false });
+    pad.addEventListener("touchend", onEnd, { passive: false });
+    pad.addEventListener("touchcancel", onEnd, { passive: false });
+    return () => {
+      pad.removeEventListener("touchstart", onStart);
+      pad.removeEventListener("touchmove", onMove);
+      pad.removeEventListener("touchend", onEnd);
+      pad.removeEventListener("touchcancel", onEnd);
+    };
+  }, [dirFromTouch, applyDir]);
 
   return (
     <div
       ref={padRef}
-      onTouchStart={handleTouch}
-      onTouchMove={handleTouch}
-      onTouchEnd={handleEnd}
-      onTouchCancel={handleEnd}
       style={dpadContainerStyle}
       aria-label="Direction pad"
     >
@@ -192,31 +243,52 @@ interface MomentaryButtonProps {
  */
 function MomentaryButton({ label, styleOverride, touchButton, keyChar, haptic }: MomentaryButtonProps) {
   const [pressed, setPressed] = useState(false);
-  const onStart = useCallback(
-    (e: React.TouchEvent) => {
+  const btnRef = useRef<HTMLDivElement>(null);
+
+  // Native non-passive listeners so preventDefault stops scrolling.
+  useEffect(() => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const onStart = (e: TouchEvent) => {
       e.preventDefault();
       setPressed(true);
       setTouchButton(touchButton, true);
       fireKey("keydown", keyChar);
       if (haptic === "confirm") hapticConfirm();
       else if (haptic === "tap") hapticTap();
-    },
-    [touchButton, keyChar, haptic],
-  );
-  const onEnd = useCallback(
-    (e: React.TouchEvent) => {
+    };
+    const onEnd = (e: TouchEvent) => {
       e.preventDefault();
       setPressed(false);
       setTouchButton(touchButton, false);
       fireKey("keyup", keyChar);
-    },
-    [touchButton, keyChar],
-  );
+    };
+    // Click fallback for desktop / Playwright where touch events
+    // don't fire. Still useful during dev testing.
+    const onClick = (e: MouseEvent) => {
+      e.preventDefault();
+      setTouchButton(touchButton, true);
+      fireKey("keydown", keyChar);
+      setTimeout(() => {
+        setTouchButton(touchButton, false);
+        fireKey("keyup", keyChar);
+      }, 50);
+    };
+    btn.addEventListener("touchstart", onStart, { passive: false });
+    btn.addEventListener("touchend", onEnd, { passive: false });
+    btn.addEventListener("touchcancel", onEnd, { passive: false });
+    btn.addEventListener("click", onClick);
+    return () => {
+      btn.removeEventListener("touchstart", onStart);
+      btn.removeEventListener("touchend", onEnd);
+      btn.removeEventListener("touchcancel", onEnd);
+      btn.removeEventListener("click", onClick);
+    };
+  }, [touchButton, keyChar, haptic]);
+
   return (
     <div
-      onTouchStart={onStart}
-      onTouchEnd={onEnd}
-      onTouchCancel={onEnd}
+      ref={btnRef}
       style={{ ...styleOverride, ...(pressed ? pressedBtnStyle : {}) }}
       aria-label={label}
       role="button"
@@ -244,15 +316,35 @@ function StartButton() {
 
 function RunToggle() {
   const [active, setActive] = useState(touchState.running);
-  const onTap = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    const next = toggleRun();
-    setActive(next);
-    hapticToggle();
+  const btnRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const handleTap = () => {
+      const next = toggleRun();
+      setActive(next);
+      hapticToggle();
+    };
+    const onStart = (e: TouchEvent) => {
+      e.preventDefault();
+      handleTap();
+    };
+    const onClick = (e: MouseEvent) => {
+      e.preventDefault();
+      handleTap();
+    };
+    btn.addEventListener("touchstart", onStart, { passive: false });
+    btn.addEventListener("click", onClick);
+    return () => {
+      btn.removeEventListener("touchstart", onStart);
+      btn.removeEventListener("click", onClick);
+    };
   }, []);
+
   return (
     <div
-      onTouchStart={onTap}
+      ref={btnRef}
       style={{
         ...systemBtnStyle,
         ...(active ? runActiveStyle : {}),
@@ -272,59 +364,84 @@ function RunToggle() {
 // gamepad: dark rounded surfaces, muted blue-gray accents on press,
 // subtle inset shadows for depth. No bright colors.
 
+// Controls zone is a transparent overlay ON TOP of the game canvas.
+// The zone ITSELF doesn't block clicks — only the d-pad / buttons
+// inside it accept touches (via touchAction: none on each control).
+// `pointerEvents: "none"` on the zone + `pointerEvents: "auto"` on
+// each interactive child lets touches PASS THROUGH the empty space
+// between controls so the game world remains tappable underneath.
 const controlsZoneStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   left: 0,
   right: 0,
   bottom: 0,
-  height: "var(--touch-bar-h, 120px)",
+  height: "var(--touch-bar-h, 180px)",
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-end",
   justifyContent: "space-between",
-  padding: "0 20px",
-  background: "rgba(0, 0, 0, 0.88)",
-  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+  padding: "0 16px 20px 16px",
+  background: "transparent",
+  pointerEvents: "none",
   userSelect: "none",
   WebkitUserSelect: "none",
-  touchAction: "none",
   zIndex: 9000,
   fontFamily: "var(--pkmn-font, 'Courier New', monospace)",
 };
 
 const leftClusterStyle: React.CSSProperties = {
   display: "flex",
+  flexDirection: "column",
   alignItems: "center",
-  gap: 12,
+  gap: 10,
+  pointerEvents: "auto",
 };
 
 const centerClusterStyle: React.CSSProperties = {
   display: "flex",
+  flexDirection: "column",
   alignItems: "center",
-  gap: 8,
+  gap: 10,
+  pointerEvents: "auto",
+  alignSelf: "flex-end",
+  paddingBottom: 4,
 };
 
 const rightClusterStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
+  pointerEvents: "auto",
 };
 
 // D-Pad ----------------------------------------------------------
+// Sized up from 96px to 140px (and 44px arms) so it's a proper
+// thumb-sized target on a real phone. Semi-transparent dark fill
+// so the game world shows through when the d-pad sits on grass.
 
-const DPAD_SIZE = 96;
-const ARM_LENGTH = 32;
-const ARM_THICKNESS = 32;
+const DPAD_SIZE = 140;
+const ARM_LENGTH = 46;
+const ARM_THICKNESS = 46;
 
 const dpadContainerStyle: React.CSSProperties = {
   position: "relative",
   width: DPAD_SIZE,
   height: DPAD_SIZE,
+  touchAction: "none",
 };
 
 const dpadArmBase: React.CSSProperties = {
   position: "absolute",
-  background: "#2a2a2a",
-  borderRadius: 4,
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 4px rgba(0,0,0,0.5)",
+  background: "rgba(30, 30, 35, 0.55)",
+  backdropFilter: "blur(4px)",
+  WebkitBackdropFilter: "blur(4px)",
+  borderRadius: 6,
+  // Border split into individual properties so the active-state
+  // override can set `borderColor` without React warning about
+  // mixing shorthand (`border`) and non-shorthand (`borderColor`).
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "rgba(255, 255, 255, 0.12)",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 8px rgba(0,0,0,0.4)",
 };
 
 const dpadArmVert: React.CSSProperties = {
@@ -340,9 +457,10 @@ const dpadArmHoriz: React.CSSProperties = {
 };
 
 const dpadArmActive: React.CSSProperties = {
-  background: "#3a4a5a",
+  background: "rgba(80, 130, 200, 0.7)",
+  borderColor: "rgba(140, 180, 255, 0.6)",
   boxShadow:
-    "inset 0 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(100,150,255,0.3)",
+    "inset 0 2px 4px rgba(0,0,0,0.3), 0 0 12px rgba(100,150,255,0.5)",
 };
 
 const dpadCenterStyle: React.CSSProperties = {
@@ -351,71 +469,86 @@ const dpadCenterStyle: React.CSSProperties = {
   top: (DPAD_SIZE - ARM_THICKNESS) / 2,
   width: ARM_THICKNESS,
   height: ARM_THICKNESS,
-  background: "#1a1a1a",
-  borderRadius: 2,
+  background: "rgba(15, 15, 20, 0.55)",
+  backdropFilter: "blur(4px)",
+  WebkitBackdropFilter: "blur(4px)",
+  borderRadius: 4,
 };
 
 // A / B buttons --------------------------------------------------
+// Up from 54px to 68px — bigger touch target for the most-used
+// buttons. Stacked diamond layout: B to the left, A to the right,
+// matching real GBA button positions.
 
-const BTN_SIZE = 54;
+const BTN_SIZE = 68;
 
 const actionButtonsContainer: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 14,
+  gap: 18,
+  marginBottom: 12,
 };
 
 const actionBtnBase: React.CSSProperties = {
   width: BTN_SIZE,
   height: BTN_SIZE,
   borderRadius: "50%",
-  border: "2px solid rgba(255,255,255,0.15)",
-  color: "rgba(255,255,255,0.75)",
-  fontSize: 18,
+  border: "2px solid rgba(255,255,255,0.18)",
+  color: "rgba(255,255,255,0.85)",
+  fontSize: 22,
   fontWeight: 700,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  backdropFilter: "blur(4px)",
+  WebkitBackdropFilter: "blur(4px)",
   boxShadow:
-    "0 2px 6px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)",
+    "0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
   cursor: "pointer",
+  touchAction: "none",
   WebkitTapHighlightColor: "transparent",
+  userSelect: "none",
 };
 
 const aButtonStyle: React.CSSProperties = {
   ...actionBtnBase,
-  background: "#283848",
+  background: "rgba(50, 70, 100, 0.55)",
 };
 
 const bButtonStyle: React.CSSProperties = {
   ...actionBtnBase,
-  background: "#2a2a2a",
+  background: "rgba(40, 40, 50, 0.55)",
 };
 
 const pressedBtnStyle: React.CSSProperties = {
-  background: "#3a4a5a",
+  background: "rgba(80, 130, 200, 0.75)",
   boxShadow:
-    "0 0 8px rgba(100,150,255,0.35), inset 0 2px 4px rgba(0,0,0,0.4)",
+    "0 0 12px rgba(100,150,255,0.5), inset 0 2px 4px rgba(0,0,0,0.4)",
 };
 
 // START / RUN pills ----------------------------------------------
 
 const systemBtnStyle: React.CSSProperties = {
-  minWidth: 56,
-  padding: "6px 12px",
-  borderRadius: 12,
-  background: "#1a1a1a",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "rgba(255,255,255,0.55)",
+  minWidth: 64,
+  padding: "7px 14px",
+  borderRadius: 14,
+  background: "rgba(20, 20, 25, 0.55)",
+  backdropFilter: "blur(4px)",
+  WebkitBackdropFilter: "blur(4px)",
+  border: "1px solid rgba(255,255,255,0.15)",
+  color: "rgba(255,255,255,0.65)",
   fontSize: 11,
   letterSpacing: 1.5,
+  fontWeight: 600,
   textAlign: "center",
   cursor: "pointer",
+  touchAction: "none",
   WebkitTapHighlightColor: "transparent",
+  userSelect: "none",
 };
 
 const runActiveStyle: React.CSSProperties = {
-  background: "#2a3a4a",
-  borderColor: "rgba(100,150,255,0.4)",
-  color: "rgba(140,180,255,0.95)",
+  background: "rgba(60, 100, 160, 0.7)",
+  borderColor: "rgba(140, 180, 255, 0.5)",
+  color: "rgba(180, 210, 255, 0.95)",
 };

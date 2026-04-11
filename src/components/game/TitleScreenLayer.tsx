@@ -175,7 +175,7 @@ export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLay
 /* ── Styles ─────────────────────────────────────────── */
 
 const overlayStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   inset: 0,
   display: "flex",
   alignItems: "center",

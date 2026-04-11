@@ -106,7 +106,7 @@ export default function ResearchLogViewer({ onClose }: Props) {
 // ── Styles ──────────────────────────────────────────────
 
 const overlayStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   inset: 0,
   zIndex: 260,
   display: "flex",

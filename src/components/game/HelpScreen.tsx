@@ -161,7 +161,7 @@ function ProgressRow({ label, cur, total, raw }: { label: string; cur: number; t
 /* ── Styles ──────────────────────────────────────────────── */
 
 const overlayStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   inset: 0,
   zIndex: 250,
   display: "flex",
@@ -270,7 +270,7 @@ const footerStyle: React.CSSProperties = {
 };
 
 const confirmOverlayStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   inset: 0,
   zIndex: 300,
   display: "flex",

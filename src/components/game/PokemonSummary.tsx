@@ -56,7 +56,7 @@ export default function PokemonSummary({ member, onClose }: Props) {
 
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 260,
+      position: "absolute", inset: 0, zIndex: 260,
       display: "flex", alignItems: "center", justifyContent: "center",
       background: C.olive, pointerEvents: "auto",
     }}>

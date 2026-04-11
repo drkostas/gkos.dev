@@ -103,7 +103,7 @@ export default function PartyMenu({ onClose }: PartyMenuProps) {
   return (
     <div
       style={{
-        position: "fixed", inset: 0, zIndex: 250,
+        position: "absolute", inset: 0, zIndex: 250,
         display: "flex", alignItems: "center", justifyContent: "center",
         /* Solid olive matching the OG party menu BG — fills entire screen */
         background: C.bgOlive,

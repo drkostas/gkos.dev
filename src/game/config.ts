@@ -46,11 +46,16 @@ export function getSceneZoom(): number {
 export function createGameConfig(
   parent: HTMLElement,
 ): Phaser.Types.Core.GameConfig {
+  // Read dimensions from the PARENT container, not the window — we
+  // live inside a GameLayout slot that sits below the navbar, so
+  // window.innerHeight would render the canvas 64px too tall and
+  // clip under the nav.
+  const rect = parent.getBoundingClientRect();
   return {
     type: Phaser.AUTO,
     parent,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: rect.width || window.innerWidth,
+    height: rect.height || window.innerHeight,
     pixelArt: true,
     antialias: false,
     roundPixels: true,
@@ -63,6 +68,10 @@ export function createGameConfig(
     scale: {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.NO_CENTER,
+      // Watch the parent container, not the window. The parent is
+      // the Astro slot below the navbar; its size excludes the
+      // navbar height automatically.
+      parent,
     },
     plugins: {
       scene: [
