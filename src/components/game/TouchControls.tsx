@@ -97,6 +97,7 @@ export default function TouchControls({ visible }: TouchControlsProps) {
   if (!visible) return null;
   return (
     <div style={controlsZoneStyle}>
+      <FullscreenButton />
       <div style={leftClusterStyle}>
         <DPad />
         <RunToggle />
@@ -309,6 +310,56 @@ function StartButton() {
       keyChar="Escape"
       haptic="tap"
     />
+  );
+}
+
+// ── Fullscreen button ────────────────────────────────────────────
+
+function FullscreenButton() {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const btnRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  useEffect(() => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const toggle = () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    };
+    const onStart = (e: TouchEvent) => {
+      e.preventDefault();
+      toggle();
+    };
+    const onClick = (e: MouseEvent) => {
+      e.preventDefault();
+      toggle();
+    };
+    btn.addEventListener("touchstart", onStart, { passive: false });
+    btn.addEventListener("click", onClick);
+    return () => {
+      btn.removeEventListener("touchstart", onStart);
+      btn.removeEventListener("click", onClick);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={btnRef}
+      style={fullscreenBtnStyle}
+      aria-label="Fullscreen toggle"
+      role="button"
+    >
+      {isFullscreen ? "⛶" : "⛶"}
+    </div>
   );
 }
 
@@ -551,4 +602,32 @@ const runActiveStyle: React.CSSProperties = {
   background: "rgba(60, 100, 160, 0.7)",
   borderColor: "rgba(140, 180, 255, 0.5)",
   color: "rgba(180, 210, 255, 0.95)",
+};
+
+// ── Fullscreen button ─────────────────────────────────────────────
+// Anchored to the top-right corner of the game container. Escapes
+// the flex layout via absolute positioning so it can live outside
+// the d-pad / A-B / START layout without competing for space.
+
+const fullscreenBtnStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 12,
+  right: 12,
+  width: 40,
+  height: 40,
+  borderRadius: 10,
+  background: "rgba(20, 20, 25, 0.55)",
+  backdropFilter: "blur(4px)",
+  WebkitBackdropFilter: "blur(4px)",
+  border: "1px solid rgba(255,255,255,0.15)",
+  color: "rgba(255,255,255,0.75)",
+  fontSize: 18,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  touchAction: "none",
+  WebkitTapHighlightColor: "transparent",
+  userSelect: "none",
+  pointerEvents: "auto",
 };
