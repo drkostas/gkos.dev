@@ -174,6 +174,36 @@ export default function PhaserGame() {
     const game = new Phaser.Game(config);
     (window as any).__PHASER_GAME__ = game;
 
+    // Handle WebGL context loss. GPU resets, tab suspend, or low-memory
+    // pressure can invalidate the canvas's WebGL context mid-session;
+    // without a handler the game silently freezes (Phaser's renderer
+    // has limited support for graceful recovery). We preventDefault so
+    // the browser keeps the canvas around, then reload after a short
+    // delay so the player sees the problem acknowledged instead of a
+    // frozen frame.
+    //
+    // The canvas isn't ready until Phaser's BootScene fires BOOT, so
+    // attach the listener once the game reports ready.
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      // eslint-disable-next-line no-console
+      console.warn("[PhaserGame] WebGL context lost — reloading");
+      window.setTimeout(() => window.location.reload(), 250);
+    };
+    const onContextRestored = () => {
+      // Rare: context came back on its own. Reload anyway since Phaser
+      // hasn't rebuilt its texture uploads.
+      // eslint-disable-next-line no-console
+      console.warn("[PhaserGame] WebGL context restored — reloading to rebuild");
+      window.location.reload();
+    };
+    game.events.once("ready", () => {
+      const canvas = game.canvas as HTMLCanvasElement | undefined;
+      if (!canvas) return;
+      canvas.addEventListener("webglcontextlost", onContextLost, false);
+      canvas.addEventListener("webglcontextrestored", onContextRestored, false);
+    });
+
     // Run new-content detection AFTER the Phaser game has booted and
     // the NotificationBanner has had a tick to mount its listener.
     // The banner queues multiple fires, so the slight delay just
@@ -190,6 +220,13 @@ export default function PhaserGame() {
     return () => {
       window.removeEventListener("resize", updateUiScale);
       window.clearTimeout(newContentTimer);
+      // Clean up the context-loss listeners so they don't fire against
+      // a torn-down game instance during HMR.
+      const canvas = game.canvas as HTMLCanvasElement | undefined;
+      if (canvas) {
+        canvas.removeEventListener("webglcontextlost", onContextLost, false);
+        canvas.removeEventListener("webglcontextrestored", onContextRestored, false);
+      }
       // Stop BGM on unmount. Without this, navigating away from
       // /explore to a different portfolio page would leak an
       // HTMLAudioElement that keeps looping the track forever.
