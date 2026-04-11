@@ -19,3 +19,15 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
   - Console: zero errors, zero warnings (only React DevTools info message)
 - Verified working at 2026-04-11T22:42 via Playwright + e.repeat event dispatch
 
+
+**B6 — BGM pause/resume on visibilitychange** ✅
+- File: `src/components/game/PhaserGame.tsx` — new useEffect with visibilitychange listener
+- Fix: calls `bgm.pause()` when `document.hidden` becomes true, `bgm.resume()` otherwise.
+  Both methods exist in BGMManager (lines 368, 378).
+- Verification (4-step):
+  - Desktop 1440x900: `b6-desktop-after-fix.png` — title screen renders clean
+  - Mobile landscape 852x393: `b6-mobile-landscape-after-fix.png` — clean
+  - Mobile portrait 393x852: `b6-mobile-portrait-after-fix.png` — clean
+  - Behavior test: dispatched `visibilitychange` with `document.hidden=true` then
+    `=false`, both fired without throwing (elapsedMs=102). Console zero errors.
+- Verified working at 2026-04-11T22:44 via visibilitychange dispatch + console check
