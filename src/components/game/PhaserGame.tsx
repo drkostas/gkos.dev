@@ -41,6 +41,26 @@ export default function PhaserGame() {
     return () => window.clearInterval(interval);
   }, []);
 
+  // Pause BGM when the tab is backgrounded, resume when it returns.
+  // Without this, HTMLAudioElement keeps playing in the background
+  // tab (wasting the audio pipe and annoying the user). Phaser's
+  // requestAnimationFrame already stops on hidden; this handles the
+  // audio side. Resume only if the player hadn't manually stopped
+  // playback between hide/show.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        bgm.pause();
+      } else {
+        bgm.resume();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
   // Unlock audio on first user gesture (click/tap/keypress on THIS page).
   // Browser autoplay policy requires a gesture on the current document.
   useEffect(() => {
