@@ -136,7 +136,7 @@ export default function DialogBox() {
     <div
       onClick={advance}
       style={{
-        position: "fixed",
+        position: "absolute",
         // Touch devices: lift the dialog above the on-screen controls
         // bar (desktop keeps --touch-bar-h = 0 so this is just 6%).
         bottom: "calc(6% + var(--touch-bar-h, 0px))",

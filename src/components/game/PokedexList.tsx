@@ -268,7 +268,7 @@ const F_SM = "2.2cqi";  // small text
 const F_LG = "3.2cqi";  // large (detail name)
 
 const overlayStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   inset: 0,
   zIndex: 250,
   display: "flex",

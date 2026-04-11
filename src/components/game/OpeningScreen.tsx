@@ -112,7 +112,7 @@ export default function OpeningScreen({ onComplete }: OpeningScreenProps) {
       {/* Title screen (always visible except during birch) */}
       {phase !== "birch" && (
         <div style={{
-          position: "fixed", inset: 0, zIndex: 500,
+          position: "absolute", inset: 0, zIndex: 500,
           opacity: phase === "title-fadeout" ? 0 : 1,
           transition: "opacity 300ms ease-out",
           pointerEvents: phase === "title-fadeout" ? "none" : "auto",
@@ -171,7 +171,7 @@ export default function OpeningScreen({ onComplete }: OpeningScreenProps) {
 
       {/* Birch speech */}
       {phase === "birch" && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 500 }}>
+        <div style={{ position: "absolute", inset: 0, zIndex: 500 }}>
           <BirchSpeechLayer onComplete={handleBirchComplete} />
         </div>
       )}
@@ -183,7 +183,7 @@ export default function OpeningScreen({ onComplete }: OpeningScreenProps) {
 /* ── OG Main Menu Styles ─────────────────────────────── */
 
 const menuOverlayStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   inset: 0,
   zIndex: 510,
   display: "flex",

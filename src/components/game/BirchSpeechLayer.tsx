@@ -466,7 +466,7 @@ export default function BirchSpeechLayer({ onComplete }: BirchSpeechLayerProps) 
   return (
     <div
       style={{
-        position: "fixed",
+        position: "absolute",
         inset: 0,
         zIndex: 500,
         display: "flex",

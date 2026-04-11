@@ -77,7 +77,7 @@ export default function PortraitBanner({ enabled = true }: PortraitBannerProps) 
 /* ── Styles ──────────────────────────────────────────────── */
 
 const bannerStyle: React.CSSProperties = {
-  position: "fixed",
+  position: "absolute",
   top: 0,
   left: 0,
   right: 0,
