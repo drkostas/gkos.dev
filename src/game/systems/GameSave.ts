@@ -177,9 +177,17 @@ export function clearSave(): void {
 
 /**
  * Map a pocket id to the array key inside GameSave that stores the
- * collected item ids for that pocket.
+ * collected item ids for that pocket. Narrow literal union instead
+ * of `keyof GameSave` so TypeScript can prove `save[key]` is string[]
+ * at call sites.
  */
-function pocketArrayKey(pocket: BagPocketId): keyof GameSave {
+type PocketArrayKey =
+  | "papersCollected"
+  | "blogsCollected"
+  | "keyItemsCollected"
+  | "tmsCollected";
+
+function pocketArrayKey(pocket: BagPocketId): PocketArrayKey {
   switch (pocket) {
     case "papers":
       return "papersCollected";
@@ -387,43 +395,6 @@ export function markGateCleared(gateId: string): void {
   writeSave({ ...save, gatesCleared: [...save.gatesCleared, gateId] });
 }
 
-// ── Badge check hook ─────────────────────────────────────
-
-/**
- * Count all openable URLs across items and Pokedex.
- * Lazy-loaded to avoid circular imports at module init time.
- */
-let _totalOpenableUrls: number | null = null;
-function getTotalOpenableUrls(): number {
-  if (_totalOpenableUrls === null) {
-    const { ITEM_DEFINITIONS } = require("@/game/data/itemDefinitions");
-    const { POKEDEX } = require("@/game/data/pokemon");
-    const itemUrls = Object.values(ITEM_DEFINITIONS).filter((i: any) => i.url).length;
-    const pokedexUrls = (POKEDEX as any[]).filter((p) => p.url).length;
-    _totalOpenableUrls = itemUrls + pokedexUrls;
-  }
-  return _totalOpenableUrls;
-}
-
-/**
- * Re-evaluate automatic badges (DEVOTED, etc.) based on current save
- * state. Call this after any mutation that could unlock a badge —
- * URL opens, step milestones, questionnaire completion, etc.
- *
- * Returns the list of NEWLY awarded badge ids so the caller can fire
- * a dialog / notification if any were granted.
- */
-export function checkBadges(): string[] {
-  const newlyAwarded: string[] = [];
-  const save = readSave();
-
-  // DEVOTED — open every distinct URL from the Bag / Pokedex.
-  if (
-    !save.badges.includes("devoted") &&
-    save.urlsOpened.length >= getTotalOpenableUrls()
-  ) {
-    if (awardBadge("devoted")) newlyAwarded.push("devoted");
-  }
-
-  return newlyAwarded;
-}
+// DEVOTED and CHAMPION auto-award logic now lives in
+// BadgeMilestones.checkBadges() — the single entry point for all
+// badge evaluation. See the `auto: true` flag on those badge defs.

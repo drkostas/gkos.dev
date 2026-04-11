@@ -15,8 +15,19 @@ import {
   markBadgeNotified,
   type GameSave,
 } from "./GameSave";
-import { getItemDef, getItemsByPocket } from "@/game/data/itemDefinitions";
+import {
+  getItemDef,
+  getItemsByPocket,
+  ITEM_DEFINITIONS,
+} from "@/game/data/itemDefinitions";
 import { POKEDEX } from "@/game/data/pokemon";
+
+// Count all openable URLs — items with a url field + Pokedex entries
+// with a url field. Computed once at module load since both arrays
+// are static data.
+const TOTAL_OPENABLE_URLS =
+  Object.values(ITEM_DEFINITIONS).filter((i) => i.url).length +
+  POKEDEX.filter((p) => p.url).length;
 
 export interface BadgeDef {
   id: string;
@@ -25,6 +36,13 @@ export interface BadgeDef {
   hint: string;
   /** Returns true when the player has met this badge's condition. */
   condition: (save: GameSave) => boolean;
+  /**
+   * If true, the badge auto-awards the moment the condition is met —
+   * no KOSTAS visit required. DEVOTED (opening every URL) and CHAMPION
+   * (finding MEW) are the two auto badges; all others must be claimed
+   * from KOSTAS in the gym.
+   */
+  auto?: boolean;
 }
 
 const TOTAL_PAPERS = getItemsByPocket("papers").length;
@@ -86,10 +104,21 @@ export const BADGES: BadgeDef[] = [
     condition: (s) => s.zonesVisited.length >= 5,
   },
   {
+    id: "devoted",
+    name: "DEVOTED",
+    hint: "Open every URL from your BAG and POKeDEX",
+    // Auto-awarded the moment the last URL is opened — no KOSTAS
+    // visit needed. See the `auto: true` flag below.
+    condition: (s) => s.urlsOpened.length >= TOTAL_OPENABLE_URLS,
+    auto: true,
+  },
+  {
     id: "champion",
     name: "CHAMPION",
     hint: "Find MEW beyond the water boundary",
+    // Also auto-awarded by MEW's interaction code.
     condition: (s) => s.keyItemsCollected.includes("PHONE.NUMBER"),
+    auto: true,
   },
 ];
 
@@ -107,14 +136,16 @@ export function clearPendingBadgeNotification(): void {
 
 /**
  * Check all badge conditions against the current save.
- * If a badge condition is newly met, queue the "go see KOSTAS"
- * notification exactly ONCE per badge per save. Subsequent calls
- * short-circuit via `badgesNotified` so the same milestone dialog
- * doesn't re-fire every time the player takes a step in a new zone
- * or picks up an item while the condition is already satisfied.
  *
- * CHAMPION is awarded by MEW's interaction code. All others require
- * KOSTAS in the gym to give.
+ * Two paths:
+ *  - Auto badges (DEVOTED, CHAMPION): condition met → badge awarded
+ *    immediately via `awardBadge()`. No KOSTAS visit required.
+ *  - Normal badges: condition met → queue a "go see KOSTAS" notification
+ *    exactly ONCE per badge per save (via `badgesNotified`).
+ *
+ * Call this after any state mutation that could unlock a badge —
+ * item pickup, Pokedex registration, TM award, zone visit, gym clear,
+ * URL open, etc.
  */
 export function checkBadges(): void {
   const save = getSave();
@@ -122,15 +153,20 @@ export function checkBadges(): void {
   for (const badge of BADGES) {
     // Skip already-awarded badges
     if (save.badges.includes(badge.id)) continue;
-    // Skip badges we've already announced — their "condition met"
-    // dialog has been shown once and the player now needs to visit
-    // KOSTAS. Re-firing would be spammy.
-    if (save.badgesNotified.includes(badge.id)) continue;
     // Skip if condition not met
     if (!badge.condition(save)) continue;
 
-    // Queue notification (only one at a time) and remember that we
-    // notified this badge so it doesn't re-fire.
+    // Auto badges: grant the badge directly, no notification queue.
+    // A screen-level listener (TrainerCard / KOSTAS banner) picks it
+    // up on its next render and plays the appropriate fanfare.
+    if (badge.auto) {
+      awardBadge(badge.id);
+      continue;
+    }
+
+    // KOSTAS badges: skip if we've already announced the milestone,
+    // otherwise queue a notification (one at a time).
+    if (save.badgesNotified.includes(badge.id)) continue;
     if (!pendingBadgeNotification) {
       pendingBadgeNotification = badge;
       markBadgeNotified(badge.id);
