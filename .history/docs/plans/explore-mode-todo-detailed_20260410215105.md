@@ -496,7 +496,7 @@ function checkBadges() {
 }
 ```
 
-**KOSTAS (gym leader) handles the actual badge giving, its a different task** — see Task 12.
+**KOSTAS handles the actual badge giving** — see Task 12.
 
 ---
 
