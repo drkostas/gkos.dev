@@ -1,7 +1,22 @@
 import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 
-const sX = "var(--ui-scale-x, 1)";
 const FONT = "var(--pkmn-font, 'Courier New', monospace)";
+
+// M0/M1/M2 — vw-based sizing that matches DialogBox.tsx exactly so the
+// Birch speech and the in-game dialog render at the same pixel size.
+// The previous calc(*px * --ui-scale-x) math was inflated 2-3x by mobile
+// browser text autosizing, producing the "50% of viewport" dialog the
+// user reported on Mobile Safari + Brave iOS.
+//
+// Target sizes at key breakpoints:
+//  393px portrait  → font 14, border 8,  minH 42, pad 6/12
+//  852px landscape → font 18, border 14, minH 54, pad 9/16
+//  1280px desktop  → font 26, border 24, minH 68, pad 10/20
+const BIRCH_FONT = "clamp(14px, 2.1vw, 26px)";
+const BIRCH_BORDER = "clamp(8px, 1.8vw, 24px)";
+const BIRCH_MIN_H = "clamp(42px, 5.3vw, 68px)";
+const BIRCH_PAD_Y = "clamp(6px, 0.8vw, 10px)";
+const BIRCH_PAD_X = "clamp(12px, 1.6vw, 20px)";
 
 interface BirchTextBoxProps {
   /**
@@ -77,43 +92,54 @@ export default function BirchTextBox({
         bottom: `calc(6% + var(--touch-bar-h, 0px))`,
         left: "50%",
         transform: "translateX(-50%)",
-        width: `min(92%, calc(720px * ${sX}))`,
+        // M2: 92% of the PARENT (BirchSpeechLayer's 3:2 aspect container).
+        // The parent has `overflow: hidden` at width = min(135vh, 90vw),
+        // so a viewport-based width would get clipped on narrow/landscape
+        // screens. Percentage keeps the dialog inside the GBA screen area.
+        width: "92%",
+        maxWidth: "720px",
         borderStyle: "solid",
-        borderWidth: `calc(24px * ${sX})`,
+        borderWidth: BIRCH_BORDER,
         borderImageSource: "var(--ui-frame, url('/game/ui/text_window/1.png'))",
         borderImageSlice: "8 fill",
         borderImageRepeat: "stretch",
-        borderImageWidth: `calc(24px * ${sX})`,
+        borderImageWidth: BIRCH_BORDER,
         background: "transparent",
-        boxSizing: "content-box",
-        minHeight: `calc(68px * ${sX})`,
-        padding: `calc(10px * ${sX}) calc(20px * ${sX})`,
+        boxSizing: "border-box",
+        minHeight: BIRCH_MIN_H,
+        padding: `${BIRCH_PAD_Y} ${BIRCH_PAD_X}`,
         fontFamily: FONT,
-        fontSize: `calc(26px * ${sX})`,
-        lineHeight: 1.5,
+        fontSize: BIRCH_FONT,
+        lineHeight: 1.35,
         color: "#000",
         cursor: "pointer",
         userSelect: "none",
         zIndex: 110,
         imageRendering: "pixelated",
-      }}
+        // M1: inline `text-size-adjust: 100%` as double-safety against
+        // mobile browsers that ignore the html[text-size-adjust] rule.
+        WebkitTextSizeAdjust: "100%",
+        textSizeAdjust: "100%",
+      } as React.CSSProperties}
     >
       {/* Speaker name pill */}
       <div
         style={{
           position: "absolute",
-          top: `calc(-50px * ${sX})`,
-          left: `calc(24px * ${sX})`,
+          top: "clamp(-44px, -3.2vw, -32px)",
+          left: "clamp(12px, 1.4vw, 24px)",
           background: "#fff",
           color: "#000",
-          padding: `calc(8px * ${sX}) calc(18px * ${sX})`,
-          fontSize: `calc(22px * ${sX})`,
+          padding: "clamp(4px, 0.55vw, 8px) clamp(10px, 1.2vw, 18px)",
+          fontSize: "clamp(12px, 1.65vw, 22px)",
           fontWeight: 700,
           letterSpacing: "0.5px",
-          border: `calc(2px * ${sX}) solid #000`,
-          borderRadius: `calc(4px * ${sX})`,
+          border: "2px solid #000",
+          borderRadius: "4px",
           fontFamily: FONT,
-        }}
+          WebkitTextSizeAdjust: "100%",
+          textSizeAdjust: "100%",
+        } as React.CSSProperties}
       >
         KOSTAS
       </div>
@@ -124,7 +150,7 @@ export default function BirchTextBox({
         <span
           style={{
             display: "inline-block",
-            marginLeft: `calc(6px * ${sX})`,
+            marginLeft: "6px",
             animation: "birch-bounce 0.6s ease-in-out infinite alternate",
           }}
         >

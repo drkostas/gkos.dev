@@ -164,10 +164,10 @@ export default function DialogBox() {
         bottom: "calc(6% + var(--touch-bar-h, 0px))",
         left: "50%",
         transform: "translateX(-50%)",
-        // M2: 90% of viewport up to 760px. On desktops the old math
-        // used min(92%, 720*sX) where sX=1.125 at 1440 → 810px. We cap
-        // at 760px to keep comfortable reading width on 1920+ screens.
-        width: "min(90vw, 760px)",
+        // M2: 88% of viewport up to 720px. With box-sizing: border-box
+        // below, width is the VISUAL width (includes border + padding),
+        // so the dialog has a clean margin on every viewport.
+        width: "min(88vw, 720px)",
         // Original Pokemon Emerald 24×24 frame from
         // pret/pokeemerald/graphics/text_window/1.png as a 9-slice
         // background. Using `slice 8 fill` so the center white pixels
@@ -183,10 +183,10 @@ export default function DialogBox() {
         // would leak through the now-transparent corner pixels of the
         // frame and produce a white halo around the rounded corners.
         background: "transparent",
-        // Use content-box so minHeight describes the inner content area
-        // (not including border + padding). This prevents the squeeze
-        // where border+padding ate all of minHeight.
-        boxSizing: "content-box",
+        // border-box: `width` is the total visual width, `minHeight`
+        // is the total visual height. Simpler math than content-box
+        // and matches the box the user actually sees.
+        boxSizing: "border-box",
         minHeight: MIN_HEIGHT,
         padding: `${PAD_Y} ${PAD_X}`,
         fontFamily: "var(--pkmn-font, 'Courier New', monospace)",
