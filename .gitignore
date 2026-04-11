@@ -22,3 +22,10 @@ tests/diff-*.png
 !public/**/*.jpeg
 !public/**/*.jpg
 .vercel
+
+# Game map analyzer output — regenerable via scripts/map-analyzer.mjs
+/game-map-data.json
+/map-analyzer.txt
+
+# Editor history
+.history/

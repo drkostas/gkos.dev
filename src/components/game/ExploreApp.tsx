@@ -3,6 +3,7 @@ import OpeningScreen from "./OpeningScreen";
 import PhaserGame from "./PhaserGame";
 import TouchControls from "./TouchControls";
 import PortraitBanner from "./PortraitBanner";
+import { GameLoadingScreen } from "./GameLoadingScreen";
 import { isTouchDevice } from "@/game/systems/TouchInput";
 
 /**
@@ -20,8 +21,32 @@ import { isTouchDevice } from "@/game/systems/TouchInput";
  * informational and auto-hides when the player rotates or dismisses.
  */
 export default function ExploreApp() {
+  const [loadingDone, setLoadingDone] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [assetsReady, setAssetsReady] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
+
+  // Fake loading progress — 2.5s total. Phaser preloads assets inside
+  // BootScene on its own; this gives the player a polished intro
+  // transition from the portfolio aesthetic into the pixel-art world.
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const DURATION = 2500;
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const pct = Math.min(100, (elapsed / DURATION) * 100);
+      setLoadingProgress(pct);
+      if (pct >= 100) {
+        setAssetsReady(true);
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // Touch detection runs only on the client — isTouchDevice reads
   // window/navigator, which SSR doesn't have.
@@ -42,12 +67,20 @@ export default function ExploreApp() {
 
   return (
     <>
-      {!gameStarted && (
+      {!loadingDone && (
+        <GameLoadingScreen
+          progress={loadingProgress}
+          assetsReady={assetsReady}
+          isComplete={loadingDone}
+          onStart={() => setLoadingDone(true)}
+        />
+      )}
+      {loadingDone && !gameStarted && (
         <OpeningScreen onComplete={() => setGameStarted(true)} />
       )}
       {gameStarted && <PhaserGame />}
-      <TouchControls visible={isTouch} />
-      <PortraitBanner enabled={isTouch} />
+      {loadingDone && <TouchControls visible={isTouch} />}
+      {loadingDone && <PortraitBanner enabled={isTouch} />}
     </>
   );
 }
