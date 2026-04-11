@@ -411,7 +411,7 @@ export class OverworldScene extends Phaser.Scene {
     const count = Math.ceil((2 * radius) * (2 * radius) / 2);
     for (let i = 0; i < count; i++) {
       const label = this.add.text(0, 0, "", {
-        fontFamily: "'Pokemon Emerald Pro', 'Pokemon DS', monospace",
+        fontFamily: "'Pokemon DS', 'Pokemon GB', monospace",
         fontSize: "6px",
         color: "#ffffff",
         stroke: "#000000",

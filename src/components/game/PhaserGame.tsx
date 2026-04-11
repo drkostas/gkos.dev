@@ -121,24 +121,20 @@ export default function PhaserGame() {
     // Inject the self-hosted @font-face declarations for the Pokemon
     // fan-made font recreations we use across the UI.
     //
-    // - 'Pokemon Emerald Pro' by crystalwalrein (CC BY-SA 3.0) is a
-    //   recreation of the Gen 3 Ruby/Sapphire/Emerald GBA dialogue
-    //   font. Hosted in /public/fonts/pokemon-emerald-pro.ttf.
-    // - 'Pokemon DS' is the Gen 4+ DS Latin glyph font kept as a
-    //   fallback for anywhere the thinner DS-era look is wanted.
+    // - 'Pokemon DS' is the Gen 4+ DS Latin glyph font — primary for
+    //   dialogue boxes and menus. Hosted in /public/fonts/pokemon-ds.ttf.
     // - 'Pokemon GB' is the Gen 1/2 Game Boy monospace font kept as
     //   a secondary fallback.
+    //
+    // The 'Pokemon Emerald Pro' @font-face that used to live here
+    // pointed at a file that was never shipped to public/fonts/, so
+    // every /explore load fired a 404 for pokemon-emerald-pro.ttf.
+    // The CSS var now leads with 'Pokemon DS' which is what the
+    // browser was already falling back to anyway.
     if (!document.getElementById("pkmn-font-style")) {
       const style = document.createElement("style");
       style.id = "pkmn-font-style";
       style.textContent = `
-        @font-face {
-          font-family: 'Pokemon Emerald Pro';
-          src: url('/fonts/pokemon-emerald-pro.ttf') format('truetype');
-          font-weight: normal;
-          font-style: normal;
-          font-display: swap;
-        }
         @font-face {
           font-family: 'Pokemon DS';
           src: url('/fonts/pokemon-ds.ttf') format('truetype');
@@ -158,7 +154,7 @@ export default function PhaserGame() {
     }
     document.documentElement.style.setProperty(
       "--pkmn-font",
-      "'Pokemon Emerald Pro', 'Pokemon DS', 'Courier New', monospace",
+      "'Pokemon DS', 'Pokemon GB', 'Courier New', monospace",
     );
 
     const existing = (window as any).__PHASER_GAME__ as Phaser.Game | undefined;

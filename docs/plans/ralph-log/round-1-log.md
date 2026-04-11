@@ -69,3 +69,26 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
     `this.dialogSystem.showDialog(...)`.
   - Console: only known font 404 (pre-existing, tracked as task #79), zero NEW errors
 - Verified working at 2026-04-11T22:59 via live OverworldScene race test + console check
+
+
+**Font 404 — pokemon-emerald-pro.ttf** ✅ (task #79)
+- Files: `src/components/game/PhaserGame.tsx`, `src/game/scenes/InteriorScene.ts`,
+  `src/game/scenes/OverworldScene.ts`, `src/game/systems/MapNamePopup.ts`
+- Fix: removed the `'Pokemon Emerald Pro'` @font-face block and dropped it from every
+  `font-family` string. The font file was never shipped to `public/fonts/` — the CSS
+  var pointed at a non-existent file, producing a 404 on every /explore load.
+  Pokemon DS (Gen 4+ DS Latin glyph) is now primary, with Pokemon GB as secondary
+  fallback. This is what the browser was already falling back to — the visual
+  appearance is unchanged, but the console is clean.
+- Verification (4-step):
+  - Desktop 1440x900 loading: `font-fix-desktop.png` — "Explore Mode / World ready 100% / PRESS ANY KEY TO START"
+  - Mobile landscape 852x393 loading: `font-fix-mobile-landscape.png` — identical, wider layout
+  - Mobile portrait 393x852 loading: `font-fix-mobile-portrait.png` — loading screen centered, touch bar visible
+  - Desktop overworld dialog: `font-fix-dialog-desktop.png` — dialog shows
+    "Testing the DS font stack after killing the Emerald Pro 404." rendered in Pokemon DS
+  - Mobile landscape overworld dialog: `font-fix-dialog-mobile-landscape.png` — dialog fits above touch bar
+  - Mobile portrait overworld dialog: `font-fix-dialog-mobile-portrait.png` — dialog fits above touch bar
+  - Console: **zero errors, zero warnings** across full flow loading → title → menu → overworld → dialog
+  - Behavior: `getComputedStyle(documentElement).getPropertyValue("--pkmn-font")` returns
+    `"'Pokemon DS', 'Pokemon GB', 'Courier New', monospace"` — Emerald Pro fully removed
+- Verified working at 2026-04-11T23:04 via Playwright reload + showDialog + console check

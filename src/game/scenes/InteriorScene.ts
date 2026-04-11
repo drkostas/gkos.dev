@@ -1298,7 +1298,7 @@ export class InteriorScene extends Phaser.Scene {
           ty * TILE + TILE / 2,
           `${tx}\n${ty}`,
           {
-            fontFamily: "'Pokemon Emerald Pro', 'Pokemon DS', monospace",
+            fontFamily: "'Pokemon DS', 'Pokemon GB', monospace",
             fontSize: "6px",
             color: "#ffffff",
             stroke: "#000000",
