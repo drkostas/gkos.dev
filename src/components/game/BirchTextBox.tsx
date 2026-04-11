@@ -68,7 +68,13 @@ export default function BirchTextBox({
       onClick={onAdvance}
       style={{
         position: "absolute",
-        bottom: "6%",
+        // Sit ABOVE the on-screen touch bar so the d-pad / A-B
+        // buttons don't overlap the text. --touch-bar-h is 0 on
+        // desktop so `6%` is the only effective offset there; on
+        // touch it lifts the textbox by ~140px so the dialog sits
+        // in the upper half of the viewport, well clear of the
+        // controls at the bottom.
+        bottom: `calc(6% + var(--touch-bar-h, 0px))`,
         left: "50%",
         transform: "translateX(-50%)",
         width: `min(92%, calc(720px * ${sX}))`,
