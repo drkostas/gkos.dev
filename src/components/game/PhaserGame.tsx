@@ -4,11 +4,13 @@ import { createGameConfig } from "@/game/config";
 import { initSettings } from "@/game/systems/Settings";
 import { initPC } from "@/game/systems/PCStore";
 import { bgm } from "@/game/systems/BGMManager";
+import { getSave, updateSave } from "@/game/systems/GameSave";
 import DialogBox from "./DialogBox";
 import StartMenu from "./StartMenu";
 import MapNamePopup from "./MapNamePopup";
 import PCInterface from "./PCInterface";
 import QuestionnaireInterface from "./QuestionnaireInterface";
+import MartShopInterface from "./MartShopInterface";
 import NotificationBanner from "./NotificationBanner";
 import ResearchLogWrapper from "./ResearchLogWrapper";
 
@@ -26,6 +28,18 @@ import ResearchLogWrapper from "./ResearchLogWrapper";
 export default function PhaserGame() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
+
+  // Tick the in-save play time once per second while the tab is visible.
+  // Pauses automatically when backgrounded so a forgotten tab doesn't
+  // inflate the timer.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      const save = getSave();
+      updateSave({ playTimeSeconds: save.playTimeSeconds + 1 });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // Unlock audio on first user gesture (click/tap/keypress on THIS page).
   // Browser autoplay policy requires a gesture on the current document.
@@ -170,7 +184,17 @@ export default function PhaserGame() {
   }, []);
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
+    <div
+      style={{
+        position: "relative",
+        width: "100vw",
+        // Shrink vertically by the touch bar height so the Phaser
+        // canvas doesn't render behind the on-screen controls. On
+        // desktop `--touch-bar-h` is 0px so the game fills the
+        // whole viewport.
+        height: "calc(100vh - var(--touch-bar-h, 0px))",
+      }}
+    >
       <div
         ref={containerRef}
         style={{ width: "100%", height: "100%", background: "#000" }}
@@ -180,6 +204,7 @@ export default function PhaserGame() {
       <MapNamePopup />
       <PCInterface />
       <QuestionnaireInterface />
+      <MartShopInterface />
       <NotificationBanner />
       <ResearchLogWrapper />
     </div>

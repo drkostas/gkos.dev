@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { GameEvents, onGameEvent, emitGameEvent } from "@/game/EventBridge";
 import { getPCItems, withdrawItem, type PCItem } from "@/game/systems/PCStore";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 
 type Screen = "main" | "storage" | "withdraw";
 
@@ -14,6 +15,10 @@ const ITEM_ICONS: Record<string, string> = {
   "LINKEDIN.URL":    "/game/ui/bag/amulet_coin.png",
   "HUGGINGFACE.URL": "/game/ui/bag/oran_berry.png",
   "SCHOLAR.URL":     "/game/ui/bag/lucky_egg.png",
+  // Starter TMs pre-loaded in the PC
+  "TM PYTHON":       "/game/ui/bag/tm_case.png",
+  "TM GIT":          "/game/ui/bag/tm_case.png",
+  "TM LINUX":        "/game/ui/bag/tm_case.png",
 };
 
 const DEFAULT_ICON = "/game/ui/bag/poke_ball.png";
@@ -72,74 +77,84 @@ export default function PCInterface() {
   }, []);
 
   /* ── Keyboard ──────────────────────────────────────────── */
-  useEffect(() => {
-    if (!visible) return;
-    const onKey = (e: KeyboardEvent) => {
+  // Any key press (including logical buttons) dismisses a pending
+  // withdraw message and refreshes the item list.
+  const dismissMessageIfAny = (): boolean => {
+    if (!withdrawMsgRef.current) return false;
+    setWithdrawMsg(null);
+    const newItems = getPCItems();
+    setItems(newItems);
+    if (cursorRef.current >= newItems.length) {
+      setCursor(Math.max(0, newItems.length));
+    }
+    return true;
+  };
+
+  useGameKeyboard(visible, {
+    up: () => {
+      if (dismissMessageIfAny()) return;
+      const scr = screenRef.current;
+      sfx.select();
+      if (scr === "main" || scr === "storage") {
+        setCursor((c) => (c <= 0 ? 1 : c - 1));
+      } else if (scr === "withdraw") {
+        const n = itemsRef.current.length + 1; // items + CANCEL
+        setCursor((c) => (c <= 0 ? n - 1 : c - 1));
+      }
+    },
+    down: () => {
+      if (dismissMessageIfAny()) return;
+      const scr = screenRef.current;
+      sfx.select();
+      if (scr === "main" || scr === "storage") {
+        setCursor((c) => (c >= 1 ? 0 : c + 1));
+      } else if (scr === "withdraw") {
+        const n = itemsRef.current.length + 1;
+        setCursor((c) => (c >= n - 1 ? 0 : c + 1));
+      }
+    },
+    confirm: () => {
+      if (dismissMessageIfAny()) return;
       const scr = screenRef.current;
       const cur = cursorRef.current;
-      const its = itemsRef.current;
-
-      const isBack = e.key === "s" || e.key === "S" || e.key === "Backspace" || e.key === "Escape";
-      const isConfirm = e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter";
-      const isUp = e.key === "ArrowUp";
-      const isDown = e.key === "ArrowDown";
-
-      // If a withdraw message is showing, any key dismisses it
-      if (withdrawMsgRef.current) {
-        e.preventDefault();
-        setWithdrawMsg(null);
-        // Refresh items list after dismiss
-        setItems(getPCItems());
-        // Reset cursor if it's past the end
-        const newItems = getPCItems();
-        if (cur >= newItems.length) setCursor(Math.max(0, newItems.length));
-        return;
-      }
-
       if (scr === "main") {
-        if (isUp) { e.preventDefault(); sfx.select(); setCursor(c => c <= 0 ? 1 : c - 1); }
-        else if (isDown) { e.preventDefault(); sfx.select(); setCursor(c => c >= 1 ? 0 : c + 1); }
-        else if (isConfirm) {
-          e.preventDefault();
-          if (cur === 0) { sfx.confirm(); setScreen("storage"); setCursor(0); }
-          else close();
-        }
-        else if (isBack) { e.preventDefault(); close(); }
-      }
-      else if (scr === "storage") {
-        if (isUp) { e.preventDefault(); sfx.select(); setCursor(c => c <= 0 ? 1 : c - 1); }
-        else if (isDown) { e.preventDefault(); sfx.select(); setCursor(c => c >= 1 ? 0 : c + 1); }
-        else if (isConfirm) {
-          e.preventDefault();
-          if (cur === 0) { sfx.confirm(); setScreen("withdraw"); setCursor(0); }
-          else { sfx.cancel(); setScreen("main"); setCursor(0); }
-        }
-        else if (isBack) { e.preventDefault(); sfx.cancel(); setScreen("main"); setCursor(0); }
-      }
-      else if (scr === "withdraw") {
-        const n = its.length + 1; // items + CANCEL
-        if (isUp) { e.preventDefault(); sfx.select(); setCursor(c => c <= 0 ? n - 1 : c - 1); }
-        else if (isDown) { e.preventDefault(); sfx.select(); setCursor(c => c >= n - 1 ? 0 : c + 1); }
-        else if (isConfirm) {
-          e.preventDefault();
-          if (cur < its.length) {
-            // Withdraw this item from PC to bag
-            const item = its[cur];
-            const ok = withdrawItem(item.id);
-            if (ok) {
-              sfx.pickup();
-              setWithdrawMsg(`Withdrew ${item.name}\nand sent it to your BAG!`);
-            }
-          } else {
-            sfx.cancel(); setScreen("storage"); setCursor(0);
+        if (cur === 0) { sfx.confirm(); setScreen("storage"); setCursor(0); }
+        else close();
+      } else if (scr === "storage") {
+        if (cur === 0) { sfx.confirm(); setScreen("withdraw"); setCursor(0); }
+        else { sfx.cancel(); setScreen("main"); setCursor(0); }
+      } else if (scr === "withdraw") {
+        const its = itemsRef.current;
+        if (cur < its.length) {
+          const item = its[cur];
+          const ok = withdrawItem(item.id);
+          if (ok) {
+            sfx.pickup();
+            setWithdrawMsg(`Withdrew ${item.name}\nand sent it to your BAG!`);
           }
+        } else {
+          sfx.cancel(); setScreen("storage"); setCursor(0);
         }
-        else if (isBack) { e.preventDefault(); sfx.cancel(); setScreen("storage"); setCursor(0); }
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [visible, close]);
+    },
+    cancel: () => {
+      if (dismissMessageIfAny()) return;
+      goBack();
+    },
+    // Escape matches `cancel` here — the old handler grouped Escape
+    // into `isBack`, so it walks up one screen instead of closing.
+    menu: () => {
+      if (dismissMessageIfAny()) return;
+      goBack();
+    },
+  });
+
+  function goBack() {
+    const scr = screenRef.current;
+    if (scr === "main") close();
+    else if (scr === "storage") { sfx.cancel(); setScreen("main"); setCursor(0); }
+    else if (scr === "withdraw") { sfx.cancel(); setScreen("storage"); setCursor(0); }
+  }
 
   if (!visible) return null;
 

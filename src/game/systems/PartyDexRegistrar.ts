@@ -1,4 +1,4 @@
-import { PARTY } from "@/game/data/party";
+import { PARTY_BY_ID } from "@/game/data/party";
 import { POKEDEX } from "@/game/data/pokemon";
 import {
   getSave,
@@ -41,6 +41,26 @@ function speciesToEntryNumber(species: string): number | undefined {
 }
 
 /**
+ * Get the set of POKEDEX entry numbers currently owned by the
+ * player's party, using the same species→entry mapping the
+ * registrar uses at boot. Callers can subtract this from
+ * `save.pokedexCaught` to compute "overworld-caught only" —
+ * useful for discovery/research-log counters that should exclude
+ * Pokemon the player started the game with.
+ */
+export function getPartyPokedexEntryNumbers(): Set<number> {
+  const save = getSave();
+  const set = new Set<number>();
+  for (const id of save.partyMemberIds) {
+    const member = PARTY_BY_ID[id];
+    if (!member) continue;
+    const entryNumber = speciesToEntryNumber(member.species);
+    if (entryNumber !== undefined) set.add(entryNumber);
+  }
+  return set;
+}
+
+/**
  * Register every party member as CAUGHT in the Pokedex. Idempotent —
  * subsequent calls are no-ops for already-registered species.
  *
@@ -52,8 +72,15 @@ export function registerPartyInPokedex(): number[] {
   // for saves that pre-date the seen/caught split.
   maybeMigrateCaughtFromLegacy();
 
+  // Walk the ACTIVE party from the save, not the full catalog — a
+  // mid-game join (via `addToParty`) or MEW won't be in the player's
+  // list yet, so we shouldn't pre-register them here. Their Pokedex
+  // entries land through the normal wild-encounter flow.
+  const save = getSave();
   const newly: number[] = [];
-  for (const member of PARTY) {
+  for (const id of save.partyMemberIds) {
+    const member = PARTY_BY_ID[id];
+    if (!member) continue; // unknown id — skip silently (warning handled in PartySystem)
     const entryNumber = speciesToEntryNumber(member.species);
     if (entryNumber === undefined) continue;
     // Legacy PokedexStore — keeps the PokedexList UI working without

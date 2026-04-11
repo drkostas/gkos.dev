@@ -8,6 +8,7 @@ import {
 import { showNotification, GameEvents, emitGameEvent, onGameEvent } from "@/game/EventBridge";
 import type { BagPocketId } from "@/game/data/itemDefinitions";
 import { sfx } from "@/game/systems/SoundManager";
+import { trackUrlOpened } from "@/game/systems/Analytics";
 
 interface BagMenuProps {
   onClose: () => void;
@@ -123,6 +124,7 @@ export default function BagMenu({ onClose }: BagMenuProps) {
               emitGameEvent(GameEvents.SHOW_RESEARCH_LOG);
             } else if (contextItem.url) {
               window.open(contextItem.url, "_blank", "noopener,noreferrer");
+              trackUrlOpened(currentPocket.id, contextItem.name);
               // Track the open so the Bag can render a ✓ next time and
               // so the DEVOTED badge check has a count to work against.
               const urlKey = `${currentPocket.id}:${contextItem.name}`;

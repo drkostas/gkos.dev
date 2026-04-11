@@ -33,6 +33,10 @@ export const GameEvents = {
   SHOW_RESEARCH_LOG: "game:show-research-log",
   /** Research log closed. */
   RESEARCH_LOG_CLOSE: "game:research-log-close",
+  /** Open the Pokemart TM shop (currency = steps). */
+  SHOW_MART_SHOP: "game:show-mart-shop",
+  /** Mart shop closed — resume game. */
+  MART_SHOP_CLOSE: "game:mart-shop-close",
 } as const;
 
 export interface QuestionnairePayload {

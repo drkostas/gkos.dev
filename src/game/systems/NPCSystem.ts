@@ -1,14 +1,21 @@
 import Phaser from "phaser";
 import { Direction } from "grid-engine";
 import type GridEngine from "grid-engine";
-import { MovementBehavior, type NPCDefinition } from "@/game/types/npc";
-import { DialogSystem } from "@/game/systems/DialogSystem";
+import {
+  MovementBehavior,
+  type EphemeralConfig,
+  type EphemeralVisibleBehavior,
+  type NPCDefinition,
+} from "@/game/types/npc";
+import { DialogSystem, wordWrap } from "@/game/systems/DialogSystem";
 import { isPickedUp, recordPickup } from "@/game/systems/PickupStore";
 import { sfx } from "@/game/systems/SoundManager";
 import { isPokedexSeen, markPokedexSeen } from "@/game/systems/PokedexStore";
 import { isTrainerCleared, markTrainerCleared } from "@/game/systems/TrainerStore";
 import { checkBadges } from "@/game/systems/BadgeMilestones";
 import { getSave, markPokedexSeenInSave } from "@/game/systems/GameSave";
+import { addToParty } from "@/game/systems/PartySystem";
+import { trackPokedexRegister } from "@/game/systems/Analytics";
 
 /**
  * Walking animation mapping from original pokeemerald source.
@@ -23,9 +30,38 @@ const WALK_ANIM_MAPPING = {
   right: { leftFoot: 7, standing: 2, rightFoot: 8 },
 };
 
-/** Min/max interval in ms between autonomous NPC actions (wander, look around). */
-const BEHAVIOR_MIN_MS = 2000;
-const BEHAVIOR_MAX_MS = 4000;
+/** Default min/max interval in ms between autonomous NPC actions. */
+const WALK_BEHAVIOR_MIN_MS = 2000;
+const WALK_BEHAVIOR_MAX_MS = 4000;
+/** Defaults for RUN_* behaviors — shorter so running NPCs feel brisk. */
+const RUN_BEHAVIOR_MIN_MS = 500;
+const RUN_BEHAVIOR_MAX_MS = 1000;
+
+const WALK_SPEED = 2;
+const RUN_SPEED = 8;
+
+/** Behaviors that default to run speed + shorter tick interval. */
+function isRunBehavior(b: MovementBehavior): boolean {
+  return (
+    b === MovementBehavior.RUN_HORIZONTAL ||
+    b === MovementBehavior.RUN_VERTICAL
+  );
+}
+
+/** Resolve the effective speed for an NPC, honoring explicit overrides. */
+function resolveSpeed(npc: NPCDefinition): number {
+  if (npc.speed != null) return npc.speed;
+  return isRunBehavior(npc.movementBehavior) ? RUN_SPEED : WALK_SPEED;
+}
+
+/** Resolve the effective tick interval for an NPC. */
+function resolveInterval(npc: NPCDefinition): { min: number; max: number } {
+  if (npc.behaviorIntervalMs) return npc.behaviorIntervalMs;
+  if (isRunBehavior(npc.movementBehavior)) {
+    return { min: RUN_BEHAVIOR_MIN_MS, max: RUN_BEHAVIOR_MAX_MS };
+  }
+  return { min: WALK_BEHAVIOR_MIN_MS, max: WALK_BEHAVIOR_MAX_MS };
+}
 
 /** Opposite direction lookup for making NPC face the player. */
 const OPPOSITE: Record<string, Direction> = {
@@ -36,6 +72,27 @@ const OPPOSITE: Record<string, Direction> = {
 };
 
 /**
+ * Runtime state for an ephemeral Pokemon. Kept alive in
+ * NPCSystem.ephemeralStates for the full scene lifetime (the cycle
+ * needs to keep running in the background while the sprite is
+ * hidden). Once the Pokemon is registered in the Pokedex, `state`
+ * flips to "permanent" and no further timers are scheduled.
+ */
+interface EphemeralState {
+  def: NPCDefinition;
+  config: EphemeralConfig;
+  phase: "hidden" | "visible" | "permanent";
+  /** Current tile while visible/permanent; undefined while hidden. */
+  currentPos?: { x: number; y: number };
+  /** Timer that fires next phase transition. Cleared on pause/destroy. */
+  timer?: Phaser.Time.TimerEvent;
+  /** Active hop-bounce tween, if visibleBehavior === "hop". */
+  hopTween?: Phaser.Tweens.Tween;
+  /** Fade tween (in or out). */
+  fadeTween?: Phaser.Tweens.Tween;
+}
+
+/**
  * NPCSystem — manages all NPCs on the overworld map.
  *
  * Responsibilities:
@@ -43,6 +100,8 @@ const OPPOSITE: Record<string, Direction> = {
  * - Drives autonomous movement behaviors (wander, look around)
  * - Handles player interaction (face player + show dialog)
  * - Pauses NPC behaviors while dialog is active
+ * - Runs the ephemeral-Pokemon spawn/despawn cycle until each one
+ *   is registered in the Pokedex
  */
 export class NPCSystem {
   private scene: Phaser.Scene;
@@ -54,6 +113,15 @@ export class NPCSystem {
   private behaviorTimers: Phaser.Time.TimerEvent[] = [];
   /** Track each wandering NPC's home position for range clamping. */
   private homePositions: Map<string, { x: number; y: number }> = new Map();
+  /** Current pace direction for PACE and RUN NPCs (flips at edges). */
+  private paceDirections: Map<string, Direction> = new Map();
+  /**
+   * Per-ephemeral-NPC lifecycle state. Entries exist for the entire
+   * scene lifetime (even while the sprite is hidden) so the cycle can
+   * continue running. Promoted entries have state="permanent" — their
+   * sprite stays put forever, matching normal NPCs.
+   */
+  private ephemeralStates: Map<string, EphemeralState> = new Map();
 
   constructor(
     scene: Phaser.Scene,
@@ -74,6 +142,13 @@ export class NPCSystem {
       if (npc.pickup && isPickedUp(npc.id)) continue;
       // Skip NPCs whose spawn condition is not met
       if (npc.spawnCondition && !npc.spawnCondition()) continue;
+
+      // Ephemeral Pokemon: split path — permanent if already seen,
+      // otherwise start the hidden→visible cycle in the background.
+      if (npc.ephemeral) {
+        this.initEphemeral(npc);
+        continue;
+      }
 
       // AutoGive trainers that are already cleared: spawn at aside position
       if (npc.autoGive && isTrainerCleared(npc.id)) {
@@ -209,8 +284,9 @@ export class NPCSystem {
           const firstTime = !isPokedexSeen(pkm.pokedexNumber);
 
           if (firstTime) {
-            // Flash: white screen flash via Phaser camera
-            sfx.pickup();
+            // Flash: white screen flash via Phaser camera, with the
+            // rising "!" ping as the discovery cue.
+            sfx.encounter();
             this.scene.cameras.main.flash(250, 255, 255, 255);
             // Wait for flash to finish before showing dialog
             await new Promise<void>((resolve) => {
@@ -220,7 +296,7 @@ export class NPCSystem {
             // Discovery dialog
             const descLines = pkm.projectDescription
               .split("\n")
-              .flatMap((l) => (l.length > 36 ? [l.slice(0, 36), l.slice(36)] : [l]));
+              .flatMap((l) => wordWrap(l, 36));
             await this.dialogSystem.showDialog({
               lines: [
                 `${pkm.speciesName} noticed you!`,
@@ -235,6 +311,15 @@ export class NPCSystem {
             markPokedexSeenInSave(pkm.pokedexNumber);
             checkBadges();
 
+            // If this was an ephemeral Pokemon, the cycle stops here —
+            // the sprite stays planted at whichever tile it was on
+            // when the player found it. Subsequent session loads
+            // rebuild it at spawnPoints[0] (see initEphemeral).
+            if (npc.ephemeral) {
+              this.promoteEphemeralToPermanent(npc.id);
+            }
+            trackPokedexRegister(pkm.speciesName, pkm.projectName);
+
             // Registration notification
             await this.dialogSystem.showDialog({
               lines: [
@@ -242,6 +327,23 @@ export class NPCSystem {
                 `in the POKeDEX!`,
               ],
             });
+
+            // Party join — if this wild Pokemon is flagged as joinable,
+            // add it to the player's party. Content-phase sequencing
+            // guarantees the party isn't full here; `addToParty` logs
+            // a warning if the guard fires anyway.
+            if (pkm.joinsParty) {
+              const joined = addToParty(pkm.joinsParty);
+              if (joined) {
+                await this.dialogSystem.showDialog({
+                  lines: [
+                    `${pkm.speciesName} seems to like you!`,
+                    `${pkm.speciesName} joined your team!`,
+                  ],
+                  speakerName: pkm.speciesName,
+                });
+              }
+            }
           } else {
             // Repeat encounter — shorter dialog
             const repeatLines = pkm.repeatDialog ?? [
@@ -363,6 +465,34 @@ export class NPCSystem {
     return false;
   }
 
+  /**
+   * Read-only peek: return the NPC currently occupying (x, y), or
+   * null. Used by GateSystem.tryNpcGate as a pre-check before the
+   * normal NPC dialog fires, so a party Pokemon with the right
+   * field move can clear an NPC-type gate without playing the NPC's
+   * dialog first (matching OG Pokemon's HM-on-Snorlax behavior).
+   *
+   * Iterates `this.npcs` the same way `tryInteract` does, but skips
+   * NPCs that aren't currently spawned. The `sprites.has` guard
+   * covers despawned pickups, hidden ephemerals, and NPCs whose
+   * `spawnCondition` returned false. `getPosition` returns each
+   * NPC's *current* position (not its data-file position), which is
+   * correct — a wandering NPC on a gate tile should still pre-empt.
+   */
+  npcAtTile(x: number, y: number): { id: string } | null {
+    for (const npc of this.npcs) {
+      if (!this.sprites.has(npc.id)) continue;
+      try {
+        const p = this.gridEngine.getPosition(npc.id);
+        if (p.x === x && p.y === y) return { id: npc.id };
+      } catch {
+        // Character missing from Grid Engine despite having a sprite —
+        // ignore, next loop iteration handles it.
+      }
+    }
+    return null;
+  }
+
   /** Remove an NPC from the scene (sprite + grid engine character). */
   private removeNPC(npcId: string): void {
     const sprite = this.sprites.get(npcId);
@@ -390,6 +520,15 @@ export class NPCSystem {
     this.behaviorTimers = [];
     for (const shadow of this.shadows.values()) shadow.destroy();
     this.shadows.clear();
+    // Ephemeral timers and tweens live outside behaviorTimers — tear
+    // them down explicitly so they don't keep firing after the scene
+    // transitions to an interior.
+    for (const state of this.ephemeralStates.values()) {
+      if (state.timer) state.timer.destroy();
+      if (state.hopTween) state.hopTween.stop();
+      if (state.fadeTween) state.fadeTween.stop();
+    }
+    this.ephemeralStates.clear();
   }
 
   // ── Private helpers ──────────────────────────────────────────
@@ -448,7 +587,7 @@ export class NPCSystem {
         id: npc.id,
         sprite,
         startPosition: npc.position,
-        speed: 2,
+        speed: resolveSpeed(npc),
         offsetY: npc.offsetY ?? 0,
         facingDirection: npc.facingDirection,
         walkingAnimationMapping: WALK_ANIM_MAPPING,
@@ -495,6 +634,266 @@ export class NPCSystem {
     this.startBehavior(npc);
   }
 
+  // ── Ephemeral Pokemon lifecycle ──────────────────────────────
+
+  /**
+   * Decide the initial phase for an ephemeral NPC. If the Pokemon
+   * has already been registered in the Pokedex we skip the whole
+   * cycle and spawn it permanently at spawnPoints[0] — the first
+   * configured location is the canonical "found it here" tile.
+   * Otherwise we start hidden and wait half the configured
+   * hiddenDuration before the first appearance (so first-time
+   * players see some Pokemon quickly instead of waiting the full
+   * cycle every load).
+   */
+  private initEphemeral(npc: NPCDefinition): void {
+    if (!npc.ephemeral || !npc.pokemon) return;
+    const config = npc.ephemeral;
+    const state: EphemeralState = {
+      def: npc,
+      config,
+      phase: "hidden",
+    };
+    this.ephemeralStates.set(npc.id, state);
+
+    if (isPokedexSeen(npc.pokemon.pokedexNumber)) {
+      // Already discovered: spawn once, never hide again.
+      const anchor = config.spawnPoints[0] ?? npc.position;
+      state.phase = "permanent";
+      state.currentPos = { ...anchor };
+      this.createNPC({ ...npc, position: { ...anchor } });
+      return;
+    }
+
+    // First-time players: stagger the first appearance so the
+    // screen isn't empty for a full hiddenDuration at boot.
+    const firstDelayMs = this.jitterSeconds(config.hiddenDuration / 2, config.randomness) * 1000;
+    state.timer = this.scene.time.delayedCall(firstDelayMs, () => {
+      this.spawnEphemeral(npc.id);
+    });
+  }
+
+  /**
+   * Bring an ephemeral Pokemon on-screen at a randomly chosen spawn
+   * point. Fades the sprite in, starts the chosen visible behavior,
+   * and schedules the despawn timer.
+   *
+   * Spawn-point selection avoids:
+   *   - the player's current tile (can't spawn under them)
+   *   - any tile that already has a Grid Engine character on it
+   *   - the tile this Pokemon was on last cycle, if possible
+   */
+  private spawnEphemeral(npcId: string): void {
+    const state = this.ephemeralStates.get(npcId);
+    if (!state || state.phase !== "hidden") return;
+
+    const candidate = this.pickSpawnPoint(state);
+    if (!candidate) {
+      // All spawn points are blocked — try again shortly.
+      state.timer = this.scene.time.delayedCall(2000, () => {
+        this.spawnEphemeral(npcId);
+      });
+      return;
+    }
+
+    state.currentPos = candidate;
+    state.phase = "visible";
+    this.createNPC({ ...state.def, position: { ...candidate } });
+
+    // Fade-in the sprite. createNPC sets alpha to 1 by default, so
+    // explicitly start at 0 and tween up.
+    const sprite = this.sprites.get(npcId);
+    if (sprite) {
+      sprite.setAlpha(0);
+      state.fadeTween = this.scene.tweens.add({
+        targets: sprite,
+        alpha: 1,
+        duration: 350,
+        ease: "Sine.easeOut",
+      });
+    }
+
+    // Visible behavior (hop bounces the sprite; idle does nothing;
+    // wander falls back to hop for non-animated Pokemon sprites
+    // since the grid-engine wander paths need animated characters).
+    const behavior: EphemeralVisibleBehavior = state.config.visibleBehavior ?? "idle";
+    if (behavior === "hop" || (behavior === "wander" && !state.def.animated)) {
+      this.startHopTween(npcId);
+    }
+
+    // Schedule despawn.
+    const visibleMs = this.jitterSeconds(state.config.visibleDuration, state.config.randomness) * 1000;
+    state.timer = this.scene.time.delayedCall(visibleMs, () => {
+      this.despawnEphemeral(npcId);
+    });
+  }
+
+  /**
+   * Fade out and remove an ephemeral Pokemon, then schedule the next
+   * spawn. If the Pokemon has been promoted to permanent (player
+   * caught it while the despawn was pending) this is a no-op — the
+   * sprite stays put.
+   */
+  private despawnEphemeral(npcId: string): void {
+    const state = this.ephemeralStates.get(npcId);
+    if (!state) return;
+    // Promoted mid-cycle — leave the sprite in place.
+    if (state.phase === "permanent") return;
+    if (state.phase !== "visible") return;
+
+    // Cancel any active hop tween before the sprite is destroyed so
+    // the tween engine doesn't hold a stale reference for a frame.
+    this.stopHopTween(npcId);
+
+    const sprite = this.sprites.get(npcId);
+    if (sprite) {
+      state.fadeTween = this.scene.tweens.add({
+        targets: sprite,
+        alpha: 0,
+        duration: 350,
+        ease: "Sine.easeIn",
+        onComplete: () => {
+          // After the fade finishes the sprite might have been
+          // destroyed already (scene teardown). Guard against that.
+          if (this.sprites.has(npcId)) {
+            this.removeNPC(npcId);
+          }
+          this.scheduleNextSpawn(npcId);
+        },
+      });
+    } else {
+      // No sprite (shouldn't happen) — go straight to rescheduling.
+      this.removeNPC(npcId);
+      this.scheduleNextSpawn(npcId);
+    }
+  }
+
+  /** Transition from visible/hidden to the "permanent" phase. */
+  private promoteEphemeralToPermanent(npcId: string): void {
+    const state = this.ephemeralStates.get(npcId);
+    if (!state) return;
+    if (state.timer) {
+      state.timer.destroy();
+      state.timer = undefined;
+    }
+    // Leave any in-progress fade alone — if a fade-out was mid-
+    // tween when the player talked to the Pokemon, the dialog
+    // blocked input so the tween may or may not have completed.
+    // Force the sprite fully opaque and cancel the fade so the
+    // caught Pokemon doesn't flicker at 0 alpha.
+    if (state.fadeTween && state.fadeTween.isPlaying()) {
+      state.fadeTween.stop();
+    }
+    state.fadeTween = undefined;
+    const sprite = this.sprites.get(npcId);
+    if (sprite) sprite.setAlpha(1);
+    state.phase = "permanent";
+  }
+
+  /** Schedule the next spawn of a hidden ephemeral Pokemon. */
+  private scheduleNextSpawn(npcId: string): void {
+    const state = this.ephemeralStates.get(npcId);
+    if (!state) return;
+    if (state.phase === "permanent") return;
+    state.phase = "hidden";
+    state.currentPos = undefined;
+    const hiddenMs = this.jitterSeconds(state.config.hiddenDuration, state.config.randomness) * 1000;
+    state.timer = this.scene.time.delayedCall(hiddenMs, () => {
+      this.spawnEphemeral(npcId);
+    });
+  }
+
+  /**
+   * Pick a tile from spawnPoints that isn't the player's current
+   * tile, isn't occupied by another Grid Engine character, and if
+   * possible isn't the same tile the Pokemon was on last cycle.
+   */
+  private pickSpawnPoint(state: EphemeralState): { x: number; y: number } | null {
+    const points = state.config.spawnPoints;
+    if (points.length === 0) return null;
+
+    let playerPos: { x: number; y: number } | null = null;
+    try {
+      playerPos = this.gridEngine.getPosition("player");
+    } catch {
+      // player not yet registered; fine — skip the collision check
+    }
+
+    const occupied = new Set<string>();
+    if (playerPos) occupied.add(`${playerPos.x},${playerPos.y}`);
+    for (const id of this.sprites.keys()) {
+      if (id === state.def.id) continue;
+      try {
+        const p = this.gridEngine.getPosition(id);
+        occupied.add(`${p.x},${p.y}`);
+      } catch {
+        // character not in grid engine — ignore
+      }
+    }
+
+    const last = state.currentPos;
+    const freeAndDifferent = points.filter(
+      (p) =>
+        !occupied.has(`${p.x},${p.y}`) &&
+        !(last && last.x === p.x && last.y === p.y),
+    );
+    if (freeAndDifferent.length > 0) {
+      return freeAndDifferent[Math.floor(Math.random() * freeAndDifferent.length)];
+    }
+    // Nothing new is free — fall back to any free point.
+    const freeAny = points.filter((p) => !occupied.has(`${p.x},${p.y}`));
+    if (freeAny.length > 0) {
+      return freeAny[Math.floor(Math.random() * freeAny.length)];
+    }
+    return null;
+  }
+
+  /**
+   * Small vertical-pixel bounce on the sprite. Doesn't move the
+   * Grid Engine character — just tweens the sprite's y offset for
+   * a "curious" idle animation. Stationary characters aren't
+   * repositioned by Grid Engine each frame, so this tween sticks.
+   */
+  private startHopTween(npcId: string): void {
+    const state = this.ephemeralStates.get(npcId);
+    const sprite = this.sprites.get(npcId);
+    if (!state || !sprite) return;
+    const baseY = sprite.y;
+    state.hopTween = this.scene.tweens.add({
+      targets: sprite,
+      y: baseY - 3,
+      duration: 280,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+      // Small pause between hops so it reads as "curious twitch"
+      // rather than a metronome.
+      hold: 0,
+      delay: 400,
+      repeatDelay: 900,
+    });
+  }
+
+  private stopHopTween(npcId: string): void {
+    const state = this.ephemeralStates.get(npcId);
+    if (!state || !state.hopTween) return;
+    state.hopTween.stop();
+    state.hopTween = undefined;
+  }
+
+  /**
+   * Apply timing jitter. `baseSeconds` × (1 + randomness × U(-1,+1))
+   * — so randomness=0.25 gives ±25%, randomness=1 gives 0..2×.
+   * Clamped to ≥1 second to avoid degenerate zero-duration cycles.
+   */
+  private jitterSeconds(baseSeconds: number, randomness = 0): number {
+    const r = Math.max(0, Math.min(1, randomness));
+    const jitter = (Math.random() * 2 - 1) * r;
+    return Math.max(1, baseSeconds * (1 + jitter));
+  }
+
+  // ── End ephemeral lifecycle ──────────────────────────────────
+
   private startBehavior(npc: NPCDefinition): void {
     if (
       npc.movementBehavior === MovementBehavior.STATIONARY ||
@@ -504,13 +903,13 @@ export class NPCSystem {
     }
 
     const timer = this.scene.time.addEvent({
-      delay: this.randomDelay(),
+      delay: this.randomDelay(npc),
       loop: false,
       callback: () => {
         this.executeBehavior(npc);
         // Re-schedule with a new random delay
         timer.reset({
-          delay: this.randomDelay(),
+          delay: this.randomDelay(npc),
           loop: false,
           callback: timer.callback,
           callbackScope: timer.callbackScope,
@@ -535,7 +934,21 @@ export class NPCSystem {
 
     switch (npc.movementBehavior) {
       case MovementBehavior.WANDER_LEFT_RIGHT:
-        this.wanderLeftRight(npc);
+        this.wanderAxis(npc, "x");
+        break;
+      case MovementBehavior.WANDER_UP_DOWN:
+        this.wanderAxis(npc, "y");
+        break;
+      case MovementBehavior.WANDER_AREA:
+        this.wanderArea(npc);
+        break;
+      case MovementBehavior.PACE_HORIZONTAL:
+      case MovementBehavior.RUN_HORIZONTAL:
+        this.pace(npc, "x");
+        break;
+      case MovementBehavior.PACE_VERTICAL:
+      case MovementBehavior.RUN_VERTICAL:
+        this.pace(npc, "y");
         break;
       case MovementBehavior.LOOK_AROUND:
         this.lookAround(npc);
@@ -543,20 +956,77 @@ export class NPCSystem {
     }
   }
 
-  private wanderLeftRight(npc: NPCDefinition): void {
-    const currentPos = this.gridEngine.getPosition(npc.id);
+  /** Random 1-tile step along a single axis, clamped to the range. */
+  private wanderAxis(npc: NPCDefinition, axis: "x" | "y"): void {
     const home = this.homePositions.get(npc.id)!;
+    const pos = this.gridEngine.getPosition(npc.id);
+    const range = axis === "x" ? npc.movementRangeX : npc.movementRangeY;
+    if (range <= 0) return;
 
-    // Pick random direction: left or right
-    const dir = Math.random() < 0.5 ? Direction.LEFT : Direction.RIGHT;
+    const forward = axis === "x" ? Direction.RIGHT : Direction.DOWN;
+    const back = axis === "x" ? Direction.LEFT : Direction.UP;
+    const dir = Math.random() < 0.5 ? back : forward;
+    const delta = dir === forward ? 1 : -1;
+    const currentCoord = axis === "x" ? pos.x : pos.y;
+    const homeCoord = axis === "x" ? home.x : home.y;
 
-    // Calculate what the new position would be
-    const newX = dir === Direction.LEFT ? currentPos.x - 1 : currentPos.x + 1;
-
-    // Check range constraints
-    if (Math.abs(newX - home.x) <= npc.movementRangeX) {
+    if (Math.abs(currentCoord + delta - homeCoord) <= range) {
       this.gridEngine.move(npc.id, dir);
     }
+  }
+
+  /** Random 1-tile step in any of 4 directions, clamped to the range box. */
+  private wanderArea(npc: NPCDefinition): void {
+    const home = this.homePositions.get(npc.id)!;
+    const pos = this.gridEngine.getPosition(npc.id);
+
+    // Collect candidate directions whose next tile stays in the box.
+    const candidates: Direction[] = [];
+    if (npc.movementRangeX > 0) {
+      if (Math.abs(pos.x - 1 - home.x) <= npc.movementRangeX) candidates.push(Direction.LEFT);
+      if (Math.abs(pos.x + 1 - home.x) <= npc.movementRangeX) candidates.push(Direction.RIGHT);
+    }
+    if (npc.movementRangeY > 0) {
+      if (Math.abs(pos.y - 1 - home.y) <= npc.movementRangeY) candidates.push(Direction.UP);
+      if (Math.abs(pos.y + 1 - home.y) <= npc.movementRangeY) candidates.push(Direction.DOWN);
+    }
+    if (candidates.length === 0) return;
+
+    const dir = candidates[Math.floor(Math.random() * candidates.length)];
+    this.gridEngine.move(npc.id, dir);
+  }
+
+  /**
+   * Predictable back-and-forth along an axis. Remembers the current
+   * direction and flips it when the next step would exit the range.
+   * Shared by PACE_* and RUN_* (differ only in default speed/tick).
+   */
+  private pace(npc: NPCDefinition, axis: "x" | "y"): void {
+    const home = this.homePositions.get(npc.id)!;
+    const pos = this.gridEngine.getPosition(npc.id);
+    const range = axis === "x" ? npc.movementRangeX : npc.movementRangeY;
+    if (range <= 0) return;
+
+    const forward = axis === "x" ? Direction.RIGHT : Direction.DOWN;
+    const back = axis === "x" ? Direction.LEFT : Direction.UP;
+
+    // Seed with a random direction the first time we see this NPC.
+    let dir = this.paceDirections.get(npc.id);
+    if (dir !== forward && dir !== back) {
+      dir = Math.random() < 0.5 ? forward : back;
+      this.paceDirections.set(npc.id, dir);
+    }
+
+    // Flip if the next tile would leave the range box.
+    const delta = dir === forward ? 1 : -1;
+    const currentCoord = axis === "x" ? pos.x : pos.y;
+    const homeCoord = axis === "x" ? home.x : home.y;
+    if (Math.abs(currentCoord + delta - homeCoord) > range) {
+      dir = dir === forward ? back : forward;
+      this.paceDirections.set(npc.id, dir);
+    }
+
+    this.gridEngine.move(npc.id, dir);
   }
 
   private lookAround(npc: NPCDefinition): void {
@@ -588,9 +1058,8 @@ export class NPCSystem {
     }
   }
 
-  private randomDelay(): number {
-    return (
-      BEHAVIOR_MIN_MS + Math.random() * (BEHAVIOR_MAX_MS - BEHAVIOR_MIN_MS)
-    );
+  private randomDelay(npc: NPCDefinition): number {
+    const { min, max } = resolveInterval(npc);
+    return min + Math.random() * (max - min);
   }
 }

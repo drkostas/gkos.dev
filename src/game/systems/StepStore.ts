@@ -76,6 +76,20 @@ export function checkStepMilestones(
   return null;
 }
 
+/**
+ * Spend steps from the player's running total. Used by the Pokemart
+ * shop where steps are the in-game currency. Returns true if the
+ * player had enough steps (and the balance was decremented); false if
+ * they couldn't afford the purchase.
+ */
+export function spendSteps(amount: number): boolean {
+  if (amount <= 0) return true;
+  const current = readSteps();
+  if (current < amount) return false;
+  writeSteps(current - amount);
+  return true;
+}
+
 /** Clear the step count. Useful for testing / a full reset. */
 export function clearSteps(): void {
   if (typeof localStorage !== "undefined") {

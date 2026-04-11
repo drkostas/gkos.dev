@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { PARTY, type PartyMember, type Gender } from "@/game/data/party";
+import { useEffect, useRef, useState } from "react";
+import { type ActivePartyMember, type Gender } from "@/game/data/party";
+import { getActiveParty } from "@/game/systems/PartySystem";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 import PokemonSummary from "./PokemonSummary";
 
 interface PartyMenuProps {
@@ -64,38 +66,34 @@ const p = (v: number, of: number) => `${(v / of) * 100}%`;
 export default function PartyMenu({ onClose }: PartyMenuProps) {
   const [sel, setSel] = useState(0);
   const [frame, setFrame] = useState(0);
-  const [summaryMon, setSummaryMon] = useState<PartyMember | null>(null);
+  const [summaryMon, setSummaryMon] = useState<ActivePartyMember | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const frameRef = useRef<HTMLDivElement>(null);
-  const N = PARTY.length;
+  // Read fresh party from the save on each open (mid-game joins
+  // won't show up if we cache this in useState).
+  const party = getActiveParty();
+  const N = party.length;
 
   useEffect(() => {
     const id = setInterval(() => setFrame((f) => 1 - f), 500);
     return () => clearInterval(id);
   }, []);
 
-  const handleKey = useCallback((e: KeyboardEvent) => {
-    if (summaryMon) return; // summary handles its own keys
-    const k = e.key;
-    if (k === "s" || k === "S" || k === "Backspace") {
-      e.preventDefault(); sfx.select(); onCloseRef.current(); return;
-    }
-    if (k === "ArrowUp")         { e.preventDefault(); sfx.select(); setSel(i => i <= 0 ? N : i - 1); }
-    else if (k === "ArrowDown")  { e.preventDefault(); sfx.select(); setSel(i => i >= N ? 0 : i + 1); }
-    else if (k === "ArrowLeft")  { e.preventDefault(); sfx.select(); setSel(i => i >= 1 && i <= 5 ? 0 : i); }
-    else if (k === "ArrowRight") { e.preventDefault(); sfx.select(); setSel(i => i === 0 ? 1 : i); }
-    else if (k === "a" || k === "A" || k === " " || k === "Enter") {
-      e.preventDefault(); sfx.confirm();
+  // Summary overlay handles its own keys — pause the party menu
+  // listener while it's open.
+  useGameKeyboard(!summaryMon, {
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+    up: () => { sfx.select(); setSel((i) => (i <= 0 ? N : i - 1)); },
+    down: () => { sfx.select(); setSel((i) => (i >= N ? 0 : i + 1)); },
+    left: () => { sfx.select(); setSel((i) => (i >= 1 && i <= 5 ? 0 : i)); },
+    right: () => { sfx.select(); setSel((i) => (i === 0 ? 1 : i)); },
+    confirm: () => {
+      sfx.confirm();
       if (sel === N) onCloseRef.current();
-      else if (sel < PARTY.length) setSummaryMon(PARTY[sel]);
-    }
-  }, [sel, N, summaryMon]);
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [handleKey]);
+      else if (sel < N) setSummaryMon(party[sel]);
+    },
+  });
 
   // If a summary screen is open, render it instead
   if (summaryMon) {
@@ -139,7 +137,7 @@ export default function PartyMenu({ onClose }: PartyMenuProps) {
 
         {/* ── Slot panels ── */}
         {SLOTS.map((s, i) => {
-          const mon = i < N ? PARTY[i] : null;
+          const mon = i < N ? party[i] : null;
           const isSel = sel === i;
           const lead = i === 0;
           const type = lead ? "slot_main" : "slot_wide";
@@ -166,7 +164,7 @@ export default function PartyMenu({ onClose }: PartyMenuProps) {
         })}
 
         {/* ── Pokemon icons (z:3, above pokeballs) ── */}
-        {PARTY.map((m, i) => {
+        {party.map((m, i) => {
           const [ix, iy] = SPRITES[i];
           return (
             <div key={`i${i}`} style={{
@@ -256,7 +254,7 @@ export default function PartyMenu({ onClose }: PartyMenuProps) {
 }
 
 // ── Slot text: Lead (80×56) ───────────────────────────────────────────
-function SlotLead({ m }: { m: PartyMember }) {
+function SlotLead({ m }: { m: ActivePartyMember }) {
   const W = 80, H = 56;
   const [hL, hD] = hpColors(m.hp, m.maxHp);
   const bw = hpW(m.hp, m.maxHp);
@@ -286,7 +284,7 @@ function SlotLead({ m }: { m: PartyMember }) {
 }
 
 // ── Slot text: Wide (144×24) ──────────────────────────────────────────
-function SlotWide({ m }: { m: PartyMember }) {
+function SlotWide({ m }: { m: ActivePartyMember }) {
   const W = 144, H = 24;
   const [hL, hD] = hpColors(m.hp, m.maxHp);
   const bw = hpW(m.hp, m.maxHp);

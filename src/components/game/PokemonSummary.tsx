@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { type PartyMember, type Move } from "@/game/data/party";
+import { useRef } from "react";
+import { type ActivePartyMember, type Move } from "@/game/data/party";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
+import { useMenuNavigation } from "@/game/hooks/useMenuNavigation";
 
 interface Props {
-  member: PartyMember;
+  // Widened to `ActivePartyMember` so `member.fieldMoves` is typed
+  // and flows through. Not rendered yet — layout polish deferred.
+  member: ActivePartyMember;
   onClose: () => void;
 }
 
@@ -32,31 +36,21 @@ const C = {
 };
 
 export default function PokemonSummary({ member, onClose }: Props) {
-  const [moveSel, setMoveSel] = useState(0);
+  const { index: moveSel, moveUp: moveUpSel, moveDown: moveDownSel } =
+    useMenuNavigation(member.moves.length);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  const handleKey = useCallback((e: KeyboardEvent) => {
-    const k = e.key;
-    if (k === "s" || k === "S" || k === "Backspace" || k === "Escape") {
-      e.preventDefault(); sfx.select(); onCloseRef.current(); return;
-    }
-    if (k === "ArrowUp") {
-      e.preventDefault(); sfx.select();
-      setMoveSel(i => i <= 0 ? member.moves.length - 1 : i - 1);
-    } else if (k === "ArrowDown") {
-      e.preventDefault(); sfx.select();
-      setMoveSel(i => i >= member.moves.length - 1 ? 0 : i + 1);
-    } else if (k === "a" || k === "A" || k === " " || k === "Enter") {
-      e.preventDefault(); sfx.confirm();
+  useGameKeyboard(true, {
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+    menu: () => { sfx.select(); onCloseRef.current(); },
+    up: () => { sfx.select(); moveUpSel(); },
+    down: () => { sfx.select(); moveDownSel(); },
+    confirm: () => {
+      sfx.confirm();
       if (member.url) window.open(member.url, "_blank", "noopener");
-    }
-  }, [member]);
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [handleKey]);
+    },
+  });
 
   const dexStr = String(member.dexNo).padStart(3, "0");
 

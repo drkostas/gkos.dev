@@ -1,58 +1,44 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import OpeningScreen from "./OpeningScreen";
 import PhaserGame from "./PhaserGame";
+import TouchControls from "./TouchControls";
+import PortraitBanner from "./PortraitBanner";
+import { isTouchDevice } from "@/game/systems/TouchInput";
 
 /**
  * Top-level wrapper for the Explore Mode page.
  *
- * Shows the opening screen (title + Birch speech) first, then mounts
- * PhaserGame after the player has pressed Start (and completed Birch
- * if first visit). This ensures Phaser doesn't boot until the opening
- * sequence is done, and the title music plays without Phaser interference.
+ * Desktop: OpeningScreen → PhaserGame fill the viewport via their
+ * existing `position: fixed` overlays. The touch bar is not mounted
+ * and `--touch-bar-h` stays at 0.
+ *
+ * Touch devices: mount `TouchControls` fixed at the bottom, mount
+ * `PortraitBanner` for a non-blocking "rotate to landscape"
+ * suggestion, and set `--touch-bar-h` so the Phaser canvas container
+ * and any bottom-anchored overlays (DialogBox) leave room at the
+ * bottom. Portrait is fully playable — the banner is purely
+ * informational and auto-hides when the player rotates or dismisses.
  */
 export default function ExploreApp() {
   const [gameStarted, setGameStarted] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
 
-  // Mobile detection — show message instead of game
-  if (typeof window !== "undefined") {
-    const isMobile =
-      "ontouchstart" in window ||
-      navigator.maxTouchPoints > 0 ||
-      window.innerWidth < 768;
-    if (isMobile) {
-      return (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "#000",
-            color: "#fff",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "var(--pkmn-font, 'Courier New', monospace)",
-            textAlign: "center",
-            padding: "2rem",
-            gap: "1rem",
-            imageRendering: "pixelated",
-          }}
-        >
-          <img
-            src="/game/ui/opening/pokemon_logo_composed.png"
-            alt="Pokemon"
-            style={{ width: "200px", imageRendering: "pixelated" }}
-          />
-          <p style={{ fontSize: "1.2rem" }}>
-            Explore Mode requires a keyboard.
-          </p>
-          <p style={{ fontSize: "1rem", color: "#aaa" }}>
-            Visit gkos.dev/explore on desktop!
-          </p>
-        </div>
-      );
-    }
-  }
+  // Touch detection runs only on the client — isTouchDevice reads
+  // window/navigator, which SSR doesn't have.
+  useEffect(() => {
+    setIsTouch(isTouchDevice());
+  }, []);
+
+  // Set the `--touch-bar-h` CSS variable on :root so CSS rules can
+  // reserve space at the bottom for the on-screen touch bar. On
+  // desktop this stays 0 and nothing reserves space.
+  useEffect(() => {
+    const h = isTouch ? "120px" : "0px";
+    document.documentElement.style.setProperty("--touch-bar-h", h);
+    return () => {
+      document.documentElement.style.setProperty("--touch-bar-h", "0px");
+    };
+  }, [isTouch]);
 
   return (
     <>
@@ -60,6 +46,8 @@ export default function ExploreApp() {
         <OpeningScreen onComplete={() => setGameStarted(true)} />
       )}
       {gameStarted && <PhaserGame />}
+      <TouchControls visible={isTouch} />
+      <PortraitBanner enabled={isTouch} />
     </>
   );
 }

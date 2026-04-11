@@ -4,7 +4,10 @@ import {
   emitGameEvent,
   onGameEvent,
 } from "@/game/EventBridge";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
+import { useMenuNavigation } from "@/game/hooks/useMenuNavigation";
 import { sfx } from "@/game/systems/SoundManager";
+import { getSave } from "@/game/systems/GameSave";
 import TrainerCard from "./TrainerCard";
 import PokedexList from "./PokedexList";
 import OptionsMenu from "./OptionsMenu";
@@ -39,7 +42,8 @@ type SubScreen = "pokedex" | "trainer" | "party" | "bag" | "help" | "options" | 
  */
 export default function StartMenu() {
   const [visible, setVisible] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const nav = useMenuNavigation(MENU_ITEMS.length);
+  const { index: selectedIndex, setIndex: setSelectedIndex } = nav;
   const [subScreen, setSubScreen] = useState<SubScreen>(null);
   // saveStep removed — SAVE replaced by HELP
 
@@ -116,57 +120,19 @@ export default function StartMenu() {
   // Save flow removed — SAVE replaced by HELP
 
   // ── Keyboard navigation ─────────────────────────────────────
-  useEffect(() => {
-    if (!visible) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      // Sub-screens handle their own input
-      if (
-        subScreenRef.current === "pokedex" ||
-        subScreenRef.current === "trainer" ||
-        subScreenRef.current === "options" ||
-        subScreenRef.current === "bag" ||
-        subScreenRef.current === "party"
-      ) return;
-
-      // Help screen handles its own input
-      if (subScreenRef.current === "help") return;
-
-      // Party menu handles its own input (early return above)
-
-      // Main menu navigation
-      switch (e.key) {
-        case "ArrowUp":
-          e.preventDefault();
-          sfx.select();
-          setSelectedIndex((i) => (i <= 0 ? MENU_ITEMS.length - 1 : i - 1));
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          sfx.select();
-          setSelectedIndex((i) => (i >= MENU_ITEMS.length - 1 ? 0 : i + 1));
-          break;
-        case "a":
-        case "A":
-        case " ":
-        case "Enter":
-          e.preventDefault();
-          sfx.confirm();
-          handleSelect(MENU_ITEMS[selectedIndex]);
-          break;
-        case "s":
-        case "S":
-        case "Backspace":
-        case "Escape":
-          e.preventDefault();
-          closeMenu();
-          break;
-      }
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [visible, selectedIndex, closeMenu, handleSelect]);
+  // Sub-screens (pokedex, trainer, options, bag, party, help) all
+  // handle their own input, so the main listener pauses whenever a
+  // sub-screen is open.
+  useGameKeyboard(visible && subScreen === null, {
+    up: () => { sfx.select(); nav.moveUp(); },
+    down: () => { sfx.select(); nav.moveDown(); },
+    confirm: () => {
+      sfx.confirm();
+      handleSelect(MENU_ITEMS[selectedIndex]);
+    },
+    cancel: closeMenu,
+    menu: closeMenu,
+  });
 
   // ── Render ──────────────────────────────────────────────────
   if (!visible) return null;
@@ -208,7 +174,7 @@ export default function StartMenu() {
             <span style={arrowStyle}>
               {i === selectedIndex ? "\u25B6" : "\u00A0\u00A0"}
             </span>
-            {item}
+            {item === "KOSTAS" ? (getSave().playerName || "TRAINER") : item}
           </div>
         ))}
       </div>

@@ -1,12 +1,13 @@
 /**
- * StepMilestones — awards TMs at step count thresholds.
+ * StepMilestones — TMs sold at the Pokemart with steps as currency.
  *
- * Each TM represents a technology/skill in Kostas's toolkit. Walking
- * more of the world unlocks more TMs, encouraging exploration.
+ * Each TM represents a technology/skill in Kostas's toolkit. The player
+ * earns steps by walking the world and spends them at the MART clerk
+ * to buy individual TMs. The `steps` field on each entry is its price.
  *
- * Works alongside StepStore (which tracks the raw count). This module
- * just handles the threshold → item mapping and the "pending award"
- * pattern that OverworldScene polls each frame to pop a dialog.
+ * Purchases are DEBITABLE — every TM deducts its price from the running
+ * step counter via `spendSteps()`, so buying everything is an endurance
+ * test. There's no auto-award — the player chooses what to prioritize.
  *
  * Persistence is delegated to GameSave — the collected-TMs list is
  * `save.tmsCollected`, the same array the Bag reads for the TMs
@@ -15,10 +16,11 @@
 
 import { giveItem, hasItem } from "./GameSave";
 import { getItemDef } from "@/game/data/itemDefinitions";
-import { sfx } from "./SoundManager";
+import { getSteps, spendSteps } from "./StepStore";
 import { checkBadges } from "./BadgeMilestones";
 
 export interface StepMilestone {
+  /** Price in steps. */
   steps: number;
   itemId: string;
   tm: string;
@@ -26,8 +28,8 @@ export interface StepMilestone {
 }
 
 /**
- * Step thresholds and the TM each one grants. The `itemId` must
- * match an entry in ITEM_DEFINITIONS so `giveItem` can look it up.
+ * TM catalog for the Pokemart. The `steps` field is the buy price.
+ * Order here is the display order in the shop.
  */
 export const STEP_MILESTONES: StepMilestone[] = [
   { steps: 250,  itemId: "tm_tailwind",      tm: "TAILWIND",      description: "Utility-first CSS" },
@@ -49,62 +51,37 @@ export function getCollectedTMCount(): number {
   return STEP_MILESTONES.filter((m) => hasItem(m.itemId)).length;
 }
 
-// ── Pending award (consumed by scene update loop) ─────────
-
-let pendingAward: StepMilestone | null = null;
-
-export function getPendingAward(): StepMilestone | null {
-  return pendingAward;
-}
-
-export function clearPendingAward(): void {
-  pendingAward = null;
+/** True if the player has enough steps to buy this TM. */
+export function canAfford(milestone: StepMilestone): boolean {
+  return getSteps() >= milestone.steps;
 }
 
 /**
- * Check step milestones after a step increment. Awards at most one
- * TM per call — if the player crosses multiple thresholds at once
- * (e.g. a teleport), the first uncollected one wins and the rest
- * wait for the next call.
- *
- * On award: persists to GameSave via `giveItem`, plays `sfx.pickup`,
- * stores the milestone in `pendingAward` so the scene can surface a
- * dialog on the next update tick.
+ * Attempt to buy a TM. On success: debits the player's steps, puts the
+ * TM in the bag, and re-checks badges. Returns true on success, false
+ * if the player can't afford it or already owns it.
  */
-export function checkStepTMs(currentSteps: number): StepMilestone | null {
-  for (const milestone of STEP_MILESTONES) {
-    if (currentSteps >= milestone.steps && !hasItem(milestone.itemId)) {
-      const def = giveItem(milestone.itemId);
-      if (!def) continue;
-      // Sound is played by the scene when it shows the award dialog
-      pendingAward = milestone;
-      checkBadges();
-      return milestone;
-    }
-  }
-  return null;
+export function buyTM(milestone: StepMilestone): boolean {
+  if (hasItem(milestone.itemId)) return false;
+  if (!canAfford(milestone)) return false;
+  if (!spendSteps(milestone.steps)) return false;
+  const def = giveItem(milestone.itemId);
+  if (!def) return false;
+  checkBadges();
+  return true;
 }
 
-/** Milestone statuses for a step-tracker NPC to render. */
+/** Milestone statuses for a step-tracker NPC or shop UI to render. */
 export function getMilestoneStatuses(currentSteps: number): {
   milestone: StepMilestone;
-  status: "collected" | "next" | "locked";
+  status: "collected" | "affordable" | "locked";
 }[] {
-  let foundNext = false;
   return STEP_MILESTONES.map((m) => {
     if (hasItem(m.itemId)) {
       return { milestone: m, status: "collected" as const };
     }
-    if (!foundNext && currentSteps < m.steps) {
-      foundNext = true;
-      return { milestone: m, status: "next" as const };
-    }
-    if (!foundNext) {
-      // Already past the threshold but haven't received — shouldn't
-      // happen in practice since checkStepTMs runs on each step,
-      // but label as "next" defensively.
-      foundNext = true;
-      return { milestone: m, status: "next" as const };
+    if (currentSteps >= m.steps) {
+      return { milestone: m, status: "affordable" as const };
     }
     return { milestone: m, status: "locked" as const };
   });

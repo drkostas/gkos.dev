@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 import { getSteps, formatSteps } from "@/game/systems/StepStore";
 import { getSave } from "@/game/systems/GameSave";
-import { getItemsByPocket } from "@/game/data/itemDefinitions";
-import { STEP_MILESTONES } from "@/game/systems/StepMilestones";
+import { ITEM_DEFINITIONS, getItemsByPocket } from "@/game/data/itemDefinitions";
 import { POKEDEX } from "@/game/data/pokemon";
+import { getUnlockedEntries } from "@/game/data/researchLog";
 
 interface TrainerCardProps {
   onClose: () => void;
@@ -33,6 +34,13 @@ interface TrainerCardProps {
  * Custom-renamed to skill badges. Clicking a badge opens an inline
  * confirm dialog that links to the relevant project / proof.
  */
+/** Format total seconds as "Nh MMm" for the OG Emerald PLAY TIME field. */
+function formatPlayTime(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  return `${hours}h ${mins.toString().padStart(2, "0")}m`;
+}
+
 export default function TrainerCard({ onClose }: TrainerCardProps) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -40,45 +48,29 @@ export default function TrainerCard({ onClose }: TrainerCardProps) {
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
   const [side, setSide] = useState<"front" | "back">("front");
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (selectedBadge) {
-        if (e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter") {
-          e.preventDefault();
-          sfx.confirm();
-          window.open(selectedBadge.url, "_blank", "noopener,noreferrer");
-          setSelectedBadge(null);
-          return;
-        }
-        if (e.key === "s" || e.key === "S" || e.key === "Backspace") {
-          e.preventDefault();
-          sfx.select();
-          setSelectedBadge(null);
-          return;
-        }
-        return;
-      }
-      // A button flips the card (matches OG Emerald behavior).
-      if (e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter") {
-        e.preventDefault();
-        sfx.flip();
-        setSide((s) => (s === "front" ? "back" : "front"));
-        return;
-      }
-      // B button exits the trainer card from either side.
-      if (e.key === "s" || e.key === "S" || e.key === "Backspace") {
-        e.preventDefault();
-        sfx.select();
-        onCloseRef.current();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedBadge]);
+  // Badge-popover mode: A opens the URL + dismisses, B cancels.
+  useGameKeyboard(selectedBadge !== null, {
+    confirm: () => {
+      if (!selectedBadge) return;
+      sfx.confirm();
+      window.open(selectedBadge.url, "_blank", "noopener,noreferrer");
+      setSelectedBadge(null);
+    },
+    cancel: () => { sfx.select(); setSelectedBadge(null); },
+  });
 
-  const yearsExperience = new Date().getFullYear() - 2017;
+  // Base card mode: A flips the card, B exits.
+  useGameKeyboard(selectedBadge === null, {
+    confirm: () => {
+      sfx.flip();
+      setSide((s) => (s === "front" ? "back" : "front"));
+    },
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+  });
+
   const steps = getSteps();
   const save = getSave();
+  const playTimeText = formatPlayTime(save.playTimeSeconds);
   const badgeCount = save.badges.length;
   const cardColors = getCardColors(badgeCount);
 
@@ -97,9 +89,11 @@ export default function TrainerCard({ onClose }: TrainerCardProps) {
       >
         {side === "front" ? (
           <FrontSide
-            yearsExperience={yearsExperience}
+            playTimeText={playTimeText}
             steps={steps}
             earnedBadgeIds={save.badges}
+            playerName={save.playerName || "RED"}
+            playerGender={save.playerGender || "boy"}
             onBadgeClick={(b) => setSelectedBadge(b)}
           />
         ) : (
@@ -140,14 +134,18 @@ export default function TrainerCard({ onClose }: TrainerCardProps) {
 // ── Front side ───────────────────────────────────────────────
 
 function FrontSide({
-  yearsExperience,
+  playTimeText,
   steps,
   earnedBadgeIds,
+  playerName,
+  playerGender,
   onBadgeClick,
 }: {
-  yearsExperience: number;
+  playTimeText: string;
   steps: number;
   earnedBadgeIds: string[];
+  playerName: string;
+  playerGender: "boy" | "girl";
   onBadgeClick: (b: Badge) => void;
 }) {
   return (
@@ -163,15 +161,15 @@ function FrontSide({
       {/* ── Body: fields on left, portrait on right ──── */}
       <div style={bodyStyle}>
         <div style={fieldsColStyle}>
-          <Field label="NAME" value="KOSTAS" />
+          <Field label="NAME" value={playerName} />
           <Field label="MONEY" value="$L5" />
           <Field label="POKeDEX" value="10  PAPERS" />
-          <Field label="PLAY TIME" value={`${yearsExperience}h 00m`} />
+          <Field label="PLAY TIME" value={playTimeText} />
           <Field label="STEPS" value={formatSteps(steps)} />
         </div>
         <div style={portraitFrameStyle}>
           <img
-            src="/game/ui/trainer_card/brendan_pic.png"
+            src={`/game/ui/trainer_card/${playerGender === "girl" ? "may" : "brendan"}_pic.png`}
             alt="trainer"
             style={portraitImgStyle}
             draggable={false}
@@ -215,7 +213,7 @@ function FrontSide({
         </div>
       </div>
 
-      <div style={hintStyle}>Click / Z to flip · ESC to close</div>
+      <div style={hintStyle}>A to flip · B to close</div>
     </>
   );
 }
@@ -224,13 +222,16 @@ function FrontSide({
 
 function BackSide({ onProjectClick }: { onProjectClick: (b: Badge) => void }) {
   const save = getSave();
-  const steps = getSteps();
 
   const totalPapers = getItemsByPocket("papers").length;
   const totalBlogs = getItemsByPocket("blogs").length;
-  const totalTMs = STEP_MILESTONES.length;
+  const totalTMs = getItemsByPocket("tms").length;
   const totalPokedex = POKEDEX.length;
   const totalKeyItems = getItemsByPocket("keyItems").length;
+  const totalUrls =
+    Object.values(ITEM_DEFINITIONS).filter((i) => i.url).length +
+    POKEDEX.filter((p) => p.url).length;
+  const researchLogEntry = getUnlockedEntries().length;
 
   return (
     <>
@@ -243,16 +244,16 @@ function BackSide({ onProjectClick }: { onProjectClick: (b: Badge) => void }) {
       <div style={backChecklistStyle}>
         <BackProgressRow label="Papers" current={save.papersCollected.length} total={totalPapers} />
         <BackProgressRow label="Blog Posts" current={save.blogsCollected.length} total={totalBlogs} />
-        <BackProgressRow label="Pokemon" current={save.pokedexSeen.length} total={totalPokedex} />
+        <BackProgressRow label="Pokemon" current={save.pokedexCaught.length} total={totalPokedex} />
         <BackProgressRow label="TMs" current={save.tmsCollected.length} total={totalTMs} />
         <BackProgressRow label="Key Items" current={save.keyItemsCollected.length} total={totalKeyItems} />
+        <BackProgressRow label="URLs Opened" current={save.urlsOpened.length} total={totalUrls} />
       </div>
 
       {/* Summary stats */}
       <div style={backStatsStyle}>
+        <BackRow label="RESEARCH LOG" value={`#${researchLogEntry}`} />
         <BackRow label="BADGES" value={`${save.badges.length}/8`} />
-        <BackRow label="STEPS" value={formatSteps(steps)} />
-        <BackRow label="ZONES" value={`${save.zonesVisited.length}/5`} />
       </div>
 
       {/* Bottom: 6 Pokemon icons → linked to portfolio projects */}
@@ -394,8 +395,8 @@ const SKILL_BADGES: Badge[] = [
   { badgeId: "author",     name: "AUTHOR",      tagline: "Collected all blog posts.",                    url: "https://gkos.dev/blog" },
   { badgeId: "fullstack",  name: "FULL STACK",  tagline: "Earned all TMs (technologies).",               url: "https://github.com/drkostas" },
   { badgeId: "explorer",   name: "EXPLORER",    tagline: "Visited all 5 zones.",                         url: "https://gkos.dev" },
-  { badgeId: "devoted",    name: "DEVOTED",     tagline: "Opened 10+ project URLs.",                     url: "https://github.com/drkostas" },
-  { badgeId: "champion",   name: "CHAMPION",    tagline: "Earned all 7 other badges.",                   url: "https://gkos.dev" },
+  { badgeId: "devoted",    name: "DEVOTED",     tagline: "Opened every project URL.",                     url: "https://github.com/drkostas" },
+  { badgeId: "champion",   name: "CHAMPION",    tagline: "Found MEW beyond the boundary.",               url: "https://gkos.dev" },
 ];
 
 // ── Styles ─────────────────────────────────────────────────────

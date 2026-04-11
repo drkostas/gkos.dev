@@ -128,6 +128,16 @@ function playPickup(): void {
   play("se_itemget.ogg", 0.4);
 }
 
+/**
+ * Wild Pokemon discovery — short rising "!" ping played during the
+ * white screen flash when the player first sees a Pokemon. Sourced
+ * from a custom Emerald SFX library (emerald_007D), converted to MP3
+ * for browser compatibility.
+ */
+function playEncounter(): void {
+  play("se_encounter.mp3", 0.8);
+}
+
 /** Save complete chime */
 function playSave(): void {
   play("se_save.ogg", 0.8);
@@ -237,6 +247,7 @@ export const sfx = {
   ledge: playLedge,
   grass: playGrass,
   pickup: playPickup,
+  encounter: playEncounter,
   save: playSave,
   flip: playFlip,
   optionChange: playOptionChange,

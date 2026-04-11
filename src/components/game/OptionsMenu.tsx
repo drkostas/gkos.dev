@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
+import { useMenuNavigation } from "@/game/hooks/useMenuNavigation";
 import {
   getSettings,
   setSetting,
@@ -34,7 +36,8 @@ const ROWS: Row[] = ["TEXT SPEED", "FRAME", "SHOW COORDS"];
  */
 export default function OptionsMenu({ onClose }: OptionsMenuProps) {
   const [settings, setSettings] = useState(() => getSettings());
-  const [rowIndex, setRowIndex] = useState(0);
+  const { index: rowIndex, moveUp: rowUp, moveDown: rowDown } =
+    useMenuNavigation(ROWS.length);
   // confirmingClear removed — New Game moved to HELP screen
 
   const onCloseRef = useRef(onClose);
@@ -64,48 +67,22 @@ export default function OptionsMenu({ onClose }: OptionsMenuProps) {
   };
 
   // ── Keyboard input ───────────────────────────────────────────
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Confirm dialog handles its own keys.
-      if (e.key === "s" || e.key === "S" || e.key === "Backspace") {
-        e.preventDefault();
-        sfx.select();
-        onCloseRef.current();
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        sfx.select();
-        setRowIndex((i) => (i <= 0 ? ROWS.length - 1 : i - 1));
-        return;
-      }
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        sfx.select();
-        setRowIndex((i) => (i >= ROWS.length - 1 ? 0 : i + 1));
-        return;
-      }
-      const row = ROWS[rowIndex];
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        sfx.optionChange();
-        if (row === "TEXT SPEED") cycleTextSpeed(-1);
-        else if (row === "FRAME") cycleFrame(-1);
-        else if (row === "SHOW COORDS") toggleCoords();
-      } else if (e.key === "ArrowRight" || e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter") {
-        e.preventDefault();
-        sfx.optionChange();
-        if (row === "TEXT SPEED") cycleTextSpeed(1);
-        else if (row === "FRAME") cycleFrame(1);
-        else if (row === "SHOW COORDS") toggleCoords();
-        // CLEAR PROGRESS removed — use NEW GAME in HELP screen
-      }
-    };
+  const bumpRow = (dir: -1 | 1) => {
+    const row = ROWS[rowIndex];
+    sfx.optionChange();
+    if (row === "TEXT SPEED") cycleTextSpeed(dir);
+    else if (row === "FRAME") cycleFrame(dir);
+    else if (row === "SHOW COORDS") toggleCoords();
+  };
 
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowIndex, settings]);
+  useGameKeyboard(true, {
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+    up: () => { sfx.select(); rowUp(); },
+    down: () => { sfx.select(); rowDown(); },
+    left: () => bumpRow(-1),
+    right: () => bumpRow(1),
+    confirm: () => bumpRow(1),
+  });
 
   // ── Render ───────────────────────────────────────────────────
   const sY = "var(--ui-scale-y, 1)";

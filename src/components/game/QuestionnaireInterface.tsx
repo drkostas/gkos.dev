@@ -7,6 +7,11 @@ import {
 } from "@/game/EventBridge";
 import { giveItem, hasItem } from "@/game/systems/GameSave";
 import { getItemDef } from "@/game/data/itemDefinitions";
+import {
+  QUESTIONS,
+  QUESTIONNAIRE_REWARD_ITEM_ID,
+  type QuestionnaireQuestion,
+} from "@/game/data/questionnaire";
 import { sfx } from "@/game/systems/SoundManager";
 
 /**
@@ -47,59 +52,23 @@ const FONT = "var(--pkmn-font, 'Courier New', monospace)";
 
 const STORAGE_KEY = "gkos:explore:questionnaire";
 
-interface Question {
-  label: string;
-  /**
-   * Canonical answer — its length determines the number of character
-   * slots shown for this question. Typing is limited to that many
-   * letters, so the player can only enter a word that fits.
-   */
-  canonical: string;
-  /**
-   * Additional accepted answers (case-insensitive exact match).
-   * The canonical is automatically accepted too.
-   */
-  accept?: string[];
-}
-
-const QUESTIONS: Question[] = [
-  {
-    label: "Name of my most starred repo",
-    canonical: "README",
-  },
-  {
-    label: "Name of my most recent paper",
-    canonical: "MEDIC",
-  },
-  {
-    label: "Month of my first blog post",
-    canonical: "APRIL",
-  },
-  {
-    label: "Framework I use for ML",
-    canonical: "PYTORCH",
-    accept: ["TORCH"],
-  },
-];
-
 /** Build the list of acceptable uppercase answers for a question. */
-function acceptedAnswers(q: Question): string[] {
+function acceptedAnswers(q: QuestionnaireQuestion): string[] {
   return [q.canonical.toUpperCase(), ...(q.accept ?? []).map((a) => a.toUpperCase())];
 }
 
-function slotLenOf(q: Question): number {
+function slotLenOf(q: QuestionnaireQuestion): number {
   return q.canonical.length;
 }
 
 /**
- * The questionnaire reward is sourced from ITEM_DEFINITIONS so the
- * item's name, description and icon stay in sync with the rest of
- * the bag. Change the item here if you want a different reward.
+ * The questionnaire reward is sourced from ITEM_DEFINITIONS via the
+ * id exported from questionnaire.ts so the item's name, description,
+ * and icon stay in sync with the rest of the bag.
  */
-const REWARD_ITEM_ID = "key_mystery_ticket";
 const REWARD_ITEM = {
   get name(): string {
-    return getItemDef(REWARD_ITEM_ID)?.name ?? "MYSTERY TICKET";
+    return getItemDef(QUESTIONNAIRE_REWARD_ITEM_ID)?.name ?? "REWARD";
   },
 };
 
@@ -213,9 +182,9 @@ export default function QuestionnaireInterface() {
     const allCorrect = results.every(Boolean);
     if (allCorrect) {
       // Route the reward through GameSave so it lands in the
-      // correct bag pocket (KEY ITEMS for MYSTERY TICKET).
-      if (!hasItem(REWARD_ITEM_ID)) {
-        giveItem(REWARD_ITEM_ID);
+      // pocket declared by its item definition.
+      if (!hasItem(QUESTIONNAIRE_REWARD_ITEM_ID)) {
+        giveItem(QUESTIONNAIRE_REWARD_ITEM_ID);
       }
       sfx.pickup();
       setPhase("reward");
@@ -477,7 +446,7 @@ export default function QuestionnaireInterface() {
                   textAlign: "center",
                 }}
               >
-                ▲▼ switch &nbsp;·&nbsp; ENTER submit &nbsp;·&nbsp; ESC close
+                ▲▼ switch &nbsp;·&nbsp; ENTER submit
               </div>
             </>
           ) : phase === "intro" ? (
@@ -508,6 +477,17 @@ export default function QuestionnaireInterface() {
               ▶ Press A to keep editing
             </div>
           )}
+          {/* ESC hint — always visible across every phase */}
+          <div
+            style={{
+              marginTop: "calc(4px * var(--ui-scale-y, 1))",
+              color: "#808080",
+              fontSize: "calc(11px * var(--ui-scale-y, 1))",
+              textAlign: "center",
+            }}
+          >
+            Press ESC to exit
+          </div>
         </div>
       </div>
     </div>
@@ -532,7 +512,7 @@ function IntroBody() {
         }}
       >
         Fill in all {QUESTIONS.length} answers to{"\n"}
-        receive a MYSTERY TICKET!
+        receive a {REWARD_ITEM.name}!
       </p>
     </>
   );

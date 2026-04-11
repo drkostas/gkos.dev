@@ -23,6 +23,11 @@ export interface Move {
 }
 
 export interface PartyMember {
+  /**
+   * Stable save-state id. Slug, never changes once chosen.
+   * Used by `save.partyMemberIds` and `save.fieldMoves` keys.
+   */
+  id: string;
   nickname: string;
   species: string;
   level: number;
@@ -39,8 +44,23 @@ export interface PartyMember {
   description: string;
 }
 
-export const PARTY: PartyMember[] = [
+/**
+ * Party member decorated with runtime field-move state. Returned by
+ * `getActiveParty()` so callers don't have to read the save themselves.
+ */
+export interface ActivePartyMember extends PartyMember {
+  /** Field moves this Pokemon has learned (see PartySystem). */
+  fieldMoves: string[];
+}
+
+/**
+ * Every possible party member. The `save.partyMemberIds` array
+ * selects which subset is currently active — see `getActiveParty()`
+ * in `src/game/systems/PartySystem.ts`.
+ */
+export const ALL_PARTY: PartyMember[] = [
   {
+    id: "medic",
     nickname: "MEDiC",
     species: "latias",
     dexNo: 380,
@@ -59,6 +79,7 @@ export const PARTY: PartyMember[] = [
     ],
   },
   {
+    id: "fleetsmart",
     nickname: "FleetSmart",
     species: "kyogre",
     dexNo: 382,
@@ -77,7 +98,8 @@ export const PARTY: PartyMember[] = [
     ],
   },
   {
-    nickname: "MaskDistll",
+    id: "maskdistill",
+    nickname: "MaskDistill",
     species: "absol",
     dexNo: 359,
     level: 84,
@@ -95,6 +117,7 @@ export const PARTY: PartyMember[] = [
     ],
   },
   {
+    id: "xpensai",
     nickname: "XpensAI",
     species: "manectric",
     dexNo: 310,
@@ -113,6 +136,7 @@ export const PARTY: PartyMember[] = [
     ],
   },
   {
+    id: "shiftmd",
     nickname: "ShiftMD",
     species: "breloom",
     dexNo: 286,
@@ -131,6 +155,7 @@ export const PARTY: PartyMember[] = [
     ],
   },
   {
+    id: "soma",
     nickname: "Soma",
     species: "medicham",
     dexNo: 308,
@@ -149,3 +174,22 @@ export const PARTY: PartyMember[] = [
     ],
   },
 ];
+
+/** Quick id → member lookup. */
+export const PARTY_BY_ID: Record<string, PartyMember> =
+  Object.fromEntries(ALL_PARTY.map((p) => [p.id, p]));
+
+/**
+ * Which party members the player starts with. Engine phase keeps all
+ * 6 so nothing breaks; content phase drops this to the real 4-member
+ * starter set plus the mid-game and endgame joins.
+ */
+export const STARTING_PARTY_IDS: string[] = ALL_PARTY.map((p) => p.id);
+
+/**
+ * @deprecated Use `ALL_PARTY` for the static catalog or
+ * `getActiveParty()` for the player's current party. Kept as an
+ * alias so type-only consumers (PokemonSummary) don't churn during
+ * the migration. Remove once every consumer is migrated.
+ */
+export const PARTY = ALL_PARTY;

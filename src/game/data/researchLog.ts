@@ -10,6 +10,7 @@
  */
 
 import { getSave } from "@/game/systems/GameSave";
+import { getPartyPokedexEntryNumbers } from "@/game/systems/PartyDexRegistrar";
 
 export interface LogEntry {
   /** Entry number (1-based). */
@@ -103,11 +104,22 @@ export const LOG_ENTRIES: LogEntry[] = [
   },
 ];
 
-/** Get total discovery count from save. */
+/**
+ * Get total discovery count from save. Party Pokemon are
+ * pre-registered in the Pokedex at boot (see PartyDexRegistrar)
+ * because the player already has them — they don't count as
+ * "discoveries." Only overworld-caught Pokemon (wild encounters
+ * the player actively walked up to) contribute to this total,
+ * alongside every collected item and key item.
+ */
 export function getTotalDiscoveries(): number {
   const save = getSave();
+  const partyEntries = getPartyPokedexEntryNumbers();
+  const overworldCaught = save.pokedexCaught.filter(
+    (n) => !partyEntries.has(n),
+  );
   return (
-    save.pokedexSeen.length +
+    overworldCaught.length +
     save.papersCollected.length +
     save.blogsCollected.length +
     save.tmsCollected.length +

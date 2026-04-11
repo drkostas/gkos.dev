@@ -1,4 +1,10 @@
 import { getItemDef, type BagPocketId, type ItemDef } from "@/game/data/itemDefinitions";
+import { STARTING_PARTY_IDS } from "@/game/data/party";
+import {
+  trackPaperCollected,
+  trackBlogCollected,
+  trackBadgeEarned,
+} from "./Analytics";
 
 /**
  * GameSave — the canonical save structure for the explore mode.
@@ -75,6 +81,32 @@ export interface GameSave {
   playerName: string;
   /** Player gender set during Birch intro. */
   playerGender: "boy" | "girl";
+  /** Cumulative time spent in the explore mode, in seconds. */
+  playTimeSeconds: number;
+  /**
+   * Gate ids the player has cleared with a field move. Gate data
+   * lives in `src/game/data/gates.ts`; runtime wiring is in
+   * `GateSystem.ts`. Cleared terrain gates don't re-spawn their
+   * blocker characters on next scene load; cleared NPC gates use
+   * `spawnCondition: () => !isGateCleared(id)` so the NPC never
+   * spawns again.
+   */
+  gatesCleared: string[];
+  /**
+   * Field moves each party Pokemon has learned, keyed by the party
+   * member id (e.g. `"medic"`, `"fleetsmart"` — see `ALL_PARTY` in
+   * `src/game/data/party.ts`). Taught by KOSTAS on badge award and
+   * read by `GateSystem` via `PartySystem.findPokemonWithMove`.
+   * Move names are custom strings — NOT standard Pokemon moves.
+   */
+  fieldMoves: Record<string, string[]>;
+  /**
+   * Ordered list of party member ids currently in the player's
+   * party. Initialized from `STARTING_PARTY_IDS` and mutated at
+   * runtime by `PartySystem.addToParty`. Capped at 6 members. See
+   * `getActiveParty()` for the resolved `PartyMember[]` view.
+   */
+  partyMemberIds: string[];
 }
 
 function defaults(): GameSave {
@@ -93,6 +125,10 @@ function defaults(): GameSave {
     urlsOpened: [],
     playerName: "",
     playerGender: "boy",
+    playTimeSeconds: 0,
+    gatesCleared: [],
+    fieldMoves: {},
+    partyMemberIds: [...STARTING_PARTY_IDS],
   };
 }
 
@@ -129,10 +165,13 @@ export function updateSave(partial: Partial<GameSave>): GameSave {
   return next;
 }
 
-/** Wipe the save. */
+/** Wipe all game state (preserves settings like text speed / frame style). */
 export function clearSave(): void {
-  if (typeof localStorage !== "undefined") {
-    localStorage.removeItem(STORAGE_KEY);
+  if (typeof localStorage === "undefined") return;
+  const keys = Object.keys(localStorage).filter(k => k.startsWith("gkos:explore:"));
+  for (const k of keys) {
+    if (k === "gkos:explore:settings") continue;
+    localStorage.removeItem(k);
   }
 }
 
@@ -181,6 +220,14 @@ export function giveItem(itemId: string): ItemDef | null {
     [key]: [...save[key], itemId],
   };
   writeSave(next);
+  // Analytics — centralized here so every giveItem caller is tracked
+  // without needing to remember at each site. Only papers and blogs
+  // are tracked per spec; TMs and key items intentionally omitted.
+  if (def.pocket === "papers") {
+    trackPaperCollected(def.name);
+  } else if (def.pocket === "blogs") {
+    trackBlogCollected(def.name);
+  }
   return def;
 }
 
@@ -247,6 +294,9 @@ export function awardBadge(badgeId: string): boolean {
   const save = readSave();
   if (save.badges.includes(badgeId)) return false;
   writeSave({ ...save, badges: [...save.badges, badgeId] });
+  // Analytics — trackBadgeEarned also emits the dedicated
+  // `champion-badge` event for the final badge.
+  trackBadgeEarned(badgeId);
   return true;
 }
 
@@ -316,9 +366,44 @@ export function getUrlsOpenedCount(): number {
   return readSave().urlsOpened.length;
 }
 
+// ── Gate clearing ────────────────────────────────────────
+
+/**
+ * Has the player cleared this gate? Gate data is defined in
+ * `src/game/data/gates.ts`; runtime wiring is in `GateSystem.ts`.
+ */
+export function isGateCleared(gateId: string): boolean {
+  return readSave().gatesCleared.includes(gateId);
+}
+
+/**
+ * Mark a gate as cleared. Idempotent — subsequent calls with the
+ * same id are no-ops. Called by `GateSystem.clearGate()` after the
+ * Grid Engine characters have been removed.
+ */
+export function markGateCleared(gateId: string): void {
+  const save = readSave();
+  if (save.gatesCleared.includes(gateId)) return;
+  writeSave({ ...save, gatesCleared: [...save.gatesCleared, gateId] });
+}
+
 // ── Badge check hook ─────────────────────────────────────
 
-const DEVOTED_BADGE_THRESHOLD = 10;
+/**
+ * Count all openable URLs across items and Pokedex.
+ * Lazy-loaded to avoid circular imports at module init time.
+ */
+let _totalOpenableUrls: number | null = null;
+function getTotalOpenableUrls(): number {
+  if (_totalOpenableUrls === null) {
+    const { ITEM_DEFINITIONS } = require("@/game/data/itemDefinitions");
+    const { POKEDEX } = require("@/game/data/pokemon");
+    const itemUrls = Object.values(ITEM_DEFINITIONS).filter((i: any) => i.url).length;
+    const pokedexUrls = (POKEDEX as any[]).filter((p) => p.url).length;
+    _totalOpenableUrls = itemUrls + pokedexUrls;
+  }
+  return _totalOpenableUrls;
+}
 
 /**
  * Re-evaluate automatic badges (DEVOTED, etc.) based on current save
@@ -332,10 +417,10 @@ export function checkBadges(): string[] {
   const newlyAwarded: string[] = [];
   const save = readSave();
 
-  // DEVOTED — open at least 10 distinct URLs from the Bag / Pokedex.
+  // DEVOTED — open every distinct URL from the Bag / Pokedex.
   if (
     !save.badges.includes("devoted") &&
-    save.urlsOpened.length >= DEVOTED_BADGE_THRESHOLD
+    save.urlsOpened.length >= getTotalOpenableUrls()
   ) {
     if (awardBadge("devoted")) newlyAwarded.push("devoted");
   }

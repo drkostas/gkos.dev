@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { bgm } from "@/game/systems/BGMManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 
 interface TitleScreenLayerProps {
   phase: "shines" | "banner" | "idle";
@@ -11,39 +11,27 @@ const STYLE_ID = "title-screen-kf";
 
 const keyframes = `
 @keyframes ts-cloud-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
 }
 @keyframes ts-press-blink {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
 }
-@keyframes ts-gem-pulse {
-  0%, 49% { opacity: 0.9; }
-  50%, 100% { opacity: 0.3; }
-}
-@keyframes ts-logo-drop {
-  0% { transform: translateY(-20%); opacity: 0.6; }
-  100% { transform: translateY(0); opacity: 1; }
-}
 @keyframes ts-shine {
-  0% { left: -25%; }
-  100% { left: 125%; }
+  0% { left: -25%; opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
 }
 @keyframes ts-banner-in {
-  0% { transform: translateY(-40%); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
+  0% { opacity: 0; transform: translateY(-20px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 `;
 
 export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLayerProps) {
-  // Play title music on mount (user gesture unlocks audio)
-  useEffect(() => {
-    bgm.play("intro");
-    return () => { bgm.stop(); };
-  }, []);
+  // Music is managed by OpeningScreen
 
-  // Inject keyframes
   useEffect(() => {
     if (!document.getElementById(STYLE_ID)) {
       const s = document.createElement("style");
@@ -54,154 +42,126 @@ export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLay
     return () => document.getElementById(STYLE_ID)?.remove();
   }, []);
 
-  // Keyboard
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (phase === "shines" || phase === "banner") {
-        onPressStart();
-      } else if (phase === "idle") {
-        if (["Enter", " ", "a", "A"].includes(e.key)) onPressStart();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [phase, onPressStart]);
+  // Only the A button skips the intro. Arrows/modifiers/accidental
+  // taps shouldn't blow past the logo animation before the player
+  // has read anything.
+  const inIntroPhase =
+    phase === "shines" || phase === "banner" || phase === "idle";
+  useGameKeyboard(inIntroPhase, {
+    confirm: onPressStart,
+  });
 
   const showBanner = phase === "banner" || phase === "idle";
   const showPress = phase === "idle";
 
   return (
     <div onClick={onPressStart} style={overlayStyle}>
-      {/* GBA viewport — all layers stack inside this */}
-      <div style={viewportStyle}>
+      {/* 3:2 landscape container — same approach as Party/Pokedex */}
+      <div style={containerStyle}>
 
-        {/* 1. Rayquaza background — fills entire viewport */}
+        {/* Rayquaza background — fills container */}
         <img
-          src="/game/ui/opening/rayquaza_composed.png"
+          src="/game/ui/opening/rayquaza_cropped.png"
           alt=""
           style={{
-            ...layerStyle,
-            opacity: phase === "shines" ? 0.5 : 1,
-            transition: "opacity 1s",
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
             objectFit: "cover",
+            imageRendering: "pixelated",
           }}
         />
 
-        {/* Rayquaza gem pulse overlay */}
-        <div style={{
-          position: "absolute",
-          top: "32%",
-          left: "42%",
-          width: "3%",
-          height: "4%",
-          borderRadius: "50%",
-          background: "#40e8e8",
-          boxShadow: "0 0 6px 3px #40e8e8",
-          animation: "ts-gem-pulse 0.27s steps(1) infinite",
-          zIndex: 1,
-        }} />
-
-        {/* 2. Clouds — scroll horizontally, semi-transparent over Rayquaza */}
-        <div style={{ ...layerStyle, overflow: "hidden", zIndex: 2 }}>
+        {/* Clouds — scroll upward */}
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 1, pointerEvents: "none" }}>
           <div style={{
-            display: "flex",
-            width: "200%",
-            height: "100%",
-            animation: "ts-cloud-scroll 20s linear infinite",
+            position: "absolute",
+            top: 0, left: 0,
+            width: "100%", height: "200%",
+            animation: "ts-cloud-scroll 25s linear infinite",
           }}>
-            <img src="/game/ui/opening/clouds_composed.png" alt="" style={cloudImgStyle} />
-            <img src="/game/ui/opening/clouds_composed.png" alt="" style={cloudImgStyle} />
+            <img src="/game/ui/opening/clouds_composed.png" alt="" style={cloudStyle} />
+            <img src="/game/ui/opening/clouds_composed.png" alt="" style={cloudStyle} />
           </div>
         </div>
 
-        {/* 3. Pokemon Logo — upper portion, drops into place */}
+        {/* Pokemon Logo — centered horizontally, top area */}
         <div style={{
           position: "absolute",
-          top: "-2%",
-          left: "5%",
-          width: "90%",
+          top: "2%",
+          left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",
           zIndex: 10,
-          animation: "ts-logo-drop 2s ease-out forwards",
         }}>
-          <img
-            src="/game/ui/opening/pokemon_logo_composed.png"
-            alt="Pokemon"
-            style={{
-              width: "100%",
-              height: "auto",
-              imageRendering: "pixelated",
-              display: "block",
-            }}
-          />
-
-          {/* Shine sweeps over logo */}
-          <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-            {/* Sweep 1 */}
+          <div style={{ position: "relative", overflow: "hidden", width: "70%" }}>
+            <img
+              src="/game/ui/opening/pokemon_logo_trimmed.png"
+              alt="Pokemon"
+              style={{
+                width: "100%",
+                height: "auto",
+                imageRendering: "pixelated",
+                display: "block",
+              }}
+            />
+            {/* Shine sweeps — start off-screen left, sweep right, then disappear */}
             <img src="/game/ui/opening/logo_shine.png" alt="" style={{
-              ...shineStyle,
-              animation: "ts-shine 1.5s linear 0.3s forwards",
+              ...shineStyle, animation: "ts-shine 1s linear 0.5s forwards",
             }} />
-            {/* Sweep 2a */}
             <img src="/game/ui/opening/logo_shine.png" alt="" style={{
-              ...shineStyle,
-              animation: "ts-shine 1s linear 1.5s forwards",
-              width: "15%",
+              ...shineStyle, animation: "ts-shine 0.7s linear 2s forwards", width: "12%",
             }} />
-            {/* Sweep 2b */}
             <img src="/game/ui/opening/logo_shine.png" alt="" style={{
-              ...shineStyle,
-              animation: "ts-shine 1s linear 2s forwards",
-              width: "12%",
+              ...shineStyle, animation: "ts-shine 0.7s linear 2.3s forwards", width: "10%",
             }} />
-            {/* Sweep 3 */}
             <img src="/game/ui/opening/logo_shine.png" alt="" style={{
-              ...shineStyle,
-              animation: "ts-shine 1.5s linear 3.2s forwards",
+              ...shineStyle, animation: "ts-shine 1s linear 3.5s forwards",
             }} />
           </div>
         </div>
 
-        {/* 4. "EXPLORE MODE" banner */}
+        {/* "EXPLORE MODE" — centered, below logo, OG style */}
         {showBanner && (
           <div style={{
             position: "absolute",
             top: "42%",
-            left: 0,
-            right: 0,
+            left: 0, right: 0,
             textAlign: "center",
             zIndex: 11,
             animation: "ts-banner-in 0.8s ease-out forwards",
           }}>
             <span style={{
               fontFamily: FONT,
-              fontSize: "clamp(14px, 3vw, 32px)",
+              fontSize: "5cqi",
               fontWeight: 700,
-              color: "#fff",
-              textShadow: "2px 2px 0 #e040a0, -1px -1px 0 #401030, 1px -1px 0 #401030, -1px 1px 0 #401030, 0 3px 0 #a02070",
-              letterSpacing: "0.2em",
+              color: "#f8f8f8",
+              textShadow: "2px 2px 0 #583858, -1px -1px 0 #583858, 1px -1px 0 #583858, -1px 1px 0 #583858",
+              letterSpacing: "0.25em",
             }}>
               EXPLORE MODE
             </span>
           </div>
         )}
 
-        {/* 5. "PRESS ENTER" blinking text */}
+        {/* "PRESS ENTER" blink */}
         {showPress && (
           <div style={{
             position: "absolute",
-            bottom: "12%",
-            left: 0,
-            right: 0,
+            bottom: "15%",
+            left: 0, right: 0,
             textAlign: "center",
             zIndex: 12,
             animation: "ts-press-blink 0.53s steps(1) infinite",
           }}>
             <span style={{
               fontFamily: FONT,
-              fontSize: "clamp(10px, 2vw, 20px)",
+              fontSize: "3.5cqi",
               color: "#f8f8f8",
               textShadow: "1px 1px 0 #000",
-              letterSpacing: "0.15em",
+              letterSpacing: "0.2em",
             }}>
               PRESS ENTER
             </span>
@@ -212,12 +172,11 @@ export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLay
   );
 }
 
-/* ── Styles ──────────────────────────────────────────── */
+/* ── Styles ─────────────────────────────────────────── */
 
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 500,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -225,42 +184,32 @@ const overlayStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-/** GBA aspect ratio container — 3:2, scaled to fill viewport */
-const viewportStyle: React.CSSProperties = {
+/** 3:2 landscape container — same sizing as Party/Pokedex screens */
+const containerStyle: React.CSSProperties = {
   position: "relative",
-  width: "min(150vh, 100vw)",
-  height: "min(100vh, 66.67vw)",
+  width: "min(135vh, 90vw)",
+  height: "min(90vh, 60vw)",
   overflow: "hidden",
   imageRendering: "pixelated",
+  containerType: "inline-size",
 };
 
-/** Absolute-fill layer */
-const layerStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
+const cloudStyle: React.CSSProperties = {
   width: "100%",
-  height: "100%",
-  imageRendering: "pixelated",
-};
-
-const cloudImgStyle: React.CSSProperties = {
-  width: "50%",
-  height: "100%",
+  height: "50%",
   objectFit: "cover",
   imageRendering: "pixelated",
-  opacity: 0.45,
-  mixBlendMode: "screen",
 };
 
 const shineStyle: React.CSSProperties = {
   position: "absolute",
   top: 0,
   left: "-25%",
-  width: "20%",
+  width: "18%",
   height: "100%",
   objectFit: "contain",
   imageRendering: "pixelated",
   mixBlendMode: "screen",
-  opacity: 0.8,
+  opacity: 0,
   pointerEvents: "none",
 };

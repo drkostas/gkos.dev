@@ -131,12 +131,12 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
     url: "https://huggingface.co/drkostas",
     icon: "/game/ui/bag/oran_berry.png",
   },
-  "key_mystery_ticket": {
-    id: "key_mystery_ticket",
-    name: "MYSTERY TICKET",
-    pocket: "keyItems",
-    description: "Awarded for completing\nthe questionnaire.",
-    icon: "/game/ui/bag/aurora_ticket.png",
+  "tm_portfolio": {
+    id: "tm_portfolio",
+    name: "TM PORTFOLIO",
+    pocket: "tms",
+    description: "Awarded for completing\nthe portfolio questionnaire.",
+    icon: "/game/ui/bag/tm_case.png",
   },
   "key_rock_potion": {
     id: "key_rock_potion",
@@ -153,9 +153,33 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
     icon: "/game/ui/bag/old_amber.png",
   },
 
-  // ── TMs pocket — walking milestones from the MART ───────────
-  // Each TM represents a tech/skill in KOSTAS's toolkit. The exact
-  // step threshold for each is defined in StepMilestones.ts.
+  // ── TMs pocket — foundational starters + MART purchases ─────
+  // STARTER TMs pre-loaded in the PC at the POKeMON CENTER on a
+  // fresh save. These are the skills every ML engineer begins with
+  // before buying higher-tier TMs from the MART (see StepMilestones
+  // for the purchasable catalog).
+  "tm_python": {
+    id: "tm_python",
+    name: "TM PYTHON",
+    pocket: "tms",
+    description: "The lingua franca of\nmachine learning.",
+    icon: "/game/ui/bag/tm_case.png",
+  },
+  "tm_git": {
+    id: "tm_git",
+    name: "TM GIT",
+    pocket: "tms",
+    description: "Version control for every\nproject worth shipping.",
+    icon: "/game/ui/bag/tm_case.png",
+  },
+  "tm_linux": {
+    id: "tm_linux",
+    name: "TM LINUX",
+    pocket: "tms",
+    description: "The operating system\nbehind every ML rig.",
+    icon: "/game/ui/bag/tm_case.png",
+  },
+  // ── MART purchases — step-threshold catalog (StepMilestones) ──
   "tm_tailwind": {
     id: "tm_tailwind",
     name: "TM TAILWIND",

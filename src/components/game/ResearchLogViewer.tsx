@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { LOG_ENTRIES, getUnlockedEntries, type LogEntry } from "@/game/data/researchLog";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
+import { useMenuNavigation } from "@/game/hooks/useMenuNavigation";
 
 interface Props {
   onClose: () => void;
@@ -10,7 +12,8 @@ const FONT = "var(--pkmn-font, 'Courier New', monospace)";
 const sY = "var(--ui-scale-y, 1)";
 
 export default function ResearchLogViewer({ onClose }: Props) {
-  const [cursor, setCursor] = useState(0);
+  const { index: cursor, moveUp: cursorUp, moveDown: cursorDown } =
+    useMenuNavigation(LOG_ENTRIES.length);
   const [reading, setReading] = useState<LogEntry | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -19,47 +22,27 @@ export default function ResearchLogViewer({ onClose }: Props) {
 
   const unlocked = getUnlockedEntries();
 
-  const handleKey = useCallback((e: KeyboardEvent) => {
-    if (reading) {
-      // Any key closes the reading view
-      if (
-        e.key === "s" || e.key === "S" || e.key === "Backspace" ||
-        e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter"
-      ) {
-        e.preventDefault();
-        sfx.select();
-        setReading(null);
-      }
-      return;
-    }
+  // Reading an entry: A or B closes the read view. List mode: arrows
+  // navigate, A opens a read, B exits the log entirely. Two separate
+  // hook calls so only one listener is active at a time.
+  useGameKeyboard(reading !== null, {
+    confirm: () => { sfx.select(); setReading(null); },
+    cancel: () => { sfx.select(); setReading(null); },
+  });
 
-    const total = LOG_ENTRIES.length; // includes locked
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      sfx.select();
-      setCursor((c) => (c <= 0 ? total - 1 : c - 1));
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      sfx.select();
-      setCursor((c) => (c >= total - 1 ? 0 : c + 1));
-    } else if (e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter") {
-      e.preventDefault();
+  useGameKeyboard(reading === null, {
+    up: () => { sfx.select(); cursorUp(); },
+    down: () => { sfx.select(); cursorDown(); },
+    confirm: () => {
       const entry = LOG_ENTRIES[cursorRef.current];
       if (entry && unlocked.some((u) => u.number === entry.number)) {
         sfx.confirm();
         setReading(entry);
       }
-    } else if (e.key === "s" || e.key === "S" || e.key === "Backspace" || e.key === "Escape") {
-      e.preventDefault();
-      sfx.select();
-      onCloseRef.current();
-    }
-  }, [reading, unlocked]);
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [handleKey]);
+    },
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+    menu: () => { sfx.select(); onCloseRef.current(); },
+  });
 
   // ── Reading an entry ──────────────────────────────────
   if (reading) {

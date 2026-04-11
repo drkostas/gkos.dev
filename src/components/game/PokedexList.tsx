@@ -9,6 +9,7 @@ import {
 } from "@/game/systems/GameSave";
 import { showNotification } from "@/game/EventBridge";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 
 interface PokedexListProps {
   onClose: () => void;
@@ -86,39 +87,12 @@ export default function PokedexList({ onClose }: PokedexListProps) {
     if (entry) openEntry(entry);
   }, [openEntry]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case "ArrowUp":
-          e.preventDefault();
-          sfx.select();
-          moveSelection(-1);
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          sfx.select();
-          moveSelection(1);
-          break;
-        case "a":
-        case "A":
-        case " ":
-        case "Enter":
-          e.preventDefault();
-          sfx.confirm();
-          openSelected();
-          break;
-        case "s":
-        case "S":
-        case "Backspace":
-          e.preventDefault();
-          sfx.select();
-          onCloseRef.current();
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [moveSelection, openSelected]);
+  useGameKeyboard(true, {
+    up: () => { sfx.select(); moveSelection(-1); },
+    down: () => { sfx.select(); moveSelection(1); },
+    confirm: () => { sfx.confirm(); openSelected(); },
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+  });
 
   const visibleEntries = POKEDEX.slice(scrollOffset, scrollOffset + VISIBLE_ROWS);
   const selectedEntry = POKEDEX[selectedIndex];

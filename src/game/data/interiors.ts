@@ -4,6 +4,8 @@
  */
 
 import { getSave, awardBadge, type GameSave } from "@/game/systems/GameSave";
+import { teachFieldMove } from "@/game/systems/PartySystem";
+import { FIELD_MOVE_AWARDS } from "@/game/data/fieldMoveAwards";
 import type { DynamicDialogResult } from "@/game/types/npc";
 import { sfx } from "@/game/systems/SoundManager";
 
@@ -19,6 +21,29 @@ export interface InteriorNPC {
    * Receives the current GameSave so dialog varies by player state.
    */
   dialogFn?: (save: GameSave) => DynamicDialogResult | Promise<DynamicDialogResult>;
+  /**
+   * If true, interacting with this NPC opens the Pokemart TM shop
+   * instead of showing dialog. Steps are the shop currency.
+   */
+  shopMenu?: boolean;
+  /**
+   * Gym-trainer "auto-gift" flow. When set, the first interaction
+   * plays the trainer's dialog, then automatically gives the named
+   * item (looked up in ITEM_DEFINITIONS) and walks the NPC to the
+   * aside position so they clear the path. Persisted via TrainerStore
+   * so the NPC spawns at the aside position on future scene loads.
+   *
+   * After clearing, subsequent interactions show `clearedDialog`
+   * (with a generic fallback if omitted).
+   */
+  autoGive?: {
+    /** Item id from ITEM_DEFINITIONS (e.g. "paper_igarss"). */
+    itemId: string;
+    /** Tile the NPC walks to after giving the item. */
+    asidePosition: { x: number; y: number };
+    /** Dialog shown on 2nd+ interactions. Falls back to a generic line. */
+    clearedDialog?: string[];
+  };
 }
 
 /**
@@ -138,14 +163,14 @@ export const INTERIORS: Record<string, InteriorDef> = {
     height: 8,
     music: "mart",
     exitWarpTiles: [{ x: 3, y: 7 }, { x: 4, y: 7 }],
-    // A letter sits on the counter at (2, 4). The player can interact
-    // with it by standing at (3, 4) and facing LEFT.
+    // The counter-edge tile (0, 4) is the questionnaire marker —
+    // interacting with it opens the letter from KOSTAS. No custom
+    // icon sprite; the trigger is the tile itself.
     questionnaireTiles: [
       {
-        x: 2,
+        x: 0,
         y: 4,
         id: "mart_letter",
-        iconUrl: "/game/ui/bag/letter.png",
       },
     ],
     npcs: [
@@ -155,11 +180,10 @@ export const INTERIORS: Record<string, InteriorDef> = {
         position: { x: 1, y: 3 },
         facingDirection: "right",
         speakerName: "CLERK",
+        shopMenu: true,
         dialog: [
           "Welcome to the POKeMART!",
-          "We stock the finest PyPI packages!",
-          "yaml-config-wrapper, termcolor-logger, fancy-emailer...",
-          "All crafted by KOSTAS himself!",
+          "How may I help you?",
         ],
       },
       {
@@ -256,6 +280,17 @@ export const INTERIORS: Record<string, InteriorDef> = {
                   }),
                 ]);
                 awardBadge(next.id);
+                // Field-move side effect: if a FIELD_MOVE_AWARDS
+                // entry maps this badge to a party member, teach
+                // the move. Content phase surfaces `learnMessage`
+                // as a follow-up dialog line; the engine only
+                // mutates save state here.
+                const fieldAward = FIELD_MOVE_AWARDS.find(
+                  (f) => f.badgeId === next.id,
+                );
+                if (fieldAward) {
+                  teachFieldMove(fieldAward.pokemonId, fieldAward.moveName);
+                }
               },
             };
           }
@@ -291,7 +326,17 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "I train in the ways of DevOps!",
           "Docker, Kubernetes, CI/CD pipelines...",
           "KOSTAS built the Cloud-DevOps toolkit!",
+          "Here, take this paper he wrote",
+          "on PyTorch distillation!",
         ],
+        autoGive: {
+          itemId: "paper_maskdistill",
+          asidePosition: { x: 8, y: 8 },
+          clearedDialog: [
+            "Good luck with the rest",
+            "of the GYM!",
+          ],
+        },
       },
       {
         id: "gym_vivian",
@@ -301,9 +346,19 @@ export const INTERIORS: Record<string, InteriorDef> = {
         speakerName: "TRAINER VIVIAN",
         dialog: [
           "Data Science is my specialty!",
-          "KOSTAS teaches machines to see with computer vision.",
-          "His remote sensing papers are groundbreaking!",
+          "KOSTAS teaches machines to see",
+          "with computer vision.",
+          "His remote sensing paper at",
+          "IGARSS is a must-read!",
         ],
+        autoGive: {
+          itemId: "paper_igarss",
+          asidePosition: { x: 0, y: 16 },
+          clearedDialog: [
+            "Remote sensing is the future",
+            "of Earth observation!",
+          ],
+        },
       },
       {
         id: "gym_ben",
@@ -314,8 +369,18 @@ export const INTERIORS: Record<string, InteriorDef> = {
         dialog: [
           "I'm all about Full-Stack development!",
           "React, Astro, Node.js, Python...",
-          "This very portfolio is built with Astro + Phaser!",
+          "This very portfolio is built",
+          "with Astro + Phaser!",
+          "Check out his WACV vision paper!",
         ],
+        autoGive: {
+          itemId: "paper_wacv",
+          asidePosition: { x: 5, y: 11 },
+          clearedDialog: [
+            "Vision models are everywhere",
+            "these days!",
+          ],
+        },
       },
       {
         id: "gym_kirk",
@@ -326,8 +391,19 @@ export const INTERIORS: Record<string, InteriorDef> = {
         dialog: [
           "Cloud computing is the future!",
           "AWS, GCP, Terraform, Kubernetes...",
-          "KOSTAS deploys models at scale for Amazon!",
+          "KOSTAS deploys models at scale",
+          "for Amazon!",
+          "His CHASE paper applies ML",
+          "to healthcare at scale.",
         ],
+        autoGive: {
+          itemId: "paper_chase",
+          asidePosition: { x: 0, y: 13 },
+          clearedDialog: [
+            "Cloud infrastructure powers",
+            "modern ML at scale!",
+          ],
+        },
       },
     ],
   },

@@ -3,7 +3,6 @@ import { sfx } from "@/game/systems/SoundManager";
 import { getSave } from "@/game/systems/GameSave";
 import { BADGES, getBadgeStatuses } from "@/game/systems/BadgeMilestones";
 import { getSteps, formatSteps } from "@/game/systems/StepStore";
-import { STEP_MILESTONES } from "@/game/systems/StepMilestones";
 import { getItemsByPocket } from "@/game/data/itemDefinitions";
 import { POKEDEX } from "@/game/data/pokemon";
 
@@ -60,7 +59,7 @@ export default function HelpScreen({ onClose }: HelpScreenProps) {
   const steps = getSteps();
   const totalPapers = getItemsByPocket("papers").length;
   const totalBlogs = getItemsByPocket("blogs").length;
-  const totalTMs = STEP_MILESTONES.length;
+  const totalTMs = getItemsByPocket("tms").length;
   const totalPokedex = POKEDEX.length;
   const totalKeyItems = getItemsByPocket("keyItems").length;
 

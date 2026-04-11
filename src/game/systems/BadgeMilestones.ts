@@ -1,9 +1,9 @@
 /**
  * BadgeMilestones — checks whether the player has met badge conditions.
  *
- * Badges are NOT auto-awarded (except CHAMPION). The player must talk to
- * KOSTAS in the gym to receive them. This module only detects WHEN a
- * condition is first met and queues a notification.
+ * Badges are NOT auto-awarded. The player must talk to KOSTAS in the gym
+ * to receive them (CHAMPION is given by MEW). This module only detects
+ * WHEN a condition is first met and queues a notification.
  *
  * Call `checkBadges()` after every collection event (item pickup, Pokedex
  * registration, TM award, zone visit, gym clear, etc.).
@@ -15,9 +15,8 @@ import {
   markBadgeNotified,
   type GameSave,
 } from "./GameSave";
-import { getItemsByPocket } from "@/game/data/itemDefinitions";
+import { getItemDef, getItemsByPocket } from "@/game/data/itemDefinitions";
 import { POKEDEX } from "@/game/data/pokemon";
-import { STEP_MILESTONES } from "./StepMilestones";
 
 export interface BadgeDef {
   id: string;
@@ -30,10 +29,8 @@ export interface BadgeDef {
 
 const TOTAL_PAPERS = getItemsByPocket("papers").length;
 const TOTAL_BLOGS = getItemsByPocket("blogs").length;
-const TOTAL_TMS = STEP_MILESTONES.length;
+const TOTAL_TMS = getItemsByPocket("tms").length;
 const TOTAL_POKEDEX = POKEDEX.length;
-const TOTAL_KEY_ITEMS = getItemsByPocket("keyItems").length;
-
 export const BADGES: BadgeDef[] = [
   {
     id: "phd",
@@ -44,8 +41,25 @@ export const BADGES: BadgeDef[] = [
   {
     id: "scholar",
     name: "SCHOLAR",
-    hint: `Collect all ${TOTAL_PAPERS} papers`,
-    condition: (s) => s.papersCollected.length >= TOTAL_PAPERS,
+    hint: `Collect and read all ${TOTAL_PAPERS} papers`,
+    // Collecting a paper isn't enough — the player must also open
+    // every paper's URL from the Bag (USE action). Primes them for
+    // the COMPLETIONIST badge later and matches the "knowledge is
+    // consumed, not collected" beat in KOSTAS's gym dialog.
+    //
+    // BagMenu records URL opens as `${pocket}:${displayName}`
+    // (BagMenu.tsx:130), NOT by item id, so we look up each paper's
+    // display name via ITEM_DEFINITIONS rather than assuming a
+    // format. If ITEM_DEFINITIONS loses an entry the missing paper
+    // fails the check, which is the safe default.
+    condition: (s) => {
+      if (s.papersCollected.length < TOTAL_PAPERS) return false;
+      return s.papersCollected.every((itemId) => {
+        const def = getItemDef(itemId);
+        if (!def) return false;
+        return s.urlsOpened.includes(`papers:${def.name}`);
+      });
+    },
   },
   {
     id: "opensource",
@@ -72,16 +86,10 @@ export const BADGES: BadgeDef[] = [
     condition: (s) => s.zonesVisited.length >= 5,
   },
   {
-    id: "devoted",
-    name: "DEVOTED",
-    hint: `Collect all ${TOTAL_KEY_ITEMS} key items`,
-    condition: (s) => s.keyItemsCollected.length >= TOTAL_KEY_ITEMS,
-  },
-  {
     id: "champion",
     name: "CHAMPION",
-    hint: "Earn all 7 other badges",
-    condition: (s) => s.badges.length >= 7,
+    hint: "Find MEW beyond the water boundary",
+    condition: (s) => s.keyItemsCollected.includes("PHONE.NUMBER"),
   },
 ];
 
@@ -105,7 +113,8 @@ export function clearPendingBadgeNotification(): void {
  * doesn't re-fire every time the player takes a step in a new zone
  * or picks up an item while the condition is already satisfied.
  *
- * CHAMPION is auto-awarded. All others require KOSTAS to give.
+ * CHAMPION is awarded by MEW's interaction code. All others require
+ * KOSTAS in the gym to give.
  */
 export function checkBadges(): void {
   const save = getSave();
@@ -119,11 +128,6 @@ export function checkBadges(): void {
     if (save.badgesNotified.includes(badge.id)) continue;
     // Skip if condition not met
     if (!badge.condition(save)) continue;
-
-    // CHAMPION is auto-awarded (given by the game, not KOSTAS)
-    if (badge.id === "champion") {
-      awardBadge("champion");
-    }
 
     // Queue notification (only one at a time) and remember that we
     // notified this badge so it doesn't re-fire.

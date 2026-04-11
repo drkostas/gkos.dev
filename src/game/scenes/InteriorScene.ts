@@ -1,14 +1,26 @@
 import Phaser from "phaser";
 import { Direction } from "grid-engine";
 import type GridEngine from "grid-engine";
+import {
+  WALK_ANIM,
+  WALK_SPEED,
+  OPPOSITE,
+  dirToAnimKey,
+  getTileInDirection,
+  stringToDirection,
+  handleBlockedWalk,
+} from "@/game/utils/sceneHelpers";
 import { DialogSystem } from "@/game/systems/DialogSystem";
 import { HiddenItemSystem } from "@/game/systems/HiddenItemSystem";
 import { incrementStep } from "@/game/systems/StepStore";
-import { checkStepTMs } from "@/game/systems/StepMilestones";
-import { getSave } from "@/game/systems/GameSave";
+import { getSave, giveItem } from "@/game/systems/GameSave";
+import { getItemDef } from "@/game/data/itemDefinitions";
+import { isTrainerCleared, markTrainerCleared } from "@/game/systems/TrainerStore";
+import { checkBadges } from "@/game/systems/BadgeMilestones";
 import { INTERIORS, type InteriorDef, type InteriorNPC } from "@/game/data/interiors";
 import { WARPS } from "@/game/data/warps";
-import { PIXEL_SCALE } from "@/game/config";
+import { getSceneZoom } from "@/game/config";
+import { touchState } from "@/game/systems/TouchInput";
 import { sfx } from "@/game/systems/SoundManager";
 import { bgm } from "@/game/systems/BGMManager";
 import { GameEvents, emitGameEvent, onGameEvent, getDebugMode } from "@/game/EventBridge";
@@ -41,28 +53,7 @@ import {
  * Walk cycle: leftFoot → standing → rightFoot → standing → repeat
  * Right direction reuses left frames with hFlip.
  */
-const WALK_ANIM = {
-  down:  { leftFoot: 3, standing: 0, rightFoot: 4 },
-  up:    { leftFoot: 5, standing: 1, rightFoot: 6 },
-  left:  { leftFoot: 7, standing: 2, rightFoot: 8 },
-  right: { leftFoot: 7, standing: 2, rightFoot: 8 },
-};
-
-/** Running uses the same layout but offset by 9 (frames 9-17 from running.png). */
-const RUN_ANIM = {
-  down:  { leftFoot: 12, standing: 9,  rightFoot: 13 },
-  up:    { leftFoot: 14, standing: 10, rightFoot: 15 },
-  left:  { leftFoot: 16, standing: 11, rightFoot: 17 },
-  right: { leftFoot: 16, standing: 11, rightFoot: 17 },
-};
-
-/** Opposite direction lookup for making NPC face the player. */
-const OPPOSITE: Record<string, Direction> = {
-  [Direction.UP]: Direction.DOWN,
-  [Direction.DOWN]: Direction.UP,
-  [Direction.LEFT]: Direction.RIGHT,
-  [Direction.RIGHT]: Direction.LEFT,
-};
+// WALK_ANIM / RUN_ANIM / OPPOSITE moved to @/game/utils/sceneHelpers
 
 /** Data passed to this scene via scene.start(). */
 interface InteriorSceneData {
@@ -74,9 +65,7 @@ interface InteriorSceneData {
   spawnFacing?: "up" | "down" | "left" | "right";
 }
 
-/** Walk/run speeds — same as OverworldScene. */
-const WALK_SPEED = 4;
-const RUN_SPEED = 8;
+// WALK_SPEED / RUN_SPEED moved to @/game/utils/sceneHelpers
 
 /**
  * InteriorScene — renders building interiors (Pokemon Center, Mart, Gym)
@@ -119,9 +108,13 @@ export class InteriorScene extends Phaser.Scene {
    * Blocked walk-in-place state (OG Emerald behavior).
    * When holding into a wall, the character plays walk animation at step
    * rate and bonks once per step cycle.
+   *
+   * Left package-public (no `private`) so `this` satisfies the
+   * BlockedWalkState interface in sceneHelpers and can be passed
+   * directly to handleBlockedWalk.
    */
-  private blockedDir: Direction | null = null;
-  private blockedStepTimer = 0;
+  blockedDir: Direction | null = null;
+  blockedStepTimer = 0;
   private lastInteriorTile: { x: number; y: number } | null = null;
 
   /** Map pixel dimensions for camera centering. */
@@ -134,8 +127,8 @@ export class InteriorScene extends Phaser.Scene {
   private debugTexts: Phaser.GameObjects.Text[] = [];
   private debugMapW = 0;
   private debugMapH = 0;
-  private blockedFootToggle = false;
-  private blockedBonkTimer = 0;
+  blockedFootToggle = false;
+  blockedBonkTimer = 0;
 
   // ── Gym puzzle state ─────────────────────────────────────────
   /** Which switch was last pressed (1-4, 0 = none). */
@@ -507,7 +500,7 @@ export class InteriorScene extends Phaser.Scene {
       const sprite = this.add.sprite(0, 0, npc.spriteKey);
       this.npcSprites.set(npc.id, sprite);
 
-      const facingDir = this.stringToDirection(npc.facingDirection);
+      const facingDir = stringToDirection(npc.facingDirection);
       this.npcOriginalFacing.set(npc.id, facingDir);
 
       // Initial flipX for right-facing NPCs
@@ -515,14 +508,27 @@ export class InteriorScene extends Phaser.Scene {
         sprite.flipX = true;
       }
 
+      // Cleared autoGive trainers spawn at their aside position so
+      // the path stays clear across sessions. The original position
+      // is only used before the player has collected from them.
+      const spawnPosition =
+        npc.autoGive && isTrainerCleared(npc.id)
+          ? { ...npc.autoGive.asidePosition }
+          : npc.position;
+
       // Nurse and old_man sprites have fewer than 9 frames —
       // skip walkingAnimationMapping for them to avoid wrong frame refs.
       const isStandardSprite = !["nurse", "old_man"].includes(npc.spriteKey);
+      // AutoGive trainers need a non-zero speed so grid-engine can
+      // animate the moveTo walk to the aside position after the
+      // player collects their item. Non-trainer NPCs stay stationary.
+      const npcSpeed = npc.autoGive ? WALK_SPEED : 0;
+
       characters.push({
         id: npc.id,
         sprite,
-        startPosition: npc.position,
-        speed: 0, // Stationary in interiors
+        startPosition: spawnPosition,
+        speed: npcSpeed,
         offsetY: 0,
         facingDirection: facingDir,
         ...(isStandardSprite && { walkingAnimationMapping: WALK_ANIM }),
@@ -621,13 +627,17 @@ export class InteriorScene extends Phaser.Scene {
 
     // ── Camera ───────────────────────────────────────────────
     // Interior maps are small — center the whole map on screen.
-    // Re-center on resize/zoom so it stays centered.
+    // Re-center AND re-zoom on resize so orientation flips (portrait
+    // ↔ landscape) pick up the new pixel scale from `getSceneZoom()`.
     this.mapWidthPx = map.widthInPixels;
     this.mapHeightPx = map.heightInPixels;
-    this.cameras.main.setZoom(PIXEL_SCALE);
+    this.cameras.main.setZoom(getSceneZoom());
     this.cameras.main.setRoundPixels(true);
     this.centerCamera();
-    this.scale.on("resize", () => this.centerCamera());
+    this.scale.on("resize", () => {
+      this.cameras.main.setZoom(getSceneZoom());
+      this.centerCamera();
+    });
 
     // ── Debug coords overlay ────────────────────────────────
     this.debugMapW = map.width;
@@ -761,13 +771,12 @@ export class InteriorScene extends Phaser.Scene {
     // Debug overlay
     if (this.debugEnabled) this.updateDebugOverlay();
 
-    // Step counting (interior steps also count toward milestones)
+    // Step counting — interior steps earn currency for the Pokemart.
     {
       const pos = this.gridEngine.getPosition("player");
       if (!this.lastInteriorTile || this.lastInteriorTile.x !== pos.x || this.lastInteriorTile.y !== pos.y) {
         this.lastInteriorTile = { x: pos.x, y: pos.y };
-        const { total } = incrementStep();
-        checkStepTMs(total);
+        incrementStep();
       }
     }
 
@@ -792,13 +801,13 @@ export class InteriorScene extends Phaser.Scene {
       this.playerSprite.setFrame(standingFrame);
     }
 
-    // ── Direction input ──────────────────────────────────────
+    // ── Direction input — keyboard cursors OR touch d-pad flags ──
     const { cursors } = this;
     let moveDir: Direction | null = null;
-    if (cursors.left.isDown) moveDir = Direction.LEFT;
-    else if (cursors.right.isDown) moveDir = Direction.RIGHT;
-    else if (cursors.up.isDown) moveDir = Direction.UP;
-    else if (cursors.down.isDown) moveDir = Direction.DOWN;
+    if (cursors.left.isDown || touchState.left) moveDir = Direction.LEFT;
+    else if (cursors.right.isDown || touchState.right) moveDir = Direction.RIGHT;
+    else if (cursors.up.isDown || touchState.up) moveDir = Direction.UP;
+    else if (cursors.down.isDown || touchState.down) moveDir = Direction.DOWN;
 
     if (!moveDir) {
       this.blockedDir = null;
@@ -825,7 +834,7 @@ export class InteriorScene extends Phaser.Scene {
 
     // Gym puzzle: check if target tile is blocked by an active barrier
     const playerPos = this.gridEngine.getPosition("player");
-    const targetTile = this.getTileInDirection(playerPos, moveDir);
+    const targetTile = getTileInDirection(playerPos, moveDir);
     const blockedByBarrier = this.gymBarrierBlocks(targetTile.x, targetTile.y);
 
     // ── Turn-before-walk (matching OverworldScene) ────────────
@@ -874,150 +883,296 @@ export class InteriorScene extends Phaser.Scene {
   }
 
   // ── Interaction ──────────────────────────────────────────────
+  //
+  // The priority chain. Each `try*` helper handles one interaction
+  // type and returns true if it consumed the A-press.
+  //
+  // Lock-ownership rule: handlers that open a persistent modal (PC,
+  // questionnaire, mart shop) set `this.menuActive = true` and take
+  // over responsibility for clearing `this.isInteracting` when the
+  // modal closes via its EventBridge event. Synchronous helpers and
+  // dialog-based helpers leave `menuActive` false and let the
+  // `finally` block below reset the lock.
 
   private async handleInteraction(): Promise<void> {
     if (this.isInteracting || this.dialogSystem.active || this.isExiting || this.menuActive) return;
     this.isInteracting = true;
-    let keepLocked = false;
     try {
       const playerPos = this.gridEngine.getPosition("player");
       const playerFacing = this.gridEngine.getFacingDirection("player");
-      const facingTile = this.getTileInDirection(playerPos, playerFacing);
+      const facingTile = getTileInDirection(playerPos, playerFacing);
 
-      // Check for PC tile (opens the PC interface)
-      if (this.interiorDef.pcTiles) {
-        const isPC = this.interiorDef.pcTiles.some(
-          (t) => t.x === facingTile.x && t.y === facingTile.y,
-        );
-        if (isPC) {
-          keepLocked = true; // don't unlock in finally
-          this.menuActive = true; // lock movement while PC is open
-
-          // OG Pokemon Emerald PC turn-on animation:
-          // field_specials.c PCTurnOnEffect — the metatile flickers
-          // off/on 5 times at 6-frame intervals (~100ms each), ending
-          // on the "on" state. We replicate the flicker with a small
-          // white overlay at the CRT screen area of the PC tile
-          // (the screen is only the top portion of the 16×16 tile).
-          const TILE = 16;
-          const SCREEN_W = 8;
-          const SCREEN_H = 6;
-          // Screen sits near the top-center of the tile
-          const pcPixelX = facingTile.x * TILE + (TILE - SCREEN_W) / 2;
-          const pcPixelY = facingTile.y * TILE + 3;
-          const flickerRect = this.add.rectangle(
-            pcPixelX + SCREEN_W / 2,
-            pcPixelY + SCREEN_H / 2,
-            SCREEN_W,
-            SCREEN_H,
-            0xffffff,
-          );
-          flickerRect.setDepth(10000);
-          flickerRect.setVisible(false);
-
-          // 5 flickers × 100ms = 500ms total
-          // Start OFF (invisible), toggle 5 times, ending ON (visible) — matching OG
-          let flickerCount = 0;
-          sfx.select();
-          const flickerTimer = this.time.addEvent({
-            delay: 100,
-            loop: true,
-            callback: () => {
-              flickerRect.setVisible(!flickerRect.visible);
-              flickerCount++;
-              if (flickerCount >= 5) {
-                flickerTimer.remove();
-                flickerRect.destroy();
-                // Now actually open the PC
-                emitGameEvent(GameEvents.SHOW_PC);
-              }
-            },
-          });
-
-          const unsub = onGameEvent(GameEvents.PC_CLOSE, () => {
-            this.isInteracting = false;
-            this.menuActive = false;
-            unsub();
-          });
-          return;
-        }
-      }
-
-      // Check for questionnaire tile (letter on the desk etc.) — the
-      // player faces a tile that contains a questionnaire marker.
-      if (this.interiorDef.questionnaireTiles) {
-        const q = this.interiorDef.questionnaireTiles.find(
-          (t) => t.x === facingTile.x && t.y === facingTile.y,
-        );
-        if (q) {
-          keepLocked = true;
-          this.menuActive = true;
-          sfx.confirm();
-          emitGameEvent(GameEvents.SHOW_QUESTIONNAIRE, { id: q.id });
-          const unsub = onGameEvent(GameEvents.QUESTIONNAIRE_CLOSE, () => {
-            this.isInteracting = false;
-            this.menuActive = false;
-            unsub();
-          });
-          return;
-        }
-      }
-
-      // Hidden items — per-interior-map coordinate lookup. Keyed by
-      // the interior key so each building can have its own stash.
-      const pickedHidden = await HiddenItemSystem.tryPickup(
-        this.dialogSystem,
-        this.interiorKey,
-        facingTile.x,
-        facingTile.y,
-      );
-      if (pickedHidden) return;
-
-      // Check tiles in front of the player — up to 2 tiles ahead
-      // so NPCs behind counters/desks can be talked to (OG behavior).
-      const tilesToCheck = [
-        facingTile,
-        this.getTileInDirection(facingTile, playerFacing),
-      ];
-
-      for (const checkTile of tilesToCheck) {
-        for (const npc of this.interiorDef.npcs) {
-          const npcPos = this.gridEngine.getPosition(npc.id);
-          if (npcPos.x === checkTile.x && npcPos.y === checkTile.y) {
-            // Turn NPC to face the player
-            const originalDir = this.npcOriginalFacing.get(npc.id)!;
-            const faceDir = OPPOSITE[playerFacing];
-            this.gridEngine.turnTowards(npc.id, faceDir);
-            const sprite = this.npcSprites.get(npc.id);
-            if (sprite) sprite.flipX = faceDir === Direction.RIGHT;
-
-            // Show dialog (dynamic overrides static, supports async)
-            if (npc.dialogFn) {
-              const result = await npc.dialogFn(getSave());
-              await this.dialogSystem.showDialog({
-                lines: result.lines,
-                speakerName: result.speakerName ?? npc.speakerName,
-              });
-              if (result.afterDialog) {
-                await result.afterDialog({ dialogSystem: this.dialogSystem });
-              }
-            } else {
-              await this.dialogSystem.showDialog({
-                lines: npc.dialog,
-                speakerName: npc.speakerName,
-              });
-            }
-
-            // Restore original facing
-            this.gridEngine.turnTowards(npc.id, originalDir);
-            if (sprite) sprite.flipX = originalDir === Direction.RIGHT;
-            return;
-          }
-        }
-      }
+      if (await this.tryPCInteraction(facingTile)) return;
+      if (await this.tryQuestionnaireInteraction(facingTile)) return;
+      if (await this.tryHiddenItem(facingTile)) return;
+      if (await this.tryNpcInteraction(facingTile, playerFacing)) return;
     } finally {
-      if (!keepLocked) this.isInteracting = false;
+      // A modal handler that transferred lock ownership will have
+      // set menuActive before returning; its async close handler
+      // resets isInteracting. Everything else resets synchronously.
+      if (!this.menuActive) this.isInteracting = false;
     }
+  }
+
+  /**
+   * PC tile (Pokemon Center desk terminal). Plays the OG Pokemon
+   * Emerald turn-on flicker — 5 × 100ms toggles of a white overlay
+   * on the CRT screen area (source: pokeemerald field_specials.c
+   * PCTurnOnEffect) — then fires SHOW_PC on the EventBridge. Takes
+   * over the lock until PC_CLOSE fires.
+   */
+  private async tryPCInteraction(
+    facingTile: { x: number; y: number },
+  ): Promise<boolean> {
+    const pcTiles = this.interiorDef.pcTiles;
+    if (!pcTiles) return false;
+    const isPC = pcTiles.some(
+      (t) => t.x === facingTile.x && t.y === facingTile.y,
+    );
+    if (!isPC) return false;
+
+    // Transfer lock ownership to the async close handler.
+    this.menuActive = true;
+
+    // Screen overlay sits near the top-center of the 16×16 tile.
+    const TILE = 16;
+    const SCREEN_W = 8;
+    const SCREEN_H = 6;
+    const pcPixelX = facingTile.x * TILE + (TILE - SCREEN_W) / 2;
+    const pcPixelY = facingTile.y * TILE + 3;
+    const flickerRect = this.add.rectangle(
+      pcPixelX + SCREEN_W / 2,
+      pcPixelY + SCREEN_H / 2,
+      SCREEN_W,
+      SCREEN_H,
+      0xffffff,
+    );
+    flickerRect.setDepth(10000);
+    flickerRect.setVisible(false);
+
+    // 5 flickers × 100ms = 500ms total; start OFF, end ON — matches OG.
+    let flickerCount = 0;
+    sfx.select();
+    const flickerTimer = this.time.addEvent({
+      delay: 100,
+      loop: true,
+      callback: () => {
+        flickerRect.setVisible(!flickerRect.visible);
+        flickerCount++;
+        if (flickerCount >= 5) {
+          flickerTimer.remove();
+          flickerRect.destroy();
+          emitGameEvent(GameEvents.SHOW_PC);
+        }
+      },
+    });
+
+    const unsub = onGameEvent(GameEvents.PC_CLOSE, () => {
+      this.isInteracting = false;
+      this.menuActive = false;
+      unsub();
+    });
+    return true;
+  }
+
+  /**
+   * Questionnaire tile (letter on a desk, etc). Interacting fires
+   * SHOW_QUESTIONNAIRE with the tile's id; the React UI takes over
+   * until the player closes it. Takes over the lock.
+   */
+  private async tryQuestionnaireInteraction(
+    facingTile: { x: number; y: number },
+  ): Promise<boolean> {
+    const qTiles = this.interiorDef.questionnaireTiles;
+    if (!qTiles) return false;
+    const q = qTiles.find(
+      (t) => t.x === facingTile.x && t.y === facingTile.y,
+    );
+    if (!q) return false;
+
+    this.menuActive = true;
+    sfx.confirm();
+    emitGameEvent(GameEvents.SHOW_QUESTIONNAIRE, { id: q.id });
+    const unsub = onGameEvent(GameEvents.QUESTIONNAIRE_CLOSE, () => {
+      this.isInteracting = false;
+      this.menuActive = false;
+      unsub();
+    });
+    return true;
+  }
+
+  /**
+   * Per-interior-map hidden item lookup. The HiddenItemSystem
+   * handles dialog and save-write; we just forward the tile.
+   */
+  private async tryHiddenItem(
+    facingTile: { x: number; y: number },
+  ): Promise<boolean> {
+    return HiddenItemSystem.tryPickup(
+      this.dialogSystem,
+      this.interiorKey,
+      facingTile.x,
+      facingTile.y,
+    );
+  }
+
+  /**
+   * Check every NPC against the two tiles in front of the player
+   * (OG behavior — lets you talk to NPCs behind counters/desks).
+   * On match, turns the NPC to face the player and dispatches to
+   * the correct sub-handler based on the NPC's config.
+   */
+  private async tryNpcInteraction(
+    facingTile: { x: number; y: number },
+    playerFacing: Direction,
+  ): Promise<boolean> {
+    const tilesToCheck = [
+      facingTile,
+      getTileInDirection(facingTile, playerFacing),
+    ];
+
+    for (const checkTile of tilesToCheck) {
+      for (const npc of this.interiorDef.npcs) {
+        const npcPos = this.gridEngine.getPosition(npc.id);
+        if (npcPos.x !== checkTile.x || npcPos.y !== checkTile.y) continue;
+
+        // Turn NPC to face the player.
+        const originalDir = this.npcOriginalFacing.get(npc.id)!;
+        const faceDir = OPPOSITE[playerFacing];
+        this.gridEngine.turnTowards(npc.id, faceDir);
+        const sprite = this.npcSprites.get(npc.id);
+        if (sprite) sprite.flipX = faceDir === Direction.RIGHT;
+
+        if (npc.autoGive) {
+          await this.handleAutoGiveTrainer(npc, sprite, originalDir);
+          return true;
+        }
+        if (npc.shopMenu) {
+          this.handleShopNpc(npc, sprite, originalDir);
+          return true;
+        }
+        await this.handleNpcDialog(npc, sprite, originalDir);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * AutoGive trainer flow — first interaction:
+   *   1. intro dialog
+   *   2. give the configured item (saves + item-get sound + receipt dialog)
+   *   3. mark the trainer cleared and re-evaluate badges
+   *   4. walk the NPC to `asidePosition` so the path is clear
+   *
+   * Subsequent interactions just play `clearedDialog` (or a generic
+   * fallback) and restore facing.
+   */
+  private async handleAutoGiveTrainer(
+    npc: InteriorNPC,
+    sprite: Phaser.GameObjects.Sprite | undefined,
+    originalDir: Direction,
+  ): Promise<void> {
+    const ag = npc.autoGive!;
+    if (isTrainerCleared(npc.id)) {
+      const lines = ag.clearedDialog ?? [
+        "Good luck with the rest",
+        "of the GYM!",
+      ];
+      await this.dialogSystem.showDialog({
+        lines,
+        speakerName: npc.speakerName,
+      });
+      // Restore facing on the cleared path only — the first-interaction
+      // path hands facing control over to gridEngine.moveTo below.
+      this.gridEngine.turnTowards(npc.id, originalDir);
+      if (sprite) sprite.flipX = originalDir === Direction.RIGHT;
+      return;
+    }
+
+    // 1. Intro dialog
+    await this.dialogSystem.showDialog({
+      lines: npc.dialog,
+      speakerName: npc.speakerName,
+    });
+
+    // 2. Give the item. The item id comes from ITEM_DEFINITIONS so
+    //    name/pocket/description/icon stay in sync with the Bag.
+    const def = getItemDef(ag.itemId);
+    if (def) {
+      giveItem(ag.itemId);
+      sfx.pickup();
+      await this.dialogSystem.showDialog({
+        lines: [
+          `Received ${def.name}!`,
+          `It was sent to your BAG.`,
+        ],
+      });
+    }
+
+    // 3. Persist cleared state and re-check badges.
+    markTrainerCleared(npc.id);
+    checkBadges();
+
+    // 4. Walk to aside position — grid-engine animates using the
+    //    NPC's configured WALK_SPEED.
+    this.gridEngine.moveTo(npc.id, {
+      x: ag.asidePosition.x,
+      y: ag.asidePosition.y,
+    });
+  }
+
+  /**
+   * Shop-menu NPC (Pokemart clerk). Opens the MartShopInterface
+   * React modal. Transfers lock ownership to the MART_SHOP_CLOSE
+   * handler, which restores NPC facing as well.
+   */
+  private handleShopNpc(
+    npc: InteriorNPC,
+    sprite: Phaser.GameObjects.Sprite | undefined,
+    originalDir: Direction,
+  ): void {
+    this.menuActive = true;
+    sfx.confirm();
+    emitGameEvent(GameEvents.SHOW_MART_SHOP);
+    const unsub = onGameEvent(GameEvents.MART_SHOP_CLOSE, () => {
+      this.gridEngine.turnTowards(npc.id, originalDir);
+      if (sprite) sprite.flipX = originalDir === Direction.RIGHT;
+      this.isInteracting = false;
+      this.menuActive = false;
+      unsub();
+    });
+  }
+
+  /**
+   * Normal NPC dialog flow — dynamic dialog (`dialogFn`) overrides
+   * static `dialog`. Dynamic dialogs can return an `afterDialog`
+   * callback that runs inside the same interaction (e.g. for a
+   * follow-up dialog after a reward jingle).
+   */
+  private async handleNpcDialog(
+    npc: InteriorNPC,
+    sprite: Phaser.GameObjects.Sprite | undefined,
+    originalDir: Direction,
+  ): Promise<void> {
+    if (npc.dialogFn) {
+      const result = await npc.dialogFn(getSave());
+      await this.dialogSystem.showDialog({
+        lines: result.lines,
+        speakerName: result.speakerName ?? npc.speakerName,
+      });
+      if (result.afterDialog) {
+        await result.afterDialog({ dialogSystem: this.dialogSystem });
+      }
+    } else {
+      await this.dialogSystem.showDialog({
+        lines: npc.dialog,
+        speakerName: npc.speakerName,
+      });
+    }
+    // Restore original facing.
+    this.gridEngine.turnTowards(npc.id, originalDir);
+    if (sprite) sprite.flipX = originalDir === Direction.RIGHT;
   }
 
   // ── Exit warp detection ──────────────────────────────────────
@@ -1051,56 +1206,22 @@ export class InteriorScene extends Phaser.Scene {
   }
 
   // ── Blocked walk-in-place (OG Emerald behavior) ──────────────
-
-  private static readonly BONK_INTERVAL_WALK = 700;
-  private static readonly BONK_INTERVAL_RUN = 350;
+  //
+  // Animation timers + bonk cadence are owned by the shared helper
+  // in @/game/utils/sceneHelpers. This wrapper hands over `this` so
+  // the helper can mutate the blocked-walk state fields declared
+  // above (matching the BlockedWalkState structural interface).
 
   private handleBlocked(moveDir: Direction, delta: number): void {
-    this.gridEngine.turnTowards("player", moveDir);
-    this.playerSprite.flipX = moveDir === Direction.RIGHT;
-
-    const speed = this.isRunning ? RUN_SPEED : WALK_SPEED;
-    const stepMs = 1000 / speed;
-    const halfStep = stepMs / 2;
-
-    // First frame of being blocked — bonk immediately
-    if (this.blockedDir !== moveDir) {
-      this.blockedDir = moveDir;
-      this.blockedStepTimer = 0;
-      this.blockedBonkTimer = 0;
-      this.blockedFootToggle = false;
-      sfx.collision();
-      const animSet = this.isRunning ? RUN_ANIM : WALK_ANIM;
-      const key = this.dirToAnimKey(moveDir);
-      this.playerSprite.setFrame(animSet[key].leftFoot);
-      return;
-    }
-
-    this.blockedStepTimer += delta;
-    this.blockedBonkTimer += delta;
-
-    const animSet = this.isRunning ? RUN_ANIM : WALK_ANIM;
-    const key = this.dirToAnimKey(moveDir);
-
-    if (this.blockedStepTimer < halfStep) {
-      const foot = this.blockedFootToggle ? animSet[key].rightFoot : animSet[key].leftFoot;
-      this.playerSprite.setFrame(foot);
-    } else if (this.blockedStepTimer < stepMs) {
-      this.playerSprite.setFrame(animSet[key].standing);
-    } else {
-      this.blockedStepTimer -= stepMs;
-      this.blockedFootToggle = !this.blockedFootToggle;
-      const foot = this.blockedFootToggle ? animSet[key].rightFoot : animSet[key].leftFoot;
-      this.playerSprite.setFrame(foot);
-    }
-
-    const bonkInterval = this.isRunning
-      ? InteriorScene.BONK_INTERVAL_RUN
-      : InteriorScene.BONK_INTERVAL_WALK;
-    if (this.blockedBonkTimer >= bonkInterval) {
-      this.blockedBonkTimer -= bonkInterval;
-      sfx.collision();
-    }
+    handleBlockedWalk(
+      this,
+      moveDir,
+      delta,
+      this.isRunning,
+      this.playerSprite,
+      this.gridEngine,
+      "player",
+    );
   }
 
   // ── Helpers ──────────────────────────────────────────────────
@@ -1113,7 +1234,7 @@ export class InteriorScene extends Phaser.Scene {
       return {
         tile: this.explicitSpawnTile,
         facing: this.explicitSpawnFacing
-          ? this.stringToDirection(this.explicitSpawnFacing)
+          ? stringToDirection(this.explicitSpawnFacing)
           : Direction.UP,
       };
     }
@@ -1124,7 +1245,7 @@ export class InteriorScene extends Phaser.Scene {
     if (saved && saved.interiorKey === this.interiorKey) {
       return {
         tile: { x: saved.x, y: saved.y },
-        facing: this.stringToDirection(saved.facing),
+        facing: stringToDirection(saved.facing),
       };
     }
 
@@ -1133,7 +1254,7 @@ export class InteriorScene extends Phaser.Scene {
     if (warp) {
       return {
         tile: warp.spawnTile,
-        facing: this.stringToDirection(warp.spawnFacing),
+        facing: stringToDirection(warp.spawnFacing),
       };
     }
 
@@ -1150,38 +1271,8 @@ export class InteriorScene extends Phaser.Scene {
     return { tile: { x: 0, y: 0 }, facing: Direction.DOWN };
   }
 
-  private getTileInDirection(
-    pos: { x: number; y: number },
-    dir: Direction,
-  ): { x: number; y: number } {
-    switch (dir) {
-      case Direction.UP: return { x: pos.x, y: pos.y - 1 };
-      case Direction.DOWN: return { x: pos.x, y: pos.y + 1 };
-      case Direction.LEFT: return { x: pos.x - 1, y: pos.y };
-      case Direction.RIGHT: return { x: pos.x + 1, y: pos.y };
-      default: return pos;
-    }
-  }
-
-  private dirToAnimKey(dir: Direction): "down" | "up" | "left" | "right" {
-    switch (dir) {
-      case Direction.DOWN: return "down";
-      case Direction.UP: return "up";
-      case Direction.LEFT: return "left";
-      case Direction.RIGHT: return "right";
-      default: return "down";
-    }
-  }
-
-  private stringToDirection(s: string): Direction {
-    switch (s) {
-      case "up": return Direction.UP;
-      case "down": return Direction.DOWN;
-      case "left": return Direction.LEFT;
-      case "right": return Direction.RIGHT;
-      default: return Direction.DOWN;
-    }
-  }
+  // getTileInDirection, dirToAnimKey, stringToDirection moved to
+  // @/game/utils/sceneHelpers
 
   // ── Camera centering (works with zoom/resize) ──────────────
 
