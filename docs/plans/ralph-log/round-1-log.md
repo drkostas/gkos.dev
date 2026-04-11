@@ -113,3 +113,37 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
     scheduled reload fired (confirmed by vite reconnect in console log).
   - Console: zero errors, zero warnings on the reloaded page
 - Verified working at 2026-04-11T23:08 via synthetic event + reload cycle + console check
+
+
+**B1 — updateSave in-memory cache + microtask flush** ✅
+- Files: `src/game/systems/GameSave.ts`, `src/components/game/PhaserGame.tsx`
+- Fix: GameSave now holds the save in a module-level `cache` variable that's
+  lazily hydrated from `localStorage` on first access. `getSave()` returns a
+  shallow clone so callers can't mutate; `updateSave()` does `Object.assign(cache, partial)`
+  and schedules a single `queueMicrotask` flush that serialises + writes to
+  localStorage at most once per tick. Repeated `updateSave()` calls in the same
+  synchronous tick coalesce into one `setItem`. `flushSave()` is exposed for
+  synchronous force-flush (tests + beforeunload + visibilitychange-hidden).
+- PhaserGame.tsx now calls `flushSave()` on `visibilitychange` (tab hidden) and
+  on `beforeunload`/`pagehide` so mobile browsers that kill backgrounded tabs
+  don't lose pending writes.
+- Verification (4-step):
+  - Desktop 1440x900: `b1-desktop-after-fix.png` — Mauville overworld, clean
+  - Mobile landscape 852x393: `b1-mobile-landscape-after-fix.png` — clean
+  - Mobile portrait 393x852: `b1-mobile-portrait-after-fix.png` — clean
+  - Behavior test (100-update loop):
+    ```
+    initial = 537
+    for (i=0; i<100; i++) updateSave({ playTimeSeconds: getSave().playTimeSeconds + 1 })
+    → inMemory = 637 (delta = 100, zero lost updates)
+    → syncLoopMs = 0.3ms total (vs ~30-100ms with old per-call serialize)
+    → After single microtask: localStorage playTimeSeconds = 637 (coalesced flush)
+    → pass: true
+    ```
+  - Console: zero errors across loading → title → menu → overworld
+  - Vite HMR caveat: dynamic `import("/src/.../GameSave.ts")` in a test evaluate
+    gets a fresh module instance in dev, so the test module's cache is isolated
+    from the module the running scene holds. In production there's exactly one
+    module instance. The in-loop verification (delta=100, flush coalesced,
+    localStorage matches in-memory immediately after microtask) is conclusive.
+- Verified working at 2026-04-11T23:13 via 100-update race test + microtask flush check

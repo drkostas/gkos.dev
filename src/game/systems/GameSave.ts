@@ -132,7 +132,33 @@ function defaults(): GameSave {
   };
 }
 
-function readSave(): GameSave {
+// ── In-memory cache ──────────────────────────────────────
+//
+// Prior to B1, every updateSave() did a fresh
+// localStorage.getItem + JSON.parse + shallow-merge + JSON.stringify
+// + localStorage.setItem. This has two problems:
+//
+//   1. Performance: for callers that update the save many times in
+//      rapid succession (step counter, pickup bursts, badge cascades)
+//      each call pays the full serialize/deserialize cost.
+//
+//   2. Lost-update race across async boundaries. Two async code paths
+//      that each do `const s = readSave(); ... ; writeSave({...s, x});`
+//      can read the same baseline, produce divergent in-memory copies,
+//      and the second write overwrites the first. The typical trigger
+//      is a badge-earned flow that awaits a dialog while a step-count
+//      callback increments steps on the same tick.
+//
+// Fix: keep a single in-memory copy as the source of truth. All reads
+// return the live cache (cloned so callers can't mutate it), and all
+// writes mutate the cache directly + schedule a microtask flush to
+// localStorage. Repeated updateSave() calls in the same tick coalesce
+// into a single localStorage.setItem.
+
+let cache: GameSave | null = null;
+let flushScheduled = false;
+
+function loadFromStorage(): GameSave {
   if (typeof localStorage === "undefined") return defaults();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -144,35 +170,80 @@ function readSave(): GameSave {
   }
 }
 
-function writeSave(save: GameSave): void {
-  if (typeof localStorage === "undefined") return;
+function ensureCache(): GameSave {
+  if (cache === null) cache = loadFromStorage();
+  return cache;
+}
+
+function scheduleFlush(): void {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  // Microtask coalesces all same-tick writes into a single setItem.
+  // queueMicrotask is available in every modern browser and node >= 11.
+  queueMicrotask(() => {
+    flushScheduled = false;
+    if (typeof localStorage === "undefined" || cache === null) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+    } catch {
+      // quota exceeded / storage disabled — swallow so game keeps running
+    }
+  });
+}
+
+/**
+ * Force an immediate synchronous flush of any pending save mutations
+ * to localStorage. Useful in tests and in `beforeunload` handlers so
+ * nothing sits in the microtask queue when the tab closes.
+ */
+export function flushSave(): void {
+  if (typeof localStorage === "undefined" || cache === null) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
   } catch {
     // ignore
   }
 }
 
-/** Read the full save. */
+/** Read the full save. Returns a shallow clone so callers can't mutate the cache. */
 export function getSave(): GameSave {
-  return readSave();
+  return { ...ensureCache() };
 }
 
-/** Merge a partial save and persist. Returns the new save. */
+/** Merge a partial save and schedule a flush. Returns the new save. */
 export function updateSave(partial: Partial<GameSave>): GameSave {
-  const next = { ...readSave(), ...partial };
-  writeSave(next);
-  return next;
+  const c = ensureCache();
+  Object.assign(c, partial);
+  scheduleFlush();
+  return { ...c };
 }
 
 /** Wipe all game state (preserves settings like text speed / frame style). */
 export function clearSave(): void {
+  // Reset the in-memory cache first so reads immediately see the blank slate,
+  // then drop the localStorage keys. The cache reset must happen before the
+  // key removal so any synchronous code running inside the same microtask
+  // (e.g. a subscriber firing off getSave()) doesn't race the removal.
+  cache = defaults();
+  flushScheduled = false;
   if (typeof localStorage === "undefined") return;
   const keys = Object.keys(localStorage).filter(k => k.startsWith("gkos:explore:"));
   for (const k of keys) {
     if (k === "gkos:explore:settings") continue;
     localStorage.removeItem(k);
   }
+}
+
+// Internal helpers kept for the pokedex / badge / npc / gate writers
+// below. They now short-circuit through the cache + schedule a flush
+// instead of doing a full localStorage read + write cycle.
+function readSave(): GameSave {
+  return ensureCache();
+}
+
+function writeSave(save: GameSave): void {
+  cache = save;
+  scheduleFlush();
 }
 
 /**
