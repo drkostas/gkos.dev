@@ -256,3 +256,33 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
     all 3 viewports
 - Verified working at 2026-04-11T23:50 via live Playwright viewport sweep
   through NEW GAME → BirchSpeechLayer flow on desktop + mobile landscape + portrait
+
+
+**M5 — --ui-scale-x/y floor lowered from 0.6 to 0.35** ✅
+- 17 game UI files use `calc(Npx * var(--ui-scale-x/y))`. The floor of 0.6
+  in PhaserGame.tsx was clamping too aggressively on narrow portrait phones,
+  making StartMenu / BagMenu / Options / Help / every overlay look chonky
+  because 0.6 of desktop dimensions on a 393px portrait is still most of
+  the viewport width.
+- File: `src/components/game/PhaserGame.tsx`
+- Fix: replaced `Math.max(0.6, vw/1280)` with clamp(0.35, vw/1280, 1.3):
+  - 393px portrait → sx = 0.35 (floor) — 65% smaller than before
+  - 852px landscape → sx = 0.67 — same as before
+  - 1280px desktop → sx = 1.0 — unchanged
+  - 1920px+ → sx = 1.3 (cap) — prevents oversized UI on 4K displays
+- Verification (4-step, StartMenu + BagMenu):
+  - Desktop 1440x900 BAG: `m5-bag-desktop.png` — full-screen layout, 2
+    panels (PAPERS left + CLOSE BAG right), large proportional frame,
+    "Visit the GYM to collect research papers!" clearly readable
+  - Mobile landscape 852x393 BAG: `m5-bag-landscape.png` — bag centered,
+    same 2-panel layout at landscape proportions
+  - Mobile portrait 393x852 BAG: `m5-bag-portrait.png` — bag in middle
+    of viewport, text readable, panels appropriately sized
+  - Mobile portrait 393x852 StartMenu: `m5-startmenu-portrait.png` —
+    menu in top-right with all 7 options (POKeDEX/POKeMON/BAG/TESTER/
+    HELP/OPTION/EXIT) visible and tappable, ~40% of viewport width
+  - Mobile landscape 852x393 StartMenu: `m5-startmenu-landscape-2.png` —
+    compact top-right menu, all 7 options visible
+  - Console: zero errors across viewport sweep
+- Verified working at 2026-04-11T23:58 via Playwright 3-viewport sweep on
+  StartMenu + BagMenu after the scale change
