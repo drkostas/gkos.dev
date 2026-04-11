@@ -1,12 +1,15 @@
 /**
  * Research Log — unlockable journal entries about Kostas's journey.
  *
- * Each entry unlocks at a total discovery count threshold. "Discoveries"
- * = sum of pokedexSeen + papersCollected + blogsCollected + tmsCollected
- * + keyItemsCollected from GameSave.
+ * Each entry unlocks at a total discovery count threshold.
+ * "Discoveries" = overworld-caught Pokemon (party excluded via
+ * getPartyPokedexEntryNumbers) + papersCollected + blogsCollected
+ * + tmsCollected + keyItemsCollected. See `getTotalDiscoveries` below
+ * for the exact formula.
  *
- * The RESEARCH LOG key item is auto-given when the first entry unlocks
- * (5 discoveries). The log viewer is opened from the Bag's USE action.
+ * The RESEARCH LOG key item is given by KOSTAS when the player reaches
+ * a milestone during a gym visit (state machine priority 4 in his
+ * dialogFn). The log viewer is opened from the Bag's USE action.
  */
 
 import { getSave } from "@/game/systems/GameSave";

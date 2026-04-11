@@ -57,7 +57,8 @@ export interface GateDefinition {
   // ── When it opens ──────────────────────────────────────
   /**
    * Field move name required to clear this gate. Matched exactly
-   * against each party member's `save.fieldMoves[species]` list.
+   * against each party member's `save.fieldMoves[id]` list (keyed by
+   * party member id like "medic", NOT species like "latias").
    * Move names are custom (NOT standard Pokemon moves like CUT or
    * SURF). Examples: "TERRAFORM", "DECONSTRUCT", "FORCE PUSH".
    */
