@@ -67,7 +67,7 @@ export class MapNamePopup {
     this.bg.setDepth(99999);
 
     this.text = this.scene.add.text(0, 0, zoneName, {
-      fontFamily: "'Pokemon Emerald Pro', 'Pokemon DS', monospace",
+      fontFamily: "'Pokemon DS', 'Pokemon GB', monospace",
       fontSize: "10px",
       color: "#383838",
     });
