@@ -16,19 +16,10 @@ import { checkBadges } from "@/game/systems/BadgeMilestones";
 import { getSave, markPokedexSeenInSave } from "@/game/systems/GameSave";
 import { addToParty } from "@/game/systems/PartySystem";
 import { trackPokedexRegister } from "@/game/systems/Analytics";
-
-/**
- * Walking animation mapping from original pokeemerald source.
- * Frame layout: 0=down-stand, 1=up-stand, 2=left-stand,
- * 3=down-walkL, 4=down-walkR, 5=up-walkL, 6=up-walkR,
- * 7=left-walkL, 8=left-walkR. Right = left frames + hFlip.
- */
-const WALK_ANIM_MAPPING = {
-  down:  { leftFoot: 3, standing: 0, rightFoot: 4 },
-  up:    { leftFoot: 5, standing: 1, rightFoot: 6 },
-  left:  { leftFoot: 7, standing: 2, rightFoot: 8 },
-  right: { leftFoot: 7, standing: 2, rightFoot: 8 },
-};
+import {
+  WALK_ANIM as WALK_ANIM_MAPPING,
+  OPPOSITE,
+} from "@/game/utils/sceneHelpers";
 
 /** Default min/max interval in ms between autonomous NPC actions. */
 const WALK_BEHAVIOR_MIN_MS = 2000;
@@ -62,14 +53,6 @@ function resolveInterval(npc: NPCDefinition): { min: number; max: number } {
   }
   return { min: WALK_BEHAVIOR_MIN_MS, max: WALK_BEHAVIOR_MAX_MS };
 }
-
-/** Opposite direction lookup for making NPC face the player. */
-const OPPOSITE: Record<string, Direction> = {
-  [Direction.UP]: Direction.DOWN,
-  [Direction.DOWN]: Direction.UP,
-  [Direction.LEFT]: Direction.RIGHT,
-  [Direction.RIGHT]: Direction.LEFT,
-};
 
 /**
  * Runtime state for an ephemeral Pokemon. Kept alive in
