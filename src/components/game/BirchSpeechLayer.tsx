@@ -371,17 +371,34 @@ export default function BirchSpeechLayer({ onComplete }: BirchSpeechLayerProps) 
     phase === "ARE_YOU_READY";
 
   // "Full text shown" = not typing AND on the last line of the sequence
-  // AND the displayed text has actually been rendered for the current
-  // phase. The last guard prevents a one-frame flash of the gender /
-  // confirm menu during phase transitions: when `phase` flips ahead of
-  // the typewriter's next `start()`, the previous phase's `isTyping`
-  // and `textLineIndex` values are still stale in refs, so without the
-  // `displayedText.length > 0` check the menu would render for a single
-  // frame before the new phase's text kicks off.
+  // AND the typewriter has actually rendered the CURRENT line to completion.
+  //
+  // Two flash scenarios guarded here:
+  //
+  // 1. PHASE TRANSITION FLASH (B2b): when `phase` flips ahead of the
+  //    typewriter's next `start()`, the previous phase's `isTyping` and
+  //    `textLineIndex` values are still stale in refs. Checking
+  //    `displayedText.length > 0` alone is NOT enough — stale text
+  //    from the previous phase satisfies that.
+  //
+  // 2. LINE ADVANCE FLASH (B4): when advancing from "Are you a boy?"
+  //    to "Or are you a girl?", `setTextLineIndex(1)` commits one
+  //    render BEFORE `startTyping(line1)` mutates the typewriter.
+  //    For that single render: textLineIndex=1 (last line),
+  //    isTyping=false (just finished line 0), displayedText="Are you
+  //    a boy?" (still full from line 0). All three guards pass, so
+  //    the gender menu flashes for one frame, then disappears when
+  //    the new line starts typing.
+  //
+  // The fix: compare `displayedText` against the EXPECTED current
+  // line (`currentLine` is derived above from `textLines[textLineIndex]`).
+  // If they don't match, the typewriter hasn't caught up with
+  // `textLineIndex` yet, and we're in the one-frame gap.
   const allTextShown =
     !isTyping &&
     textLineIndex >= textLines.length - 1 &&
-    displayedText.length > 0;
+    displayedText.length > 0 &&
+    displayedText === currentLine;
 
   const showGenderMenu = phase === "GENDER_SELECT" && allTextShown;
   const showConfirmMenu = phase === "NAME_CONFIRM" && allTextShown;

@@ -4,9 +4,10 @@ import { isPokedexSeen, getPokedexSeenCount } from "@/game/systems/PokedexStore"
 import {
   markUrlOpened,
   hasUrlOpened,
-  checkBadges,
+  hasBadge,
   isPokedexCaughtInSave,
 } from "@/game/systems/GameSave";
+import { checkBadges } from "@/game/systems/BadgeMilestones";
 import { showNotification } from "@/game/EventBridge";
 import { sfx } from "@/game/systems/SoundManager";
 import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
@@ -75,8 +76,11 @@ export default function PokedexList({ onClose }: PokedexListProps) {
     const key = `pokedex:${entry.number}`;
     const wasFirstOpen = markUrlOpened(key);
     if (wasFirstOpen) {
-      const newBadges = checkBadges();
-      if (newBadges.includes("devoted")) {
+      // checkBadges auto-awards DEVOTED when the last URL is opened.
+      // Check before + after so we can show the earned notification.
+      const hadDevoted = hasBadge("devoted");
+      checkBadges();
+      if (!hadDevoted && hasBadge("devoted")) {
         showNotification("DEVOTED badge earned!", "★");
       }
     }

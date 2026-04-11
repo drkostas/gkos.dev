@@ -3,8 +3,9 @@ import {
   getCollectedByPocket,
   markUrlOpened,
   hasUrlOpened,
-  checkBadges,
+  hasBadge,
 } from "@/game/systems/GameSave";
+import { checkBadges } from "@/game/systems/BadgeMilestones";
 import { showNotification, GameEvents, emitGameEvent, onGameEvent } from "@/game/EventBridge";
 import type { BagPocketId } from "@/game/data/itemDefinitions";
 import { sfx } from "@/game/systems/SoundManager";
@@ -130,8 +131,12 @@ export default function BagMenu({ onClose }: BagMenuProps) {
               const urlKey = `${currentPocket.id}:${contextItem.name}`;
               const wasFirstOpen = markUrlOpened(urlKey);
               if (wasFirstOpen) {
-                const newBadges = checkBadges();
-                if (newBadges.includes("devoted")) {
+                // checkBadges auto-awards DEVOTED when the last URL
+                // is opened. Check before + after so we can show the
+                // earned notification.
+                const hadDevoted = hasBadge("devoted");
+                checkBadges();
+                if (!hadDevoted && hasBadge("devoted")) {
                   showNotification("DEVOTED badge earned!", "★");
                 }
               }
