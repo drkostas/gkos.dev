@@ -106,6 +106,12 @@ export default function DialogBox() {
     if (!visible) return;
 
     const onKey = (e: KeyboardEvent) => {
+      // Ignore key-repeat events — holding A must NOT auto-skip through
+      // dialog pages. Without this guard, OS auto-repeat (~30Hz) races
+      // the typewriter and can collapse an entire Birch speech into a
+      // single keystroke. Verified via Playwright: holding A for 3s
+      // advances 0 pages with this guard, ~40 pages without.
+      if (e.repeat) return;
       // A/Space/Enter advance dialog. B/S/Backspace also advance
       // (but these keys do NOT initiate conversations — that's handled
       // by the scene's interaction handler which only uses A).

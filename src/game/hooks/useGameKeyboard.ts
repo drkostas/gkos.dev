@@ -71,6 +71,13 @@ export function useGameKeyboard(
   useEffect(() => {
     if (!active) return;
     const listener = (e: KeyboardEvent) => {
+      // Ignore key-repeat events globally. Holding a key must never
+      // auto-scroll menus, auto-advance dialogs, or auto-confirm
+      // actions. OS autorepeat fires at ~30Hz and would race the
+      // typewriter, scroll through menu items, and double-fire
+      // confirm handlers. Every component using this hook benefits
+      // from a single top-level guard.
+      if (e.repeat) return;
       if (isConfirmKey(e.key) && handlers.confirm) {
         e.preventDefault();
         handlers.confirm();
