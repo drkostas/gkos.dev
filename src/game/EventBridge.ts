@@ -9,13 +9,55 @@ export const GameEvents = {
   SHOW_DIALOG: "game:show-dialog",
   HIDE_DIALOG: "game:hide-dialog",
   DIALOG_COMPLETE: "game:dialog-complete",
-  SHOW_ENCOUNTER: "game:show-encounter",
-  ENCOUNTER_CHOICE: "game:encounter-choice",
   SHOW_MENU: "game:show-menu",
   MENU_CLOSE: "game:menu-close",
   /** Debug mode: overlays semi-transparent tile coords so user can point at exact positions. */
   TOGGLE_DEBUG: "game:toggle-debug",
+  /** Map name popup: shows zone name when entering a new area. */
+  SHOW_MAP_NAME: "game:show-map-name",
+  /** Open the PC interface. */
+  SHOW_PC: "game:show-pc",
+  /** PC closed — resume game. */
+  PC_CLOSE: "game:pc-close",
+  /** Open the questionnaire interface (letter on the desk). */
+  SHOW_QUESTIONNAIRE: "game:show-questionnaire",
+  /** Questionnaire closed — resume game. */
+  QUESTIONNAIRE_CLOSE: "game:questionnaire-close",
+  /**
+   * Show a non-blocking notification banner at the top-center of
+   * the screen. Multiple fires are queued by the React banner
+   * component and shown one at a time.
+   */
+  SHOW_NOTIFICATION: "game:show-notification",
+  /** Open the research log viewer. */
+  SHOW_RESEARCH_LOG: "game:show-research-log",
+  /** Research log closed. */
+  RESEARCH_LOG_CLOSE: "game:research-log-close",
 } as const;
+
+export interface QuestionnairePayload {
+  /** Unique id used to persist completion / award the item. */
+  id: string;
+}
+
+export interface NotificationPayload {
+  /** Text shown inside the pill. */
+  message: string;
+  /** Optional single-char prefix (default: "♪"). */
+  icon?: string;
+}
+
+/**
+ * Fire a notification banner. Fire-and-forget — the banner is
+ * non-blocking and queues itself. Safe to call from any scene or
+ * React component.
+ */
+export function showNotification(
+  message: string,
+  icon?: string,
+): void {
+  emitGameEvent(GameEvents.SHOW_NOTIFICATION, { message, icon });
+}
 
 /**
  * Read the persisted debug-mode state from localStorage.
@@ -40,14 +82,6 @@ export interface DialogPayload {
   choices?: { label: string; action: string; url?: string }[];
 }
 
-export interface EncounterPayload {
-  type: "wild" | "trainer";
-  name: string;
-  description: string;
-  category: string;
-  level: number;
-  links: { label: string; url: string }[];
-}
 
 /**
  * Emit a game event on `window` with an optional detail payload.

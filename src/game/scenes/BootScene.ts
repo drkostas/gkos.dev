@@ -1,4 +1,7 @@
 import Phaser from "phaser";
+import { bgm } from "@/game/systems/BGMManager";
+import { loadInteriorState } from "@/game/systems/InteriorStateStore";
+import { WILD_POKEMON_SPECIES } from "@/game/data/wild-pokemon";
 
 /**
  * BootScene — preloads all placeholder assets then hands off to OverworldScene.
@@ -17,6 +20,10 @@ export class BootScene extends Phaser.Scene {
     // need their top layer in the ground so the player covers them.
     // Layer-type-0 top layers (trees, signs, fences) are in the foreground.
     this.load.image("mauville_bottom", "/game/tilesets/mauville_ground.png");
+
+    // Map name popup backgrounds (OG map_popup assets)
+    this.load.image("popup_marble", "/game/ui/popup_marble.png");
+    this.load.image("popup_wood", "/game/ui/popup_wood.png");
 
     // Top-layer-only tileset used by obstructive overlay sprites
     // (signs etc.) so they only draw the object pixels, not grass bg.
@@ -58,6 +65,11 @@ export class BootScene extends Phaser.Scene {
       "youngster",
       "man_1",
       "pokefan_f",
+      // Team Magma & Aqua grunts
+      "magma_member_m",
+      "magma_member_f",
+      "aqua_member_m",
+      "aqua_member_f",
     ];
     for (const name of npcSprites) {
       this.load.spritesheet(name, `/game/sprites/emerald/${name}.png`, {
@@ -80,6 +92,39 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
 
+    // Slaking — 48x48 Lanczos from 64x64 (75%), rendered at scale 2/3 = 32px.
+    this.load.spritesheet("slaking", "/game/sprites/emerald/slaking.png", {
+      frameWidth: 48,
+      frameHeight: 48,
+    });
+
+    // Slakoth — 48x48 Lanczos from 64x64 (75%), rendered at scale 2/3 = 32px.
+    this.load.spritesheet("slakoth", "/game/sprites/emerald/slakoth.png", {
+      frameWidth: 48,
+      frameHeight: 48,
+    });
+
+    // Poochyena overworld — 288x32, 9 frames of 32x32 (same layout as NPCs).
+    // Used by both Team Aqua and Magma in cutscenes.
+    this.load.spritesheet("poochyena_ow", "/game/sprites/emerald/poochyena_ow.png", {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+
+    // Tall grass overlay — 80x16, 5 frames of 16x16.
+    // OG field effect: renders on top of player's lower body in grass.
+    this.load.spritesheet("tall_grass", "/game/sprites/emerald/tall_grass.png", {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
+
+    // Nurse Joy — 64x32 = 4 frames of 16x32 (down, up, left, right standing).
+    // Not 9-frame like standard NPCs. Used as non-animated (stationary facing down).
+    this.load.spritesheet("nurse", "/game/sprites/emerald/nurse.png", {
+      frameWidth: 16,
+      frameHeight: 32,
+    });
+
     // Old Man (day care guy) — 48x32 = 3 frames of 16x32.
     // Loaded as 3-frame spritesheet to match the actual file size.
     // Used as a non-animated NPC (Grid Engine won't use walk animation
@@ -88,9 +133,33 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 32,
     });
+
+    // Wild Pokemon overworld sprites — party-style icons (32x64, 2 frames).
+    // Frame 0 = normal, Frame 1 = bounce. Used for idle animation on the map.
+    for (const species of WILD_POKEMON_SPECIES) {
+      this.load.spritesheet(`pkmn_${species}`, `/game/sprites/pokemon/icons/${species}.png`, {
+        frameWidth: 32,
+        frameHeight: 32,
+      });
+    }
   }
 
   create(): void {
-    this.scene.start("OverworldScene");
+    // Wait for BGM to preload before starting the overworld.
+    // This ensures music can play instantly when the scene starts.
+    bgm.preloadAll().then(() => {
+      // Check if player was saved inside a building
+      const interior = loadInteriorState();
+      if (interior) {
+        this.scene.start("InteriorScene", {
+          interiorKey: interior.interiorKey,
+          returnPos: null, // will use overworld save for return
+          spawnPos: { x: interior.x, y: interior.y },
+          spawnFacing: interior.facing,
+        });
+      } else {
+        this.scene.start("OverworldScene");
+      }
+    });
   }
 }

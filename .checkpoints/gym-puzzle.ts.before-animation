@@ -1,0 +1,96 @@
+/**
+ * Mauville Gym electric puzzle — exact OG replication.
+ *
+ * Data extracted from pokeemerald:
+ *   - include/constants/metatile_labels.h (metatile IDs)
+ *   - src/field_specials.c MauvilleGymSetDefaultBarriers (toggle logic)
+ *   - data/maps/MauvilleCity_Gym/scripts.inc (switch scripts + barrier setup)
+ *
+ * The OG logic: stepping on any switch calls `MauvilleGymSetDefaultBarriers`
+ * which walks the map in the puzzle area (y 5-16, x 0-8) and flips EVERY
+ * barrier metatile between its ON and OFF variants according to the table
+ * defined in the C source. We replicate this at runtime by mapping each
+ * tile ID to its "partner" tile ID and swapping on every press.
+ */
+
+/**
+ * Tile ID → partner tile ID mapping (derived from OG
+ * MauvilleGymSetDefaultBarriers switch cases).
+ *
+ * Compact tile IDs (1-based GIDs) match the regenerated gym_bottom.png
+ * produced by compose-interior-maps.mjs with the barrier-pair injection.
+ */
+export const GYM_TILE_SWAP: Record<number, number> = {
+  // Green horizontal beams: On ↔ Off
+  28: 44, 44: 28,   // GreenH1
+  29: 45, 45: 29,   // GreenH2
+  36: 52, 52: 36,   // GreenH3
+  37: 53, 53: 37,   // GreenH4
+
+  // Red horizontal beams: On ↔ Off
+  30: 46, 46: 30,   // RedH1
+  31: 47, 47: 31,   // RedH2
+  38: 54, 54: 38,   // RedH3
+  39: 55, 55: 39,   // RedH4
+
+  // Vertical beams and poles
+  // GreenV1_On (58) ↔ PoleBottom_On (60)
+  58: 60, 60: 58,
+  // GreenV2_On (65) ↔ FloorTile (24)
+  65: 24,
+  // RedV1_On (59) ↔ PoleBottom_Off (61)
+  59: 61, 61: 59,
+  // RedV2_On (66) ↔ FloorTile (24)
+  66: 24,
+  // PoleTop_On (71) ↔ PoleTop_Off (72)
+  71: 72, 72: 71,
+};
+
+/**
+ * Tiles that BLOCK movement when currently placed on the map.
+ * These match the OG "On" variants that have MAPGRID_IMPASSABLE set.
+ */
+/**
+ * Tiles that BLOCK movement — derived EXACTLY from pokeemerald's
+ * MauvilleGymSetDefaultBarriers (field_specials.c) and the default-state
+ * collision bits in MauvilleCity_Gym map.bin.
+ *
+ * Rules:
+ *   - H1/H2 "On" and "Off": ALWAYS passable (top halves of beams).
+ *   - H3/H4 "On": blocking (has MAPGRID_IMPASSABLE in the Off→On toggle).
+ *   - H3/H4 "Off": passable.
+ *   - GreenV1/V2, RedV1/V2 "On": blocking (vertical beams).
+ *   - PoleBottom On/Off: blocking (physical pole base).
+ *   - PoleTop_On: blocking. PoleTop_Off: PASSABLE (top of empty pole).
+ */
+export const GYM_BLOCKING_TILES: Set<number> = new Set([
+  36, 37,   // GreenH3_On, GreenH4_On
+  38, 39,   // RedH3_On, RedH4_On
+  58, 59,   // GreenV1_On, RedV1_On
+  60, 61,   // PoleBottom_On, PoleBottom_Off
+  65, 66,   // GreenV2_On, RedV2_On
+  71,       // PoleTop_On (PoleTop_Off = 72 is passable)
+]);
+
+/**
+ * The 4 switch tile positions (from pokeemerald map.json coordinate_events).
+ */
+export const GYM_SWITCHES = [
+  { id: 1, x: 0, y: 15 },
+  { id: 2, x: 4, y: 12 },
+  { id: 3, x: 3, y: 9 },
+  { id: 4, x: 8, y: 9 },
+];
+
+/** Compact tile IDs for switch states. */
+export const GYM_RAISED_SWITCH = 7;   // 0x205
+export const GYM_PRESSED_SWITCH = 8;  // 0x206
+
+/**
+ * Puzzle area bounding box (matches OG MauvilleGymSetDefaultBarriers loop).
+ * x: 0..8, y: 5..16 (inclusive of 5, exclusive of 17).
+ */
+export const GYM_PUZZLE_BOUNDS = {
+  x0: 0, x1: 9,
+  y0: 5, y1: 17,
+};

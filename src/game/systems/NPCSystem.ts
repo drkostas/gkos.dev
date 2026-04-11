@@ -4,6 +4,11 @@ import type GridEngine from "grid-engine";
 import { MovementBehavior, type NPCDefinition } from "@/game/types/npc";
 import { DialogSystem } from "@/game/systems/DialogSystem";
 import { isPickedUp, recordPickup } from "@/game/systems/PickupStore";
+import { sfx } from "@/game/systems/SoundManager";
+import { isPokedexSeen, markPokedexSeen } from "@/game/systems/PokedexStore";
+import { isTrainerCleared, markTrainerCleared } from "@/game/systems/TrainerStore";
+import { checkBadges } from "@/game/systems/BadgeMilestones";
+import { getSave, markPokedexSeenInSave } from "@/game/systems/GameSave";
 
 /**
  * Walking animation mapping from original pokeemerald source.
@@ -45,6 +50,7 @@ export class NPCSystem {
   private dialogSystem: DialogSystem;
   private npcs: NPCDefinition[];
   private sprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
+  private shadows: Map<string, Phaser.GameObjects.Ellipse> = new Map();
   private behaviorTimers: Phaser.Time.TimerEvent[] = [];
   /** Track each wandering NPC's home position for range clamping. */
   private homePositions: Map<string, { x: number; y: number }> = new Map();
@@ -66,7 +72,108 @@ export class NPCSystem {
     for (const npc of this.npcs) {
       // Skip pickups that have already been collected
       if (npc.pickup && isPickedUp(npc.id)) continue;
-      this.createNPC(npc);
+      // Skip NPCs whose spawn condition is not met
+      if (npc.spawnCondition && !npc.spawnCondition()) continue;
+
+      // AutoGive trainers that are already cleared: spawn at aside position
+      if (npc.autoGive && isTrainerCleared(npc.id)) {
+        this.createNPC({
+          ...npc,
+          position: { ...npc.autoGive.asidePosition },
+        });
+      } else {
+        this.createNPC(npc);
+      }
+    }
+    this.startIdleAnimations();
+  }
+
+  /**
+   * OG-style idle animations:
+   * - Walk-in-place for Poochyena (cycle walk frames while stationary)
+   * - Breathing scale for sleeping Pokemon (Snorlax/Slaking/Slakoth)
+   * - Shadows under all NPC sprites
+   */
+  private startIdleAnimations(): void {
+    for (const npc of this.npcs) {
+      if (npc.pickup && isPickedUp(npc.id)) continue;
+      const sprite = this.sprites.get(npc.id);
+      if (!sprite) continue;
+
+      // ── Shadows ──────────────────────────────────────────
+      // OG game draws a small elliptical shadow under every overworld sprite.
+      // Skip item balls and sleeping 32x32 Pokemon (they sit on the ground).
+      if (npc.spriteKey !== "item_ball") {
+        const shadow = this.scene.add.ellipse(0, 0, 10, 4, 0x000000, 0.2);
+        shadow.setDepth(sprite.depth - 1);
+        // Track shadow with sprite position each frame
+        this.shadows.set(npc.id, shadow);
+      }
+
+      // ── Sleeping Pokemon: breathing scale ────────────────
+      const isSleeping = npc.spriteKey === "snorlax" ||
+        npc.spriteKey === "slaking" ||
+        npc.spriteKey === "slakoth";
+      if (isSleeping) {
+        this.scene.tweens.add({
+          targets: sprite,
+          scaleX: (npc.scale ?? 1) * 1.04,
+          scaleY: (npc.scale ?? 1) * 0.96,
+          duration: 1500,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+          delay: Math.random() * 1000,
+        });
+        continue;
+      }
+
+      // ── Wild Pokemon idle bounce (2-frame icon animation) ──
+      if (npc.pokemon && npc.spriteKey.startsWith("pkmn_")) {
+        const bounceFrames = [0, 1];
+        (sprite as any).__walkFrames = bounceFrames;
+        (sprite as any).__walkIdx = 0;
+        const timer = this.scene.time.addEvent({
+          delay: 500,
+          loop: true,
+          callback: () => {
+            if (!sprite.active) return;
+            const idx = ((sprite as any).__walkIdx + 1) % bounceFrames.length;
+            (sprite as any).__walkIdx = idx;
+          },
+        });
+        this.behaviorTimers.push(timer);
+        continue;
+      }
+
+      // ── Walk-in-place for Poochyena ──────────────────────
+      // OG MOVEMENT_TYPE_WALK_IN_PLACE: cycle standing → leftFoot →
+      // standing → rightFoot at ~250ms per frame.
+      // NOTE: Poochyena is animated:true so Grid Engine applies
+      // walkingAnimationMapping, which sets the standing frame every tick.
+      // We override that in updateDepth() by re-setting the walk frame.
+      if (npc.spriteKey === "poochyena_ow") {
+        const dir = npc.facingDirection;
+        const dirKey = dir === Direction.DOWN ? "down" :
+          dir === Direction.UP ? "up" :
+          dir === Direction.LEFT ? "left" : "right";
+        const mapping = WALK_ANIM_MAPPING[dirKey];
+        const walkFrames = [mapping.standing, mapping.leftFoot, mapping.standing, mapping.rightFoot];
+        if (dir === Direction.RIGHT) sprite.flipX = true;
+        // Store walk-in-place state on the sprite for updateDepth() to read
+        (sprite as any).__walkFrames = walkFrames;
+        (sprite as any).__walkIdx = 0;
+        const timer = this.scene.time.addEvent({
+          delay: 250,
+          loop: true,
+          callback: () => {
+            if (!sprite.active) return;
+            const idx = ((sprite as any).__walkIdx + 1) % walkFrames.length;
+            (sprite as any).__walkIdx = idx;
+          },
+        });
+        this.behaviorTimers.push(timer);
+      }
     }
   }
 
@@ -88,6 +195,7 @@ export class NPCSystem {
       const npcPos = this.gridEngine.getPosition(npc.id);
       if (npcPos.x === target.x && npcPos.y === target.y) {
         // Make NPC face the player (opposite of player's facing direction)
+        const originalDir = npc.facingDirection;
         if (npc.animated) {
           const faceDir = OPPOSITE[playerFacing];
           this.gridEngine.turnTowards(npc.id, faceDir);
@@ -95,10 +203,150 @@ export class NPCSystem {
           if (sprite) sprite.flipX = faceDir === Direction.RIGHT;
         }
 
-        await this.dialogSystem.showDialog({
-          lines: npc.dialog,
-          speakerName: npc.speakerName,
-        });
+        // ── Pokemon encounter: flash + dialog + Pokedex registration ──
+        if (npc.pokemon) {
+          const pkm = npc.pokemon;
+          const firstTime = !isPokedexSeen(pkm.pokedexNumber);
+
+          if (firstTime) {
+            // Flash: white screen flash via Phaser camera
+            sfx.pickup();
+            this.scene.cameras.main.flash(250, 255, 255, 255);
+            // Wait for flash to finish before showing dialog
+            await new Promise<void>((resolve) => {
+              this.scene.time.delayedCall(300, resolve);
+            });
+
+            // Discovery dialog
+            const descLines = pkm.projectDescription
+              .split("\n")
+              .flatMap((l) => (l.length > 36 ? [l.slice(0, 36), l.slice(36)] : [l]));
+            await this.dialogSystem.showDialog({
+              lines: [
+                `${pkm.speciesName} noticed you!`,
+                "",
+                ...descLines,
+              ],
+              speakerName: pkm.speciesName,
+            });
+
+            // Register in Pokedex (both stores for backwards compat)
+            markPokedexSeen(pkm.pokedexNumber);
+            markPokedexSeenInSave(pkm.pokedexNumber);
+            checkBadges();
+
+            // Registration notification
+            await this.dialogSystem.showDialog({
+              lines: [
+                `${pkm.speciesName} was registered`,
+                `in the POKeDEX!`,
+              ],
+            });
+          } else {
+            // Repeat encounter — shorter dialog
+            const repeatLines = pkm.repeatDialog ?? [
+              `${pkm.speciesName} is still here.`,
+              `It seems to be working on`,
+              `${pkm.projectName}...`,
+            ];
+            await this.dialogSystem.showDialog({
+              lines: repeatLines,
+              speakerName: pkm.speciesName,
+            });
+          }
+
+          return true;
+        }
+
+        // ── Auto-give trainer: item + move aside ──────────────
+        if (npc.autoGive) {
+          const cleared = isTrainerCleared(npc.id);
+          if (cleared) {
+            // Already cleared — show short dialog at aside position
+            const lines = npc.autoGive.clearedDialog ?? [
+              "Good luck with the rest",
+              "of the GYM!",
+            ];
+            await this.dialogSystem.showDialog({
+              lines,
+              speakerName: npc.speakerName,
+            });
+          } else {
+            // First interaction: dialog → give item → move aside
+            await this.dialogSystem.showDialog({
+              lines: npc.dialog,
+              speakerName: npc.speakerName,
+            });
+
+            // Give item — pick the pocket-appropriate jingle so
+            // blog posts and TMs don't all play the generic
+            // item-get chime.
+            if (npc.autoGive.pocket === "blogs") {
+              sfx.blogGet();
+            } else if (npc.autoGive.pocket === "tms") {
+              sfx.tmGet();
+            } else {
+              sfx.pickup();
+            }
+            recordPickup(`trainer:${npc.id}`, {
+              name: npc.autoGive.itemName,
+              url: npc.autoGive.itemUrl,
+              pocket: npc.autoGive.pocket,
+              description: npc.autoGive.description,
+            });
+            await this.dialogSystem.showDialog({
+              lines: [
+                `Received ${npc.autoGive.itemName}!`,
+                `It was sent to your BAG.`,
+              ],
+            });
+
+            // Mark cleared + check badges
+            markTrainerCleared(npc.id);
+            checkBadges();
+
+            // Walk to aside position
+            const aside = npc.autoGive.asidePosition;
+            this.gridEngine.moveTo(npc.id, { x: aside.x, y: aside.y });
+          }
+
+          // Restore facing
+          if (npc.animated) {
+            const sprite = this.sprites.get(npc.id);
+            if (sprite) sprite.flipX = originalDir === Direction.RIGHT;
+          }
+
+          return true;
+        }
+
+        // Play pickup sound immediately on interact (before dialog)
+        if (npc.pickup) {
+          sfx.pickup();
+        }
+
+        // Dynamic dialog overrides static dialog (supports async)
+        if (npc.dialogFn) {
+          const result = await npc.dialogFn(getSave());
+          await this.dialogSystem.showDialog({
+            lines: result.lines,
+            speakerName: result.speakerName ?? npc.speakerName,
+          });
+          if (result.afterDialog) {
+            await result.afterDialog({ dialogSystem: this.dialogSystem });
+          }
+        } else {
+          await this.dialogSystem.showDialog({
+            lines: npc.dialog,
+            speakerName: npc.speakerName,
+          });
+        }
+
+        // Restore original facing direction
+        if (npc.animated && !npc.pickup) {
+          this.gridEngine.turnTowards(npc.id, originalDir);
+          const sprite = this.sprites.get(npc.id);
+          if (sprite) sprite.flipX = originalDir === Direction.RIGHT;
+        }
 
         // If this is a pickup item, remove it from the scene and record it
         if (npc.pickup) {
@@ -122,6 +370,11 @@ export class NPCSystem {
       sprite.destroy();
       this.sprites.delete(npcId);
     }
+    const shadow = this.shadows.get(npcId);
+    if (shadow) {
+      shadow.destroy();
+      this.shadows.delete(npcId);
+    }
     try {
       this.gridEngine.removeCharacter(npcId);
     } catch {
@@ -135,25 +388,57 @@ export class NPCSystem {
       timer.destroy();
     }
     this.behaviorTimers = [];
+    for (const shadow of this.shadows.values()) shadow.destroy();
+    this.shadows.clear();
   }
 
   // ── Private helpers ──────────────────────────────────────────
 
-  /** Update y-sorted depth and flipX for all NPC sprites each frame. */
+  /** Update y-sorted depth, flipX, and shadow positions each frame. */
   updateDepth(): void {
     for (const [id, sprite] of this.sprites.entries()) {
       sprite.setDepth(10 + sprite.y);
       // flipX per-frame (directionChanged observable is unreliable)
       const npc = this.npcs.find((n) => n.id === id);
       if (npc?.animated) {
-        const dir = this.gridEngine.getFacingDirection(id);
-        sprite.flipX = dir === Direction.RIGHT;
+        // Walk-in-place Pokemon: override Grid Engine's standing frame
+        // with the walk cycle frame. Must happen AFTER Grid Engine's
+        // update (which runs before scene update).
+        const walkFrames = (sprite as any).__walkFrames as number[] | undefined;
+        if (walkFrames) {
+          const idx = (sprite as any).__walkIdx as number;
+          sprite.setFrame(walkFrames[idx]);
+          // flipX is set once at init, don't override
+        } else {
+          const dir = this.gridEngine.getFacingDirection(id);
+          sprite.flipX = dir === Direction.RIGHT;
+        }
+      }
+
+      // Shadow at character feet.
+      const shadow = this.shadows.get(id);
+      if (shadow) {
+        // Use tile position for stable placement (no tween jitter)
+        const tilePos = this.gridEngine.getPosition(id);
+        const feetX = tilePos.x * 16 + 8;
+        const feetY = (tilePos.y + 1) * 16;
+
+        // For moving NPCs, blend toward sprite.x for smooth tracking.
+        // Stationary NPCs just use tile position.
+        const isMoving = this.gridEngine.isMoving(id);
+        const cx = isMoving ? sprite.x + 8 : feetX;
+        const cy = isMoving ? sprite.y + sprite.displayHeight : feetY;
+
+        shadow.setPosition(cx, cy);
+        shadow.setDepth(9 + cy);
       }
     }
   }
 
   private createNPC(npc: NPCDefinition): void {
     const sprite = this.scene.add.sprite(0, 0, npc.spriteKey);
+    if (npc.scale != null) sprite.setScale(npc.scale);
+    if (npc.flipX) sprite.flipX = true;
     this.sprites.set(npc.id, sprite);
     this.homePositions.set(npc.id, { ...npc.position });
 
@@ -164,10 +449,19 @@ export class NPCSystem {
         sprite,
         startPosition: npc.position,
         speed: 2,
-        offsetY: 0,
+        offsetY: npc.offsetY ?? 0,
         facingDirection: npc.facingDirection,
         walkingAnimationMapping: WALK_ANIM_MAPPING,
-        collides: true,
+        ...(npc.tileWidth != null && { tileWidth: npc.tileWidth }),
+        ...(npc.tileHeight != null && { tileHeight: npc.tileHeight }),
+        // Explicit collision groups so Grid Engine actually blocks the
+        // player from walking through. The legacy `collides: true`
+        // shorthand can fail to register the character in any group,
+        // letting the player phase through.
+        collides: {
+          collidesWithTiles: true,
+          collisionGroups: ["geDefault"],
+        },
       });
 
       // Initial flip for right-facing NPCs
@@ -182,9 +476,18 @@ export class NPCSystem {
         sprite,
         startPosition: npc.position,
         speed: 0,
-        offsetY: 0,
+        offsetY: npc.offsetY ?? 0,
         facingDirection: npc.facingDirection,
-        collides: true,
+        ...(npc.tileWidth != null && { tileWidth: npc.tileWidth }),
+        ...(npc.tileHeight != null && { tileHeight: npc.tileHeight }),
+        // Explicit collision groups so Grid Engine actually blocks the
+        // player from walking through. The legacy `collides: true`
+        // shorthand can fail to register the character in any group,
+        // letting the player phase through.
+        collides: {
+          collidesWithTiles: true,
+          collisionGroups: ["geDefault"],
+        },
       });
     }
 
@@ -218,9 +521,15 @@ export class NPCSystem {
     this.behaviorTimers.push(timer);
   }
 
+  /**
+   * External pause flag — set by OverworldScene when the start menu
+   * is open so NPCs freeze in place too.
+   */
+  paused = false;
+
   private executeBehavior(npc: NPCDefinition): void {
-    // Don't move NPCs while dialog is active
-    if (this.dialogSystem.active) return;
+    // Don't move NPCs while dialog or menu is active.
+    if (this.dialogSystem.active || this.paused) return;
     // Don't move if the NPC is already moving
     if (this.gridEngine.isMoving(npc.id)) return;
 

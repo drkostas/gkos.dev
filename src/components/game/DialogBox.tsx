@@ -5,14 +5,15 @@ import {
   onGameEvent,
   type DialogPayload,
 } from "@/game/EventBridge";
+import { getSettings, textSpeedMs } from "@/game/systems/Settings";
+import { sfx } from "@/game/systems/SoundManager";
 
-/** Milliseconds per character for the typewriter effect. */
 /**
- * Text typing speed — OG Pokemon Emerald "fast" setting.
- * sTextSpeedFrameDelays[OPTIONS_TEXT_SPEED_FAST] = 1 frame @ 60fps ≈ 17ms.
- * (src/menu.c in pret/pokeemerald)
+ * Read the current text-speed setting at the moment a dialog opens.
+ * Pokemon Emerald sTextSpeedFrameDelays:
+ *   slow = 8 frames (133ms), mid = 4 frames (66ms), fast = 1 frame (17ms).
  */
-const TYPE_SPEED_MS = 17;
+const getTypeSpeedMs = () => textSpeedMs(getSettings().textSpeed);
 
 /**
  * Pokemon-style dialog box rendered as a React overlay.
@@ -50,6 +51,7 @@ export default function DialogBox() {
   const startTyping = useCallback((text: string) => {
     setDisplayedText("");
     setIsTyping(true);
+    sfx.text(); // single blip when line starts
 
     let charIndex = 0;
 
@@ -58,14 +60,14 @@ export default function DialogBox() {
       setDisplayedText(text.slice(0, charIndex));
 
       if (charIndex < text.length) {
-        timerRef.current = setTimeout(tick, TYPE_SPEED_MS);
+        timerRef.current = setTimeout(tick, getTypeSpeedMs());
       } else {
         setIsTyping(false);
         timerRef.current = null;
       }
     };
 
-    timerRef.current = setTimeout(tick, TYPE_SPEED_MS);
+    timerRef.current = setTimeout(tick, getTypeSpeedMs());
   }, []);
 
   /** Skip to end of current line instantly. */
@@ -89,6 +91,7 @@ export default function DialogBox() {
       return;
     }
 
+    sfx.select();
     const nextIndex = lineIndexRef.current + 1;
 
     if (nextIndex < linesRef.current.length) {
@@ -131,20 +134,21 @@ export default function DialogBox() {
         const text = payload.lines[0];
 
         setIsTyping(true);
+        sfx.text(); // single blip when line starts
 
         const tick = () => {
           charIndex++;
           setDisplayedText(text.slice(0, charIndex));
 
           if (charIndex < text.length) {
-            timerRef.current = setTimeout(tick, TYPE_SPEED_MS);
+            timerRef.current = setTimeout(tick, getTypeSpeedMs());
           } else {
             setIsTyping(false);
             timerRef.current = null;
           }
         };
 
-        timerRef.current = setTimeout(tick, TYPE_SPEED_MS);
+        timerRef.current = setTimeout(tick, getTypeSpeedMs());
       }, 0);
     });
 
@@ -166,13 +170,19 @@ export default function DialogBox() {
   }, []); // stable — no deps needed, uses refs internally
 
   // ---------------------------------------------------------------------------
-  // Keyboard handler (Enter / Space / Z to advance)
+  // Keyboard handler (A button = a/Space to advance)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!visible) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " " || e.key === "z" || e.key === "Z") {
+      // A/Space/Enter advance dialog. B/S/Backspace also advance
+      // (but these keys do NOT initiate conversations — that's handled
+      // by the scene's interaction handler which only uses A).
+      if (
+        e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter" ||
+        e.key === "s" || e.key === "S" || e.key === "Backspace"
+      ) {
         e.preventDefault();
         advance();
       }
@@ -187,43 +197,74 @@ export default function DialogBox() {
   // ---------------------------------------------------------------------------
   if (!visible) return null;
 
+  // All dimensions scale with the X-axis ratio (window.innerWidth / 1280)
+  // so the dialog grows on wider screens. Computed via CSS calc() so it
+  // updates live with --ui-scale-x.
+  const sX = "var(--ui-scale-x, 1)";
+
   return (
     <div
       onClick={advance}
       style={{
         position: "fixed",
-        bottom: "8%",
+        bottom: "6%",
         left: "50%",
         transform: "translateX(-50%)",
-        width: "min(90%, 720px)",
-        minHeight: "64px",
-        padding: "12px 16px",
-        background: "#fff",
-        border: "3px solid #333",
-        borderRadius: "8px",
-        fontFamily: "'Geist Mono', monospace",
-        fontSize: "14px",
+        width: `min(92%, calc(720px * ${sX}))`,
+        // Original Pokemon Emerald 24×24 frame from
+        // pret/pokeemerald/graphics/text_window/1.png as a 9-slice
+        // background. Using `slice 8 fill` so the center white pixels
+        // become the content background — no transparent gap, no outline.
+        borderStyle: "solid",
+        borderWidth: `calc(24px * ${sX})`,
+        borderImageSource: "var(--ui-frame, url('/game/ui/text_window/1.png'))",
+        borderImageSlice: "8 fill",
+        borderImageRepeat: "stretch",
+        borderImageWidth: `calc(24px * ${sX})`,
+        // No background-color: the slice's center 8x8 (white) is already
+        // painted into the content area by `slice 8 fill`. A solid bg
+        // would leak through the now-transparent corner pixels of the
+        // frame and produce a white halo around the rounded corners.
+        background: "transparent",
+        // Use content-box so minHeight describes the inner content area
+        // (not including border + padding). This prevents the squeeze
+        // where border+padding ate all of minHeight.
+        boxSizing: "content-box",
+        minHeight: `calc(68px * ${sX})`,
+        padding: `calc(10px * ${sX}) calc(20px * ${sX})`,
+        fontFamily: "var(--pkmn-font, 'Courier New', monospace)",
+        fontSize: `calc(26px * ${sX})`,
         lineHeight: 1.5,
-        color: "#222",
+        color: "#000",
         cursor: "pointer",
         userSelect: "none",
+        outline: "none",
         zIndex: 100,
-        boxSizing: "border-box",
+        imageRendering: "pixelated",
       }}
     >
       {speakerName && (
         <div
           style={{
-            position: "fixed",
-            top: "-14px",
-            left: "12px",
-            background: "#333",
-            color: "#fff",
-            padding: "2px 10px",
-            borderRadius: "4px",
-            fontSize: "11px",
+            position: "absolute",
+            // Sit just above the dialog's top edge with no overlap.
+            // The negative top equals the pill's full height + a few px.
+            top: `calc(-50px * ${sX})`,
+            left: `calc(24px * ${sX})`,
+            // Simple pill: solid white bg + thin black border. The 9-slice
+            // frame is too thick for a small label and its transparent
+            // corner pixels would reveal whatever's behind, producing a
+            // halo when the pill sits over the dialog box.
+            background: "#fff",
+            color: "#000",
+            padding: `calc(8px * ${sX}) calc(18px * ${sX})`,
+            fontSize: `calc(22px * ${sX})`,
             fontWeight: 700,
             letterSpacing: "0.5px",
+            border: `calc(2px * ${sX}) solid #000`,
+            borderRadius: `calc(4px * ${sX})`,
+            // No image-rendering: pixelated here — keeps the rounded
+            // border anti-aliased rather than jaggy.
           }}
         >
           {speakerName}

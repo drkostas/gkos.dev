@@ -650,8 +650,14 @@ for (let i = 0; i < mapBin.length; i += 2) {
   // Base collision from the map.bin bits, OR the metatile is water
   // (which is walkable via surf in the original game but we force
   // impassable because our game has no surf).
+  //
+  // EXCEPTION: ledge metatiles (MB_JUMP_*) are marked impassable in
+  // the original ROM data, but the runtime ledge-hop logic needs to
+  // walk onto them, so we force collision=0 for ledges. Wrong-
+  // direction entry is blocked by the scene's input handler.
   const isWater = waterMetatiles.has(metatileId);
-  collisionData.push(collision !== 0 || isWater ? 1 : 0);
+  const isLedge = Object.prototype.hasOwnProperty.call(ledgeMetatileDirection, metatileId);
+  collisionData.push((collision !== 0 && !isLedge) || isWater ? 1 : 0);
   flipData.push((flipX ? 1 : 0) | (flipY ? 2 : 0));
 }
 

@@ -4,10 +4,21 @@ import type GridEngine from "grid-engine";
 import { DialogSystem } from "@/game/systems/DialogSystem";
 import { NPCSystem } from "@/game/systems/NPCSystem";
 import { SignSystem } from "@/game/systems/SignSystem";
+import { HiddenItemSystem } from "@/game/systems/HiddenItemSystem";
+import { incrementStep } from "@/game/systems/StepStore";
 import { MAUVILLE_NPCS, MAUVILLE_SIGNS } from "@/game/data/npcs";
 import { MAUVILLE_OBSTRUCTIVE, isObstructiveBlocked } from "@/game/data/obstructive-tiles";
 import { GameEvents, emitGameEvent, onGameEvent, getDebugMode } from "@/game/EventBridge";
+import { checkStepTMs, getPendingAward, clearPendingAward } from "@/game/systems/StepMilestones";
+import { checkBadges, getPendingBadgeNotification, clearPendingBadgeNotification } from "@/game/systems/BadgeMilestones";
+import { markZoneVisited, giveItem, hasItem } from "@/game/systems/GameSave";
+import { shouldAwardResearchLog } from "@/game/data/researchLog";
 import { PIXEL_SCALE } from "@/game/config";
+import { sfx } from "@/game/systems/SoundManager";
+import { bgm } from "@/game/systems/BGMManager";
+import { MapNamePopup } from "@/game/systems/MapNamePopup";
+import { getZoneAt, type ZoneDef } from "@/game/data/zones";
+import { findWarp, getTargetTile, type Warp } from "@/game/data/warps";
 
 /**
  * 9-frame spritesheet walking animation mapping.
@@ -45,6 +56,18 @@ const RUN_ANIM = {
 /** Ledge map: tile key "x,y" → direction the player must be moving to hop off it. */
 type LedgeDir = "up" | "down" | "left" | "right";
 
+/**
+ * Pokemon Emerald's exact Y offset table for JUMP_TYPE_HIGH, used for
+ * ledge hops over JUMP_DISTANCE_FAR (2 tiles). 16 frames; the original
+ * runs at 32 frames (60fps) → 16 indexed via `timer >> 1` for distance=FAR.
+ *
+ * Source: pokeemerald/src/event_object_movement.c sJumpY_High[]
+ */
+const POKEMON_JUMP_Y_HIGH = [
+  -4, -6, -8, -10, -11, -12, -12, -12,
+  -11, -10, -9, -8, -6, -4, 0, 0,
+];
+
 export class OverworldScene extends Phaser.Scene {
   declare gridEngine: GridEngine;
 
@@ -57,11 +80,44 @@ export class OverworldScene extends Phaser.Scene {
   private isInteracting = false;
   private menuActive = false;
   private isRunning = false;
+  /** True while fading out for a warp transition (prevents double-trigger). */
+  private isTransitioning = false;
   private unsubMenuClose: (() => void) | null = null;
   /** Map of "x,y" → ledge direction. Built from /game/maps/ledges.json. */
   private ledges: Map<string, LedgeDir> = new Map();
   /** True while the player is mid-hop over a ledge. */
   private isLedgeHopping = false;
+  /** When the current ledge hop started (ms, scene time). */
+  private hopStartTime = 0;
+  /** Total duration of the current ledge hop in ms. */
+  private hopDurationMs = 0;
+  /** Subscription to Grid Engine movementStopped while chaining hop moves. */
+  private hopMoveSub: { unsubscribe: () => void } | null = null;
+  /**
+   * Tap-to-turn state. When the player presses an arrow key while NOT
+   * facing that direction, we first turn the character (one frame) and
+   * record the moment of the press. Only after `TURN_DELAY_MS` of
+   * continuous hold do we actually start moving — matching the original
+   * Pokemon games where a brief tap just turns and a hold walks. While
+   * running (Shift held), this delay is bypassed entirely.
+   */
+  private pendingTurnDir: Direction | null = null;
+  private pendingTurnStart = 0;
+  private static readonly TURN_DELAY_MS = 130; // ~8 frames @ 60fps
+  /**
+   * Blocked walk-in-place state (OG Emerald behavior).
+   * When holding into a wall, the character plays walk animation at step
+   * rate and bonks once per step cycle — matching the original game.
+   */
+  private blockedDir: Direction | null = null;
+  private blockedStepTimer = 0;
+  private blockedFootToggle = false; // false=leftFoot, true=rightFoot
+  /**
+   * Invisible target the camera follows. We sync it to the player's
+   * BASE position (without the ledge-hop Y arc) so the camera doesn't
+   * bounce vertically while the player visually arcs in place.
+   */
+  private cameraTarget!: Phaser.GameObjects.Zone;
   /** Set of "x,y" keys for grass tiles (triggers a rustle animation). */
   private grassTiles: Set<string> = new Set();
   /** Player's previous tile so we can detect when they step onto a new grass tile. */
@@ -130,18 +186,71 @@ export class OverworldScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(0, 0, "player");
 
     // ── Grid Engine ──────────────────────────────────────────
+    // Check if we're returning from an interior scene — if so, the
+    // return position overrides the localStorage-saved position.
+    const sceneData = this.scene.settings.data as {
+      returnFromInterior?: boolean;
+      returnPos?: { x: number; y: number; facing: string };
+    } | undefined;
+    const returningFromInterior = sceneData?.returnFromInterior && sceneData?.returnPos;
+
+    let startPosition: { x: number; y: number };
+    let startFacing: Direction;
+
+    if (returningFromInterior) {
+      const rp = sceneData!.returnPos!;
+      startPosition = { x: rp.x, y: rp.y };
+      startFacing = Direction.DOWN; // Always face down when exiting a building
+    } else {
+      // Restore the player's last saved position + facing from localStorage
+      // so a refresh drops them where they were, looking the same way.
+      const saved = this.loadPlayerState();
+      startPosition = saved ? { x: saved.x, y: saved.y } : { x: 72, y: 58 };
+      startFacing = saved?.facing ?? Direction.DOWN;
+    }
+
+    // Reset transition flag for this fresh create() call.
+    this.isTransitioning = false;
+
     this.gridEngine.create(map, {
       characters: [
         {
           id: "player",
           sprite: this.playerSprite,
           walkingAnimationMapping: WALK_ANIM,
-          // Temporary spawn for iterating.
-          startPosition: { x: 72, y: 58 },
+          startPosition,
+          facingDirection: startFacing,
           speed: OverworldScene.WALK_SPEED,
           offsetY: 0,
+          // Explicit collision groups so the player collides with
+          // tiles AND with NPCs that share the geDefault group.
+          collides: {
+            collidesWithTiles: true,
+            collisionGroups: ["geDefault"],
+          },
         },
       ],
+    });
+
+    // Auto-save the player's tile position + facing whenever it changes.
+    // Also bump the step counter so the Trainer Card's STEPS field
+    // reflects every tile crossed on the overworld.
+    //
+    // CRITICAL: grid-engine fires positionChangeFinished BEFORE
+    // updating tilePos on chained moves (continuous walking), so
+    // gridEngine.getPosition() returns the OLD tile here. Use the
+    // event payload's enterTile for the destination.
+    this.gridEngine.positionChangeFinished().subscribe(
+      ({ charId, enterTile }) => {
+        if (charId !== "player") return;
+        this.savePlayerState({ x: enterTile.x, y: enterTile.y });
+        incrementStep();
+      },
+    );
+    // Also save when the player just turns without moving (e.g. wall-bonk).
+    this.gridEngine.directionChanged().subscribe(({ charId }) => {
+      if (charId !== "player") return;
+      this.savePlayerState();
     });
 
     // NOTE: directionChanged() observable is unreliable (doesn't fire consistently).
@@ -153,6 +262,8 @@ export class OverworldScene extends Phaser.Scene {
     // character back to the exit tile so the in-progress move is cancelled.
     this.gridEngine.positionChangeStarted().subscribe(({ charId, enterTile, exitTile }) => {
       if (charId !== "player") return;
+      // Don't interrupt ledge hops with obstructive checks
+      if (this.isLedgeHopping) return;
       const dx = enterTile.x - exitTile.x;
       const dy = enterTile.y - exitTile.y;
       let dir: Direction;
@@ -175,6 +286,25 @@ export class OverworldScene extends Phaser.Scene {
     this.npcSystem.init();
     this.signSystem = new SignSystem(this.dialogSystem, MAUVILLE_SIGNS);
 
+    // ── Zone system (music + map name popup) ────────────────
+    this.mapNamePopup = new MapNamePopup(this);
+    // Initialize current zone from player start position
+    const startPos = this.gridEngine.getPosition("player");
+    this.currentZone = getZoneAt(startPos.x, startPos.y);
+    if (this.currentZone) {
+      bgm.play(this.currentZone.music);
+      // Show popup after a short delay so camera is positioned
+      const zone = this.currentZone;
+      this.time.delayedCall(200, () => {
+        this.showZonePopup(zone.name, zone.popupTheme);
+      });
+    }
+
+    // ── OG tile animations (water) ──────────────────────────
+    // Phaser parses Tiled animation metadata but doesn't auto-play it.
+    // We manually cycle tile indices on the ground layer.
+    this.startTileAnimations(groundLayer);
+
     // ── Per-tile foreground sprites (pseudo-3D) ───────────────
     // Instead of a single flat foreground image, we create individual
     // sprites for each 16x16 tile that has top-layer content.
@@ -190,8 +320,11 @@ export class OverworldScene extends Phaser.Scene {
 
     // ── Camera ───────────────────────────────────────────────
     // Pixel-perfect integer zoom. Tiles render at PIXEL_SCALE * 16 screen pixels.
+    // We follow an invisible Zone instead of the player sprite directly so
+    // we can keep the camera off the Y arc during ledge hops.
+    this.cameraTarget = this.add.zone(0, 0, 1, 1);
     this.cameras.main.setZoom(PIXEL_SCALE);
-    this.cameras.main.startFollow(this.playerSprite, true);
+    this.cameras.main.startFollow(this.cameraTarget, true);
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.cameras.main.setRoundPixels(true);
 
@@ -199,26 +332,39 @@ export class OverworldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
-    // Interaction: Enter, Z, Space
-    const interactKeys = [
-      Phaser.Input.Keyboard.KeyCodes.ENTER,
-      Phaser.Input.Keyboard.KeyCodes.Z,
-      Phaser.Input.Keyboard.KeyCodes.SPACE,
-    ];
-    for (const code of interactKeys) {
+    // A button: A key, Space, Enter
+    for (const code of [Phaser.Input.Keyboard.KeyCodes.A, Phaser.Input.Keyboard.KeyCodes.SPACE, Phaser.Input.Keyboard.KeyCodes.ENTER]) {
       this.input.keyboard!.addKey(code).on("down", () => this.handleInteraction());
     }
 
-    // Start Menu: Escape
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => {
-      if (this.dialogSystem.active || this.menuActive) return;
-      this.menuActive = true;
-      emitGameEvent(GameEvents.SHOW_MENU);
-    });
+    // Start button: Escape or M — opens menu if closed, closes if open
+    for (const kc of [Phaser.Input.Keyboard.KeyCodes.ESC, Phaser.Input.Keyboard.KeyCodes.M]) {
+      this.input.keyboard!.addKey(kc).on("down", () => {
+        if (this.dialogSystem.active) return;
+        if (this.menuActive) {
+          // Close the menu
+          emitGameEvent(GameEvents.MENU_CLOSE);
+          return;
+        }
+        this.menuActive = true;
+        this.npcSystem.paused = true;
+        emitGameEvent(GameEvents.SHOW_MENU);
+      });
+    }
 
     this.unsubMenuClose = onGameEvent(GameEvents.MENU_CLOSE, () => {
       this.menuActive = false;
+      this.npcSystem.paused = false;
     });
+
+    // BGM is started by PhaserGame.tsx on first user gesture (audio unlock).
+    // OverworldScene only handles zone-based track switching during gameplay.
+
+    // ── Return-from-interior: quick fade in ─────────────────────
+    // Exit SFX already played by InteriorScene before transitioning.
+    if (returningFromInterior) {
+      this.cameras.main.fadeIn(150, 0, 0, 0);
+    }
 
     // ── Debug overlay: tile coordinate labels ──────────────────
     this.debugMapWidth = map.width;
@@ -248,7 +394,7 @@ export class OverworldScene extends Phaser.Scene {
     const count = Math.ceil((2 * radius) * (2 * radius) / 2);
     for (let i = 0; i < count; i++) {
       const label = this.add.text(0, 0, "", {
-        fontFamily: "monospace",
+        fontFamily: "'Pokemon Emerald Pro', 'Pokemon DS', monospace",
         fontSize: "6px",
         color: "#ffffff",
         stroke: "#000000",
@@ -308,7 +454,7 @@ export class OverworldScene extends Phaser.Scene {
     this.debugTexts = [];
   }
 
-  update(): void {
+  update(_time: number, delta: number): void {
     // Visual updates run every frame, even during dialog/menu,
     // so depth sorting and overlays stay in sync.
     const facingForFlip = this.gridEngine.getFacingDirection("player");
@@ -316,6 +462,22 @@ export class OverworldScene extends Phaser.Scene {
     this.playerSprite.setDepth(10 + this.playerSprite.y);
     this.npcSystem.updateDepth();
     this.updateObstructiveOverlays();
+
+    // Sync the camera target to the player's BASE position (before any
+    // ledge-hop arc offset) so the camera doesn't bounce vertically.
+    // For lateral hops this keeps Y completely stable; for vertical
+    // hops the camera still tracks the actual tile-to-tile motion.
+    this.cameraTarget.setPosition(this.playerSprite.x, this.playerSprite.y);
+
+    // Ledge-hop arc: while the player is mid-hop, add Pokemon Emerald's
+    // exact Y offset table on top of Grid Engine's interpolated sprite
+    // position. The 16-entry table is sampled by progress (0..1).
+    if (this.isLedgeHopping) {
+      const elapsed = this.time.now - this.hopStartTime;
+      const t = Math.min(elapsed / this.hopDurationMs, 0.999);
+      const idx = Math.floor(t * POKEMON_JUMP_Y_HIGH.length);
+      this.playerSprite.y += POKEMON_JUMP_Y_HIGH[idx];
+    }
 
     // Grass rustle: if the player just stepped onto a new grass tile,
     // play a quick bounce animation on the sprite.
@@ -326,13 +488,81 @@ export class OverworldScene extends Phaser.Scene {
         if (this.grassTiles.has(`${pos.x},${pos.y}`)) {
           this.playGrassRustle();
         }
+        // Zone transition: music change + map name popup
+        this.checkZoneTransition(pos.x, pos.y);
         // Reposition debug overlay around the player on every tile step.
         if (this.debugEnabled) this.updateDebugOverlay();
+        // Step milestone tracking
+        const { total } = incrementStep();
+        checkStepTMs(total);
       }
     }
 
-    // Block input/movement while dialog or menu is active.
-    if (this.dialogSystem.active || this.menuActive) return;
+    // Block input/movement while dialog, menu, or warp transition is active.
+    if (this.dialogSystem.active || this.menuActive || this.isTransitioning) return;
+
+    // Show pending TM award — freeze immediately, announce, then give TM
+    const award = getPendingAward();
+    if (award && !this.isInteracting) {
+      clearPendingAward();
+      this.isInteracting = true;
+      (async () => {
+        // 1. Milestone announcement
+        await this.dialogSystem.showDialog({
+          lines: [
+            `${award.steps}-step milestone reached!`,
+          ],
+        });
+        // 2. TM received — play the OG TM jingle while the reward
+        //    dialog is up, and hold the conversation open until
+        //    BOTH the jingle has finished AND the player dismisses
+        //    the dialog (matching OG behavior).
+        await Promise.all([
+          sfx.tmGetAsync(),
+          this.dialogSystem.showDialog({
+            lines: [
+              `Received TM:${award.tm}!`,
+              `${award.description}`,
+            ],
+          }),
+        ]);
+        this.isInteracting = false;
+      })();
+      return;
+    }
+
+    // Show pending badge notification
+    const badgeNote = getPendingBadgeNotification();
+    if (badgeNote && !this.isInteracting) {
+      clearPendingBadgeNotification();
+      this.isInteracting = true;
+      this.dialogSystem.showDialog({
+        lines: [
+          `${badgeNote.name} BADGE milestone!`,
+          `Visit KOSTAS at the GYM!`,
+        ],
+      }).then(() => {
+        this.isInteracting = false;
+      });
+      return;
+    }
+
+    // Auto-award research log at 5 discoveries
+    if (!hasItem("key_research_log") && shouldAwardResearchLog() && !this.isInteracting) {
+      giveItem("key_research_log");
+      this.isInteracting = true;
+      sfx.pickup();
+      this.dialogSystem.showDialog({
+        lines: [
+          "Obtained RESEARCH LOG!",
+          "A journal with personal entries.",
+          "Check KEY ITEMS in your BAG!",
+        ],
+      }).then(() => {
+        this.isInteracting = false;
+      });
+      return;
+    }
 
     // Hold Shift to run — swap speed AND running animation mapping.
     const wantsRun = this.shiftKey.isDown;
@@ -345,7 +575,8 @@ export class OverworldScene extends Phaser.Scene {
     // When the player is NOT moving, force the walking standing frame for
     // the current facing direction. Grid Engine keeps the last frame of the
     // running mapping when movement stops, which shows a running pose.
-    if (!this.gridEngine.isMoving("player")) {
+    // Skip this when blocked — handleBlocked manages its own walk frames.
+    if (!this.gridEngine.isMoving("player") && !this.blockedDir) {
       const facing = this.gridEngine.getFacingDirection("player");
       const standingFrame =
         facing === Direction.DOWN ? 0 :
@@ -361,47 +592,167 @@ export class OverworldScene extends Phaser.Scene {
     else if (cursors.up.isDown) moveDir = Direction.UP;
     else if (cursors.down.isDown) moveDir = Direction.DOWN;
 
-    if (moveDir) {
-      // Don't accept new input while mid-hop over a ledge.
-      if (this.isLedgeHopping) return;
-
-      const playerPos = this.gridEngine.getPosition("player");
-      const target = this.getTileInDirection(playerPos, moveDir);
-
-      // Obstructive tile crossings (signs/fences) handled by the
-      // positionChangeStarted interceptor — do a pre-check too so we
-      // can turn the character rather than do a jittery stop.
-      if (isObstructiveBlocked(playerPos.x, playerPos.y, target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
-        this.gridEngine.turnTowards("player", moveDir);
-        return;
-      }
-
-      // Ledge check: if the target tile is a ledge, see whether the
-      // player's move direction matches the ledge's hop direction.
-      // Matching direction → perform a 2-tile hop with arc animation.
-      // Non-matching direction → block entry entirely.
-      const ledgeDir = this.ledges.get(`${target.x},${target.y}`);
-      if (ledgeDir) {
-        if (ledgeDir === this.moveDirToLedgeDir(moveDir)) {
-          this.startLedgeHop(moveDir);
-        } else {
-          this.gridEngine.turnTowards("player", moveDir);
-        }
-        return;
-      }
-
-      this.gridEngine.move("player", moveDir);
+    if (!moveDir) {
+      // No arrow held — clear blocked state and pending turn.
+      this.blockedDir = null;
+      this.pendingTurnDir = null;
+      return;
     }
 
-    // (flipX, depth, NPC depth, overlays are updated at the top of update())
+    // Don't accept new input while mid-hop over a ledge.
+    if (this.isLedgeHopping) return;
+
+    const playerPos = this.gridEngine.getPosition("player");
+    const target = this.getTileInDirection(playerPos, moveDir);
+
+    // Obstructive tile crossings (signs/fences) — walk-in-place + bonk.
+    if (isObstructiveBlocked(playerPos.x, playerPos.y, target.x, target.y, moveDir, MAUVILLE_OBSTRUCTIVE)) {
+      this.handleBlocked(moveDir, delta);
+      return;
+    }
+
+    // Ledge check — target tile is a ledge:
+    //   Matching direction → hop over
+    //   Non-matching → walk-in-place + bonk
+    const ledgeDir = this.ledges.get(`${target.x},${target.y}`);
+    if (ledgeDir) {
+      if (ledgeDir === this.moveDirToLedgeDir(moveDir)) {
+        this.blockedDir = null;
+        this.startLedgeHop(moveDir);
+      } else {
+        this.handleBlocked(moveDir, delta);
+      }
+      return;
+    }
+
+    // Block climbing back up a ledge: the blocking tile is the one
+    // BELOW (in the opposite direction of the hop). Check if the
+    // target tile has a ledge whose hop direction is opposite to
+    // our move direction. E.g., a "down" ledge at the tile above
+    // means we can't walk up from the tile below.
+    const opposites: Record<string, string> = { up: "down", down: "up", left: "right", right: "left" };
+    const moveDirStr = this.moveDirToLedgeDir(moveDir);
+    // Check if the tile we'd move onto has a ledge pointing opposite
+    // (meaning it's the landing side and we'd be climbing back up).
+    // Also check the tile beyond target — that's where the ledge
+    // visually sits (the player lands one tile past the ledge after hopping).
+    if (moveDirStr) {
+      // The ledge tile is the one in the direction we want to go.
+      // If that tile's ledge direction is opposite to our movement,
+      // we're trying to climb back up.
+      const beyondTarget = this.getTileInDirection(target, moveDir);
+      const beyondLedge = this.ledges.get(`${beyondTarget.x},${beyondTarget.y}`);
+      if (beyondLedge && opposites[moveDirStr] === beyondLedge) {
+        this.handleBlocked(moveDir, delta);
+        return;
+      }
+    }
+
+    // (blockedDir is cleared inside tryMove when movement succeeds)
+
+    // ── Tap-to-turn / hold-to-move (matches OG Pokemon) ──────
+    // Order matters: a "pending turn" started on a previous frame must
+    // be checked BEFORE the "facing === moveDir" branch, otherwise the
+    // very next frame after we turn the character would see facing now
+    // matching the move direction and walk immediately, bypassing the
+    // turn delay entirely.
+
+    // Case 1: we're already mid-tap-to-turn for this direction.
+    if (this.pendingTurnDir === moveDir) {
+      if (this.time.now - this.pendingTurnStart >= OverworldScene.TURN_DELAY_MS) {
+        // Held long enough — commit to walking.
+        this.pendingTurnDir = null;
+        this.tryMove(moveDir, delta);
+      }
+      // Otherwise we're still in the "just turned, waiting" window.
+      return;
+    }
+
+    // Different direction now → drop any stale pending turn.
+    this.pendingTurnDir = null;
+
+    // Case 2: running bypasses the turn delay entirely.
+    if (this.isRunning) {
+      this.tryMove(moveDir, delta);
+      return;
+    }
+
+    // Case 3: already facing that direction → move immediately.
+    const facing = this.gridEngine.getFacingDirection("player");
+    if (facing === moveDir) {
+      this.tryMove(moveDir, delta);
+      return;
+    }
+
+    // Case 4: facing some other direction — start a pending turn.
+    this.pendingTurnDir = moveDir;
+    this.pendingTurnStart = this.time.now;
+    this.gridEngine.turnTowards("player", moveDir);
   }
 
+  /**
+   * Attempt a move. If Grid Engine can't execute it (collision layer,
+   * NPC, map edge, etc.), the player won't start moving — detect that
+   * and trigger the OG walk-in-place + bonk behavior.
+   */
+  private tryMove(moveDir: Direction, delta: number): void {
+    this.gridEngine.move("player", moveDir);
+    if (this.gridEngine.isMoving("player")) {
+      // Move succeeded — clear any blocked state
+      this.blockedDir = null;
+    } else {
+      // Check if blocked tile is a door/warp — enter building instead of bonking
+      if (!this.isTransitioning) {
+        const pos = this.gridEngine.getPosition("player");
+        const target = getTargetTile(pos.x, pos.y, this.dirToAnimKey(moveDir));
+        const warp = findWarp(target.x, target.y);
+        if (warp) {
+          this.handleWarpTransition(warp);
+          return;
+        }
+      }
+      // Blocked — walk-in-place + bonk at step rate
+      this.handleBlocked(moveDir, delta);
+    }
+  }
+
+  // PC tile positions in stitched coordinates.
+  // OG: PC is inside Pokemon Center. We put one outside near the center.
+  // Mauville Pokemon Center entrance is around (73, 55) in stitched coords.
+  private static readonly PC_TILES = new Set(["73,55", "74,55"]);
+
   private async handleInteraction(): Promise<void> {
-    if (this.isInteracting || this.dialogSystem.active) return;
+    if (this.isInteracting || this.dialogSystem.active || this.menuActive) return;
     this.isInteracting = true;
     try {
       const playerPos = this.gridEngine.getPosition("player");
       const playerFacing = this.gridEngine.getFacingDirection("player");
+
+      // Check for PC tile
+      const facingTile = this.getTileInDirection(playerPos, playerFacing);
+      const pcKey = `${facingTile.x},${facingTile.y}`;
+      if (OverworldScene.PC_TILES.has(pcKey)) {
+        emitGameEvent(GameEvents.SHOW_PC);
+        this.menuActive = true;
+        const unsub = onGameEvent(GameEvents.PC_CLOSE, () => {
+          this.menuActive = false;
+          unsub();
+        });
+        return;
+      }
+
+      // Hidden items — checked before NPCs/signs so a rock or flower
+      // patch with a buried pickup takes priority over whatever the
+      // tile normally is. No-op (returns false) if there's no hidden
+      // item at this tile or it's already been collected.
+      const pickedHidden = await HiddenItemSystem.tryPickup(
+        this.dialogSystem,
+        "overworld",
+        facingTile.x,
+        facingTile.y,
+      );
+      if (pickedHidden) return;
+
       const npcHit = await this.npcSystem.tryInteract(playerPos, playerFacing);
       if (!npcHit) {
         await this.signSystem.tryInteract(playerPos, playerFacing);
@@ -520,21 +871,197 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  /** Pool of grass overlay sprites for recycling. */
+  private grassPool: Phaser.GameObjects.Sprite[] = [];
+  /** Active grass overlays keyed by "x,y". */
+  private activeGrass: Map<string, Phaser.GameObjects.Sprite> = new Map();
+  /** Current zone the player is in (for music + popup). */
+  private currentZone: ZoneDef | undefined;
+  private mapNamePopup!: MapNamePopup;
+  /** Inline popup — rendered directly in update() to avoid timing issues. */
+  private popupBg: Phaser.GameObjects.Image | null = null;
+  private popupTxt: Phaser.GameObjects.Text | null = null;
+  private popupOffsetY = -30;
+  private popupTargetY = 3;
+  private popupW = 80;
+  private popupState: "none" | "sliding_in" | "visible" | "sliding_out" = "none";
+
   /**
-   * Play a quick "rustle" animation on the player sprite when they
-   * step onto a grass tile. Uses a scale tween to squish the sprite
-   * briefly — approximates the classic Pokemon grass shake.
+   * OG-style tall grass field effect (FLDEFF_TALL_GRASS).
+   *
+   * Spawns a 5-frame grass overlay sprite centered on the tile the
+   * player just stepped onto. The sprite is positioned at the tile's
+   * center (OG: SetSpritePosToOffsetMapCoords with offset 8,8) and
+   * rendered IN FRONT of the player's lower body.
+   *
+   * OG priority trick: the grass sprite gets subpriority = player + 2,
+   * which on the GBA means it draws over the player's lower half.
+   * In Phaser with y-sorted depth, we set grass depth to player
+   * depth + 1 so it renders on top.
    */
+  /**
+   * Check if the player crossed into a new zone. If so, change music
+   * and show the OG map name popup.
+   */
+  private checkZoneTransition(x: number, y: number): void {
+    const newZone = getZoneAt(x, y);
+    if (!newZone || newZone.id === this.currentZone?.id) return;
+
+    this.currentZone = newZone;
+
+    // Change music (OG: FadeOutAndPlayNewMapMusic with 8-frame fade)
+    bgm.play(newZone.music);
+
+    // Show map name popup
+    this.showZonePopup(newZone.name, newZone.popupTheme);
+
+    // Track zone visit for EXPLORER badge
+    markZoneVisited(newZone.id);
+    checkBadges();
+  }
+
+  /**
+   * Show the zone name popup via React (EventBridge).
+   * Phaser in-canvas rendering had depth/timing issues, so the popup
+   * is a React component overlaid on the game canvas.
+   */
+  private showZonePopup(name: string, theme: "marble" | "wood"): void {
+    emitGameEvent(GameEvents.SHOW_MAP_NAME, { name, theme });
+  }
+
   private playGrassRustle(): void {
-    this.tweens.add({
-      targets: this.playerSprite,
-      scaleY: 0.88,
-      scaleX: 1.08,
-      duration: 80,
-      yoyo: true,
-      ease: "Sine.easeOut",
-      onComplete: () => {
-        this.playerSprite.setScale(1, 1);
+    sfx.grass();
+
+    const pos = this.gridEngine.getPosition("player");
+    const key = `${pos.x},${pos.y}`;
+
+    // Don't spawn a duplicate at the same tile
+    if (this.activeGrass.has(key)) return;
+
+    // Get or create a grass sprite
+    let grass = this.grassPool.pop();
+    if (!grass) {
+      grass = this.add.sprite(0, 0, "tall_grass");
+    }
+
+    // OG: centered on tile (offset 8,8 from tile top-left).
+    // Tile pixel coords: top-left = (x*16, y*16).
+    // Sprite center = (x*16 + 8, y*16 + 8).
+    const px = pos.x * 16 + 8;
+    const py = pos.y * 16 + 8;
+    grass.setPosition(px, py);
+
+    // Render in front of the player. The player sprite depth is
+    // 10 + sprite.y. The player's sprite.y at this tile is roughly
+    // py - 16 (player sprite origin is offset). We want grass ABOVE
+    // the player in draw order at this tile.
+    grass.setDepth(10 + this.playerSprite.y + 1);
+
+    grass.setVisible(true);
+    grass.setActive(true);
+    grass.setFrame(0);
+
+    // OG: the 5-frame rustle plays fast (~4 ticks per frame at 60fps = ~67ms each).
+    if (!this.anims.exists("grass_rustle")) {
+      this.anims.create({
+        key: "grass_rustle",
+        frames: this.anims.generateFrameNumbers("tall_grass", {
+          start: 0,
+          end: 4,
+        }),
+        frameRate: 15,
+        repeat: 0,
+      });
+    }
+
+    grass.play("grass_rustle");
+    this.activeGrass.set(key, grass);
+
+    // Remove once animation finishes
+    grass.once("animationcomplete", () => {
+      if (!grass) return;
+      grass.setVisible(false);
+      grass.setActive(false);
+      this.activeGrass.delete(key);
+      this.grassPool.push(grass);
+    });
+  }
+
+  /**
+   * OG-style tile animations via frame-swapping on the ground layer.
+   *
+   * Water: 4-frame pixel-scroll cycle at 267ms (OG: 16 ticks at 60fps).
+   * Flowers: 12-step sway cycle at 133ms (OG Mauville: 8 ticks at 60fps).
+   *   Sequence: [base,base,swayR,swayL,swayL,swayL,swayL,swayL,swayL,swayL,swayR,base]
+   *   (rest → sway out → hold → sway back)
+   */
+  private startTileAnimations(
+    groundLayer: Phaser.Tilemaps.TilemapLayer | null,
+  ): void {
+    if (!groundLayer) return;
+
+    // ── Collect tile positions ────────────────────────────
+    // Flower GIDs (red flowers on grass)
+    const flowerGids = [5];
+
+    const tilePositions: Map<number, { x: number; y: number }[]> = new Map();
+    for (const gid of flowerGids) {
+      tilePositions.set(gid, []);
+    }
+    groundLayer.forEachTile((tile) => {
+      const positions = tilePositions.get(tile.index);
+      if (positions) {
+        positions.push({ x: tile.x, y: tile.y });
+      }
+    });
+
+    // ── Water animation ─────────────────────────────────
+    // Proper metatile variants generated by gen-water-anim.mjs.
+    // Each animated water tile has 8 frame GIDs. Cycle at 267ms.
+    fetch("/game/maps/water_anim.json")
+      .then((r) => r.json())
+      .then((data: { frameCount: number; frameDelayMs: number; tiles: { x: number; y: number; frames: number[] }[] }) => {
+        if (!data.tiles.length) return;
+        let waterStep = 0;
+        this.time.addEvent({
+          delay: data.frameDelayMs,
+          loop: true,
+          callback: () => {
+            waterStep = (waterStep + 1) % data.frameCount;
+            for (const t of data.tiles) {
+              groundLayer.putTileAt(t.frames[waterStep], t.x, t.y);
+            }
+          },
+        });
+      })
+      .catch(() => { /* no water anim data */ });
+
+    // ── Flower animation ─────────────────────────────────
+    // GIDs: 1023 = base (center), 1024 = sway-right, 1025 = sway-left
+    //
+    // Smooth cyclical sway like a pendulum:
+    //   center → right → center → left → center (repeat)
+    // With longer holds at the extremes and center for a natural feel.
+    // Total cycle: ~2.4s (16 steps × 150ms)
+    const flowerSeq = [
+      1023, 1023, 1023, // rest at center
+      1024, 1024, 1024, 1024, // sway right (hold)
+      1023, 1023, 1023, // pass through center
+      1025, 1025, 1025, 1025, // sway left (hold)
+      1023, 1023, 1023, // return to center
+    ];
+    let flowerStep = 0;
+    this.time.addEvent({
+      delay: 150,
+      loop: true,
+      callback: () => {
+        flowerStep = (flowerStep + 1) % flowerSeq.length;
+        const gid = flowerSeq[flowerStep];
+        const positions = tilePositions.get(5);
+        if (!positions) return;
+        for (const pos of positions) {
+          groundLayer.putTileAt(gid, pos.x, pos.y);
+        }
       },
     });
   }
@@ -551,56 +1078,192 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * Perform a ledge hop: jump 2 tiles in the given direction with an
-   * arc animation on the player sprite. The player starts from their
-   * current tile, passes over the ledge tile, and lands on the tile
-   * beyond. Movement and input are blocked for the duration.
+   * OG Emerald wall-bump behavior: when holding into a blocked tile,
+   * the character walks-in-place at the current step rate and plays
+   * the bonk SFX once per step cycle. delta = ms since last frame.
+   */
+  private static readonly BONK_INTERVAL_WALK = 700;
+  private static readonly BONK_INTERVAL_RUN = 350;
+  private blockedBonkTimer = 0;
+
+  private handleBlocked(moveDir: Direction, delta: number): void {
+    this.gridEngine.turnTowards("player", moveDir);
+    this.playerSprite.flipX = moveDir === Direction.RIGHT;
+
+    // Animation step duration matches current speed
+    const speed = this.isRunning ? OverworldScene.RUN_SPEED : OverworldScene.WALK_SPEED;
+    const stepMs = 1000 / speed;
+    const halfStep = stepMs / 2;
+
+    // First frame of being blocked — bonk immediately
+    if (this.blockedDir !== moveDir) {
+      this.blockedDir = moveDir;
+      this.blockedStepTimer = 0;
+      this.blockedBonkTimer = 0;
+      this.blockedFootToggle = false;
+      sfx.collision();
+      const animSet = this.isRunning ? RUN_ANIM : WALK_ANIM;
+      const key = this.dirToAnimKey(moveDir);
+      this.playerSprite.setFrame(animSet[key].leftFoot);
+      return;
+    }
+
+    this.blockedStepTimer += delta;
+    this.blockedBonkTimer += delta;
+
+    const animSet = this.isRunning ? RUN_ANIM : WALK_ANIM;
+    const key = this.dirToAnimKey(moveDir);
+
+    // Walk animation cycles at normal step rate
+    if (this.blockedStepTimer < halfStep) {
+      const foot = this.blockedFootToggle ? animSet[key].rightFoot : animSet[key].leftFoot;
+      this.playerSprite.setFrame(foot);
+    } else if (this.blockedStepTimer < stepMs) {
+      this.playerSprite.setFrame(animSet[key].standing);
+    } else {
+      this.blockedStepTimer -= stepMs;
+      this.blockedFootToggle = !this.blockedFootToggle;
+      const foot = this.blockedFootToggle ? animSet[key].rightFoot : animSet[key].leftFoot;
+      this.playerSprite.setFrame(foot);
+    }
+
+    const bonkInterval = this.isRunning ? OverworldScene.BONK_INTERVAL_RUN : OverworldScene.BONK_INTERVAL_WALK;
+    if (this.blockedBonkTimer >= bonkInterval) {
+      this.blockedBonkTimer -= bonkInterval;
+      sfx.collision();
+    }
+  }
+
+  private dirToAnimKey(dir: Direction): "down" | "up" | "left" | "right" {
+    switch (dir) {
+      case Direction.DOWN: return "down";
+      case Direction.UP: return "up";
+      case Direction.LEFT: return "left";
+      case Direction.RIGHT: return "right";
+      default: return "down";
+    }
+  }
+
+  /**
+   * Perform a ledge hop: chain TWO normal Grid Engine 1-tile moves in
+   * the given direction so the player crosses 2 tiles total. While the
+   * hop is in progress, the update() loop applies a sinusoidal Y offset
+   * on top of Grid Engine's sprite position so the character appears
+   * to arc upward and back down.
    */
   private startLedgeHop(dir: Direction): void {
+    sfx.ledge();
     this.isLedgeHopping = true;
+    this.hopStartTime = this.time.now;
+    const speed = this.isRunning ? OverworldScene.RUN_SPEED : OverworldScene.WALK_SPEED;
+    this.hopDurationMs = (2 * 1000) / speed;
+
+    // Ledge tiles are blocked by collision, so Grid Engine's move()
+    // won't work. Instead, we remove the player character and re-add
+    // it with tile collision disabled for the duration of the hop.
     const pos = this.gridEngine.getPosition("player");
-    const landTile = {
-      x: pos.x + (dir === Direction.LEFT ? -2 : dir === Direction.RIGHT ? 2 : 0),
-      y: pos.y + (dir === Direction.UP ? -2 : dir === Direction.DOWN ? 2 : 0),
-    };
-    // Face the hop direction
-    this.gridEngine.turnTowards("player", dir);
+    const currentSpeed = this.gridEngine.getSpeed("player");
+    const animMapping = this.isRunning ? RUN_ANIM : WALK_ANIM;
 
-    // Snap the grid-engine position to the landing tile so collision
-    // and subsequent input works correctly on landing.
-    this.gridEngine.setPosition("player", landTile);
-
-    // Animate the sprite moving from the starting pixel position to
-    // the landing pixel position with an upward Y arc. We drive the
-    // sprite position manually during the tween.
-    const TILE = 16;
-    const startPx = { x: pos.x * TILE + TILE / 2, y: pos.y * TILE };
-    const endPx = { x: landTile.x * TILE + TILE / 2, y: landTile.y * TILE };
-    const HOP_HEIGHT = 10; // pixels at apex
-    const HOP_MS = 380;
-
-    // Temporarily override Grid Engine's positioning: the character is
-    // "at" landTile but we render the sprite along the arc. We do this
-    // by tweening a progress value and computing the sprite position
-    // each tick.
-    const obj = { t: 0 };
-    this.tweens.add({
-      targets: obj,
-      t: 1,
-      duration: HOP_MS,
-      ease: "Sine.easeInOut",
-      onUpdate: () => {
-        const tx = Phaser.Math.Linear(startPx.x, endPx.x, obj.t);
-        // Quadratic arc for Y: starts at startY, peaks at midpoint, ends at endY
-        const baseY = Phaser.Math.Linear(startPx.y, endPx.y, obj.t);
-        const arc = -HOP_HEIGHT * 4 * obj.t * (1 - obj.t); // parabola
-        this.playerSprite.setPosition(tx, baseY + arc);
-      },
-      onComplete: () => {
-        this.isLedgeHopping = false;
+    this.gridEngine.removeCharacter("player");
+    this.gridEngine.addCharacter({
+      id: "player",
+      sprite: this.playerSprite,
+      walkingAnimationMapping: animMapping,
+      startPosition: pos,
+      facingDirection: dir,
+      speed: currentSpeed,
+      offsetY: 0,
+      collides: {
+        collidesWithTiles: false, // ← disabled for the hop
+        collisionGroups: ["geDefault"],
       },
     });
+
+    const restoreCollision = () => {
+      const landPos = this.gridEngine.getPosition("player");
+      this.gridEngine.removeCharacter("player");
+      this.gridEngine.addCharacter({
+        id: "player",
+        sprite: this.playerSprite,
+        walkingAnimationMapping: animMapping,
+        startPosition: landPos,
+        facingDirection: dir,
+        speed: currentSpeed,
+        offsetY: 0,
+        collides: {
+          collidesWithTiles: true,
+          collisionGroups: ["geDefault"],
+        },
+      });
+      this.isLedgeHopping = false;
+    };
+
+    // Chain two single-tile moves
+    let movesRemaining = 2;
+    this.hopMoveSub?.unsubscribe();
+    this.hopMoveSub = this.gridEngine.movementStopped().subscribe(({ charId }) => {
+      if (charId !== "player") return;
+      movesRemaining--;
+      if (movesRemaining > 0) {
+        this.gridEngine.move("player", dir);
+      } else {
+        this.hopMoveSub?.unsubscribe();
+        this.hopMoveSub = null;
+        restoreCollision();
+      }
+    });
+    this.gridEngine.move("player", dir);
+
+    // Safety timeout
+    this.time.delayedCall(this.hopDurationMs + 200, () => {
+      if (this.isLedgeHopping) {
+        this.hopMoveSub?.unsubscribe();
+        this.hopMoveSub = null;
+        restoreCollision();
+      }
+    });
   }
+
+  /** localStorage key for the player's auto-saved tile position + facing. */
+  private static readonly POS_STORAGE_KEY = "gkos:explore:player_pos";
+
+  private loadPlayerState(): { x: number; y: number; facing?: Direction } | null {
+    if (typeof localStorage === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(OverworldScene.POS_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.x === "number" && typeof parsed?.y === "number") {
+        return {
+          x: parsed.x,
+          y: parsed.y,
+          facing: typeof parsed.facing === "string" ? (parsed.facing as Direction) : undefined,
+        };
+      }
+    } catch {
+      // ignore parse errors, fall through to null
+    }
+    return null;
+  }
+
+  private savePlayerState(posOverride?: { x: number; y: number }): void {
+    if (typeof localStorage === "undefined") return;
+    try {
+      // Prefer the position supplied by the caller (enterTile from
+      // positionChangeFinished). gridEngine.getPosition returns the
+      // OLD tile during chained continuous movement.
+      const pos = posOverride ?? this.gridEngine.getPosition("player");
+      const facing = this.gridEngine.getFacingDirection("player");
+      localStorage.setItem(
+        OverworldScene.POS_STORAGE_KEY,
+        JSON.stringify({ x: pos.x, y: pos.y, facing }),
+      );
+    } catch {
+      // ignore quota errors
+    }
+  }
+
 
   /** Get the tile coordinate in the given direction from the given position. */
   private getTileInDirection(
@@ -672,6 +1335,57 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     console.log(`Created ${count} foreground tile sprites`);
+  }
+
+  // ── Warp / door transitions ──────────────────────────────────
+
+  /**
+   * Fade out, play door SFX, stop BGM, and transition to InteriorScene.
+   * Called when the player steps onto a warp tile (door).
+   */
+  private handleWarpTransition(warp: Warp): void {
+    this.isTransitioning = true;
+
+    // Stop player movement
+    this.gridEngine.stopMovement("player");
+
+    // Play door SFX
+    sfx.door();
+
+    // Stop BGM
+    bgm.stop();
+
+    // Fade out camera (150ms — snappy like OG)
+    this.cameras.main.fadeOut(150, 0, 0, 0);
+
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      // Save current position for return
+      const playerPos = this.gridEngine.getPosition("player");
+      const facing = this.gridEngine.getFacingDirection("player");
+
+      // Start InteriorScene
+      this.scene.start("InteriorScene", {
+        interiorKey: warp.targetMap,
+        returnPos: {
+          x: playerPos.x,
+          y: playerPos.y,
+          facing: this.dirToAnimKey(facing),
+        },
+        spawnTile: warp.spawnTile,
+        spawnFacing: warp.spawnFacing,
+      });
+    });
+  }
+
+  /** Convert a string direction to Grid Engine Direction enum. */
+  private stringToDirection(s: string): Direction {
+    switch (s) {
+      case "up": return Direction.UP;
+      case "down": return Direction.DOWN;
+      case "left": return Direction.LEFT;
+      case "right": return Direction.RIGHT;
+      default: return Direction.DOWN;
+    }
   }
 
   shutdown(): void {

@@ -1,7 +1,7 @@
 ---
-// Explore Mode — full-screen Phaser game, no layout
-// PhaserGame is loaded client-only to avoid SSR (Phaser needs window/document)
-import PhaserGame from "../components/game/PhaserGame";
+// Explore Mode — opening screen + Phaser game
+// ExploreApp shows title screen → Birch speech → PhaserGame
+import ExploreApp from "../components/game/ExploreApp";
 ---
 
 <html lang="en">
@@ -21,6 +21,6 @@ import PhaserGame from "../components/game/PhaserGame";
         <a href="/" style="color: #6C47FF;">Return to normal site</a>
       </p>
     </noscript>
-    <PhaserGame client:only="react" />
+    <ExploreApp client:only="react" />
   </body>
 </html>

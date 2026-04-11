@@ -1,0 +1,719 @@
+/**
+ * compose-interior-maps.mjs
+ *
+ * Composes 3 Pokemon Emerald interior maps (Pokemon Center, Mart, Gym) from
+ * pret/pokeemerald raw tileset data. Each interior uses a primary tileset
+ * (Building, metatile IDs 0-511) and a secondary tileset (specific to the
+ * building, IDs starting at 512).
+ *
+ * Outputs for each interior:
+ *   - public/game/tilesets/{name}_bottom.png  — bottom-layer composed tileset
+ *   - public/game/tilesets/{name}_top.png     — top-layer composed tileset
+ *   - public/game/maps/{name}.json            — Tiled JSON map (Ground + Collision)
+ *
+ * Binary format references (same as compose-metatiles.mjs):
+ *   - Metatile entry: 16 bytes = 8 tile refs (2 bytes each), bottom[4] + top[4]
+ *   - Tile ref word: bits 0-9 = tile index, bit 10 = xflip, bit 11 = yflip, bits 12-15 = palette
+ *   - Map entry: 2 bytes, bits 0-9 = metatile ID, bits 10-11 = collision
+ *   - JASC palette: 16 colors, index 0 = transparent
+ *
+ * Run: node scripts/compose-interior-maps.mjs
+ */
+import sharp from "sharp";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(__dirname, "..");
+const POKE_RAW = "/tmp/pokeemerald";
+
+// ─── Configuration ───────────────────────────────────────────────────────────
+
+const TILE_PX = 8;           // Raw tile size (8×8 pixels)
+const META_PX = 16;          // Metatile size (16×16 = 2×2 tiles)
+const TILES_PER_ROW = 16;    // 128px / 8px per tile in tiles.png
+const COMPOSED_COLUMNS = 16; // Metatiles per row in output tileset
+
+// Tileset extrusion to prevent texture bleeding
+const EXTRUDE = 1;
+const CELL_PX = META_PX + 2 * EXTRUDE;
+const TS_MARGIN = EXTRUDE;
+const TS_SPACING = 2 * EXTRUDE;
+
+// Number of primary metatiles in the GBA address space.
+// Secondary metatile IDs start at 512 in map.bin references.
+const NUM_PRIMARY_METATILES = 512;
+
+// Interior map definitions
+const INTERIORS = [
+  {
+    name: "pokecenter",
+    layoutDir: "PokemonCenter_1F",
+    width: 14,
+    height: 9,
+    secondaryDir: "secondary/pokemon_center",
+  },
+  {
+    name: "mart",
+    layoutDir: "Mart",
+    width: 11,
+    height: 8,
+    secondaryDir: "secondary/shop",
+  },
+  {
+    name: "gym",
+    layoutDir: "MauvilleCity_Gym",
+    width: 10,
+    height: 21,
+    secondaryDir: "secondary/mauville_gym",
+  },
+];
+
+// ─── Palette Loading ─────────────────────────────────────────────────────────
+
+/**
+ * Parse a JASC-PAL file into an array of [R, G, B] triples.
+ */
+function loadPalette(path) {
+  const lines = readFileSync(path, "utf-8").split("\n").map((l) => l.trim());
+  if (lines[0] !== "JASC-PAL") {
+    throw new Error(`Invalid JASC palette: ${path}`);
+  }
+  const count = parseInt(lines[2], 10);
+  const colors = [];
+  for (let i = 0; i < count; i++) {
+    const parts = lines[3 + i].split(/\s+/).map(Number);
+    colors.push([parts[0], parts[1], parts[2]]);
+  }
+  return colors;
+}
+
+/**
+ * Load all 16 palettes from a directory (00.pal through 15.pal).
+ */
+function loadPalettes(dir) {
+  const palettes = [];
+  for (let i = 0; i < 16; i++) {
+    const fname = i.toString().padStart(2, "0") + ".pal";
+    const fpath = resolve(dir, fname);
+    if (existsSync(fpath)) {
+      palettes.push(loadPalette(fpath));
+    } else {
+      // Fill with empty palette if file missing
+      palettes.push(Array.from({ length: 16 }, () => [0, 0, 0]));
+    }
+  }
+  return palettes;
+}
+
+// ─── Tile Pixel Index Extraction ─────────────────────────────────────────────
+
+/**
+ * Grayscale ramp for indexed 4bpp PNGs.
+ * Index 0 = (255,255,255), index 15 = (0,0,0).
+ */
+const GRAY_VALUES = [
+  255, 238, 222, 205, 189, 172, 156, 139, 115, 98, 82, 65, 49, 32, 16, 0,
+];
+const grayToIndex = new Map();
+GRAY_VALUES.forEach((v, i) => grayToIndex.set(v, i));
+
+/**
+ * Extract all 8×8 tile pixel indices from a tiles.png.
+ * Returns array of tiles, each a Uint8Array of 64 palette indices.
+ */
+async function extractTileIndices(pngPath) {
+  const { data, info } = await sharp(pngPath).raw().toBuffer({
+    resolveWithObject: true,
+  });
+
+  const imgW = info.width;
+  const channels = info.channels;
+  const tilesX = imgW / TILE_PX;
+  const tilesY = info.height / TILE_PX;
+  const totalTiles = tilesX * tilesY;
+
+  const tiles = [];
+  for (let t = 0; t < totalTiles; t++) {
+    const tileCol = t % tilesX;
+    const tileRow = Math.floor(t / tilesX);
+    const indices = new Uint8Array(64);
+
+    for (let py = 0; py < TILE_PX; py++) {
+      for (let px = 0; px < TILE_PX; px++) {
+        const imgX = tileCol * TILE_PX + px;
+        const imgY = tileRow * TILE_PX + py;
+        const offset = (imgY * imgW + imgX) * channels;
+        const gray = data[offset];
+        const idx = grayToIndex.get(gray);
+        if (idx === undefined) {
+          let best = 0;
+          let bestDist = 999;
+          for (let i = 0; i < GRAY_VALUES.length; i++) {
+            const d = Math.abs(gray - GRAY_VALUES[i]);
+            if (d < bestDist) {
+              bestDist = d;
+              best = i;
+            }
+          }
+          indices[py * TILE_PX + px] = best;
+        } else {
+          indices[py * TILE_PX + px] = idx;
+        }
+      }
+    }
+    tiles.push(indices);
+  }
+
+  console.log(
+    `  Extracted ${tiles.length} tiles from ${pngPath.split("/").pop()} (${tilesX}×${tilesY} grid)`,
+  );
+  return tiles;
+}
+
+// ─── Metatile Parsing ────────────────────────────────────────────────────────
+
+/**
+ * Parse metatile binary data.
+ * Each metatile = 16 bytes = 8 tile references (2 bytes each).
+ * Returns array of metatiles, each with bottomLayer[4] and topLayer[4].
+ */
+function parseMetatiles(binPath) {
+  const buf = readFileSync(binPath);
+  const count = buf.length / 16;
+  const metatiles = [];
+
+  for (let m = 0; m < count; m++) {
+    const offset = m * 16;
+    const bottomLayer = [];
+    const topLayer = [];
+
+    for (let i = 0; i < 8; i++) {
+      const word = buf.readUInt16LE(offset + i * 2);
+      const ref = {
+        tileIndex: word & 0x3ff,
+        xflip: (word >> 10) & 1,
+        yflip: (word >> 11) & 1,
+        palette: (word >> 12) & 0xf,
+      };
+      if (i < 4) {
+        bottomLayer.push(ref);
+      } else {
+        topLayer.push(ref);
+      }
+    }
+
+    metatiles.push({ bottomLayer, topLayer });
+  }
+
+  console.log(
+    `  Parsed ${count} metatiles from ${binPath.split("/").pop()}`,
+  );
+  return metatiles;
+}
+
+/**
+ * Parse metatile attributes binary (2 bytes per metatile).
+ * Returns array of behavior bytes (bits 0-7).
+ */
+function parseMetatileAttributes(binPath) {
+  const buf = readFileSync(binPath);
+  const count = buf.length / 2;
+  const behaviors = [];
+  for (let i = 0; i < count; i++) {
+    behaviors.push(buf.readUInt16LE(i * 2) & 0xff);
+  }
+  return behaviors;
+}
+
+// ─── Tile Rendering ──────────────────────────────────────────────────────────
+
+/**
+ * Render a single 8×8 tile onto an RGBA buffer with palette + flipping.
+ */
+function renderTile(outBuf, outWidth, destX, destY, tileIndices, palette, xflip, yflip) {
+  for (let py = 0; py < TILE_PX; py++) {
+    for (let px = 0; px < TILE_PX; px++) {
+      const srcX = xflip ? TILE_PX - 1 - px : px;
+      const srcY = yflip ? TILE_PX - 1 - py : py;
+      const colorIdx = tileIndices[srcY * TILE_PX + srcX];
+
+      // Skip transparent (palette index 0)
+      if (colorIdx === 0) continue;
+
+      const [r, g, b] = palette[colorIdx];
+      const outOffset = ((destY + py) * outWidth + (destX + px)) * 4;
+      outBuf[outOffset] = r;
+      outBuf[outOffset + 1] = g;
+      outBuf[outOffset + 2] = b;
+      outBuf[outOffset + 3] = 255;
+    }
+  }
+}
+
+/**
+ * Render one layer (bottom or top) of a metatile into an RGBA buffer.
+ *
+ * @param {Buffer} outBuf - output RGBA buffer
+ * @param {number} outWidth - output buffer width in pixels
+ * @param {number} destX - destination X pixel position
+ * @param {number} destY - destination Y pixel position
+ * @param {object} meta - metatile object with bottomLayer/topLayer
+ * @param {"bottom"|"top"} which - which layer to render
+ * @param {Array} primaryTiles - tile pixel arrays from primary tileset
+ * @param {Array} secondaryTiles - tile pixel arrays from secondary tileset
+ * @param {Array} combinedPalettes - 16-slot combined palette array
+ */
+function renderMetatileLayer(
+  outBuf, outWidth, destX, destY,
+  meta, which,
+  primaryTiles, secondaryTiles, combinedPalettes,
+) {
+  if (!meta) return;
+
+  const layer = which === "bottom" ? meta.bottomLayer : meta.topLayer;
+
+  const positions = [
+    [0, 0],            // top-left
+    [TILE_PX, 0],      // top-right
+    [0, TILE_PX],      // bottom-left
+    [TILE_PX, TILE_PX], // bottom-right
+  ];
+
+  for (let i = 0; i < 4; i++) {
+    const ref = layer[i];
+    const [offX, offY] = positions[i];
+
+    // Tile index: 0..511 = primary tiles, 512+ = secondary tiles
+    let tilePixels;
+    if (ref.tileIndex < primaryTiles.length) {
+      tilePixels = primaryTiles[ref.tileIndex];
+    } else {
+      const secIdx = ref.tileIndex - primaryTiles.length;
+      if (secIdx >= 0 && secIdx < secondaryTiles.length) {
+        tilePixels = secondaryTiles[secIdx];
+      } else {
+        continue;
+      }
+    }
+
+    const pal = combinedPalettes[ref.palette];
+    if (!pal) continue;
+
+    renderTile(
+      outBuf,
+      outWidth,
+      destX + offX,
+      destY + offY,
+      tilePixels,
+      pal,
+      ref.xflip,
+      ref.yflip,
+    );
+  }
+}
+
+// ─── Extrusion Helpers ───────────────────────────────────────────────────────
+
+/**
+ * Compute pixel position of metatile at (col, row) in extruded tileset.
+ */
+function extrudedPos(col, row) {
+  return {
+    x: TS_MARGIN + col * (META_PX + TS_SPACING),
+    y: TS_MARGIN + row * (META_PX + TS_SPACING),
+  };
+}
+
+/**
+ * Copy edge pixels outward into extrusion border to prevent texture bleeding.
+ */
+function extrudeEdges(buf, bufW, totalMetatiles) {
+  const write = (dstX, dstY, srcX, srcY) => {
+    const sO = (srcY * bufW + srcX) * 4;
+    const dO = (dstY * bufW + dstX) * 4;
+    buf[dO] = buf[sO];
+    buf[dO + 1] = buf[sO + 1];
+    buf[dO + 2] = buf[sO + 2];
+    buf[dO + 3] = buf[sO + 3];
+  };
+
+  for (let m = 0; m < totalMetatiles; m++) {
+    const col = m % COMPOSED_COLUMNS;
+    const row = Math.floor(m / COMPOSED_COLUMNS);
+    const { x: cx, y: cy } = extrudedPos(col, row);
+
+    // top edge
+    for (let px = 0; px < META_PX; px++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx + px, cy - i, cx + px, cy);
+      }
+    }
+    // bottom edge
+    for (let px = 0; px < META_PX; px++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx + px, cy + META_PX - 1 + i, cx + px, cy + META_PX - 1);
+      }
+    }
+    // left edge
+    for (let py = 0; py < META_PX; py++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx - i, cy + py, cx, cy + py);
+      }
+    }
+    // right edge
+    for (let py = 0; py < META_PX; py++) {
+      for (let i = 1; i <= EXTRUDE; i++) {
+        write(cx + META_PX - 1 + i, cy + py, cx + META_PX - 1, cy + py);
+      }
+    }
+    // corners
+    for (let i = 1; i <= EXTRUDE; i++) {
+      for (let j = 1; j <= EXTRUDE; j++) {
+        write(cx - i, cy - j, cx, cy);
+        write(cx + META_PX - 1 + i, cy - j, cx + META_PX - 1, cy);
+        write(cx - i, cy + META_PX - 1 + j, cx, cy + META_PX - 1);
+        write(cx + META_PX - 1 + i, cy + META_PX - 1 + j, cx + META_PX - 1, cy + META_PX - 1);
+      }
+    }
+  }
+}
+
+// ─── Main: Process Each Interior ─────────────────────────────────────────────
+
+// Ensure output directories exist
+mkdirSync(resolve(ROOT, "public/game/tilesets"), { recursive: true });
+mkdirSync(resolve(ROOT, "public/game/maps"), { recursive: true });
+
+// Load primary (building) tileset once — shared across all interiors
+console.log("Loading primary (building) tileset...");
+const primaryDir = resolve(POKE_RAW, "data/tilesets/primary/building");
+const primaryPalettes = loadPalettes(resolve(primaryDir, "palettes"));
+const primaryTiles = await extractTileIndices(resolve(primaryDir, "tiles.png"));
+const primaryMetatiles = parseMetatiles(resolve(primaryDir, "metatiles.bin"));
+const primaryBehaviors = parseMetatileAttributes(resolve(primaryDir, "metatile_attributes.bin"));
+console.log(`  Primary: ${primaryMetatiles.length} metatiles, ${primaryTiles.length} tiles`);
+
+for (const interior of INTERIORS) {
+  console.log(`\n${"═".repeat(60)}`);
+  console.log(`Processing: ${interior.name} (${interior.width}×${interior.height})`);
+  console.log("═".repeat(60));
+
+  // ── Load secondary tileset ──
+  const secDir = resolve(POKE_RAW, "data/tilesets", interior.secondaryDir);
+  const secPalettes = loadPalettes(resolve(secDir, "palettes"));
+  const secTiles = await extractTileIndices(resolve(secDir, "tiles.png"));
+  const secMetatiles = parseMetatiles(resolve(secDir, "metatiles.bin"));
+  const secBehaviors = parseMetatileAttributes(resolve(secDir, "metatile_attributes.bin"));
+  console.log(`  Secondary: ${secMetatiles.length} metatiles, ${secTiles.length} tiles`);
+
+  // ── Build combined metatile + palette arrays ──
+  //
+  // In GBA Emerald, the BG palette RAM has 16 slots of 16 colors each.
+  // NUM_PALS_IN_PRIMARY = 6, so:
+  //   Palettes 0-5: from the primary tileset
+  //   Palettes 6-12: from the secondary tileset
+  //   Palettes 13-15: from secondary (special use / unused)
+  const combinedPalettes = [];
+  for (let i = 0; i < 16; i++) {
+    if (i < 6) {
+      combinedPalettes.push(primaryPalettes[i]);
+    } else {
+      combinedPalettes.push(secPalettes[i]);
+    }
+  }
+
+  // Combined metatile array: primary [0..N-1], then secondary [N..N+M-1]
+  // Map.bin references: 0..511 = primary, 512+ = secondary
+  // We build a lookup that maps metatile ID → metatile object
+  const allMetatiles = [];
+  // Fill primary slots (0 to primaryMetatiles.length - 1)
+  for (let i = 0; i < primaryMetatiles.length; i++) {
+    allMetatiles[i] = primaryMetatiles[i];
+  }
+  // Fill secondary slots (512 to 512 + secMetatiles.length - 1)
+  for (let i = 0; i < secMetatiles.length; i++) {
+    allMetatiles[NUM_PRIMARY_METATILES + i] = secMetatiles[i];
+  }
+
+  // Combined behaviors
+  const allBehaviors = [];
+  for (let i = 0; i < primaryBehaviors.length; i++) {
+    allBehaviors[i] = primaryBehaviors[i];
+  }
+  for (let i = 0; i < secBehaviors.length; i++) {
+    allBehaviors[NUM_PRIMARY_METATILES + i] = secBehaviors[i];
+  }
+
+  // ── Parse map layout ──
+  console.log("Parsing map layout...");
+  const mapBinPath = resolve(POKE_RAW, "data/layouts", interior.layoutDir, "map.bin");
+  const mapBin = readFileSync(mapBinPath);
+
+  const mapData = [];       // metatile IDs as they appear in map.bin
+  const collisionData = []; // 0 or 1
+
+  for (let i = 0; i < mapBin.length; i += 2) {
+    const word = mapBin.readUInt16LE(i);
+    const metatileId = word & 0x3ff;
+    const collision = (word >> 10) & 0x3;
+
+    mapData.push(metatileId);
+    collisionData.push(collision !== 0 ? 1 : 0);
+  }
+
+  const expectedEntries = interior.width * interior.height;
+  if (mapData.length !== expectedEntries) {
+    console.warn(
+      `  WARNING: Expected ${expectedEntries} entries, got ${mapData.length}`,
+    );
+  }
+  console.log(`  Map: ${interior.width}×${interior.height} = ${mapData.length} entries`);
+  console.log(`  Collision tiles: ${collisionData.filter(c => c !== 0).length}/${mapData.length}`);
+
+  // ── Collect unique metatile IDs used by this map ──
+  // Build a compact tileset containing only the metatiles referenced.
+  const usedIdsSet = new Set(mapData);
+
+  // Gym: also include the ALT state of every barrier metatile so the
+  // tileset contains both ON and OFF variants for runtime toggling.
+  // From /tmp/pokeemerald/include/constants/metatile_labels.h:
+  //   Green H1 On=0x220 / Off=0x230   (diff = +0x10)
+  //   Green H2 On=0x221 / Off=0x231
+  //   Green H3 On=0x228 / Off=0x238
+  //   Green H4 On=0x229 / Off=0x239
+  //   Red H1 On=0x222 / Off=0x232
+  //   Red H2 On=0x223 / Off=0x233
+  //   Red H3 On=0x22a / Off=0x23a
+  //   Red H4 On=0x22b / Off=0x23b
+  //   Green V1 On=0x240 / (off=PoleBottom_On=0x242)
+  //   Green V2 On=0x248 / (off=FloorTile=0x21a)
+  //   Red V1 On=0x241 / (off=PoleBottom_Off=0x243)
+  //   Red V2 On=0x249 / (off=FloorTile=0x21a)
+  //   PoleBottom On=0x242 / Off=0x243
+  //   PoleTop On=0x250 / Off=0x251
+  if (interior.name === "gym") {
+    const barrierPairs = [
+      // Green horizontal beams: ON ↔ OFF (diff 0x10)
+      [0x220, 0x230], [0x221, 0x231], [0x228, 0x238], [0x229, 0x239],
+      // Red horizontal beams: ON ↔ OFF
+      [0x222, 0x232], [0x223, 0x233], [0x22a, 0x23a], [0x22b, 0x23b],
+      // Pole bottom/top
+      [0x242, 0x243], [0x250, 0x251],
+      // Vertical beams (on state has special off mapping)
+      // We include all 4 variants so runtime can swap freely.
+      [0x240, 0x248], [0x241, 0x249],
+      // Pressed/raised switch
+      [0x205, 0x206],
+    ];
+    for (const [a, b] of barrierPairs) {
+      if (allMetatiles[a]) usedIdsSet.add(a);
+      if (allMetatiles[b]) usedIdsSet.add(b);
+    }
+    // Floor tile (used to hide beams when V1/V2 swap to floor)
+    usedIdsSet.add(0x21a);
+  }
+
+  const usedIds = [...usedIdsSet].sort((a, b) => a - b);
+  console.log(`  Unique metatile IDs: ${usedIds.length} (range ${usedIds[0]}–${usedIds[usedIds.length - 1]})`);
+
+  // Map from original metatile ID → compact index (0-based)
+  const idToCompact = new Map();
+  usedIds.forEach((id, idx) => idToCompact.set(id, idx));
+
+  const totalMetatiles = usedIds.length;
+  const rows = Math.ceil(totalMetatiles / COMPOSED_COLUMNS);
+
+  // Extruded tileset dimensions
+  const extrudedWidth = TS_MARGIN + COMPOSED_COLUMNS * META_PX + (COMPOSED_COLUMNS - 1) * TS_SPACING + TS_MARGIN;
+  const extrudedHeight = TS_MARGIN + rows * META_PX + (rows - 1) * TS_SPACING + TS_MARGIN;
+
+  console.log(`  Tileset: ${totalMetatiles} metatiles in ${COMPOSED_COLUMNS}×${rows} grid`);
+  console.log(`  Tileset dimensions (extruded): ${extrudedWidth}×${extrudedHeight}`);
+
+  // ── Render bottom-layer tileset ──
+  console.log("Rendering bottom-layer tileset...");
+  const bottomBuf = Buffer.alloc(extrudedWidth * extrudedHeight * 4, 0);
+  for (let m = 0; m < totalMetatiles; m++) {
+    const origId = usedIds[m];
+    const meta = allMetatiles[origId];
+    if (!meta) {
+      console.warn(`  WARNING: No metatile data for ID ${origId}`);
+      continue;
+    }
+    const col = m % COMPOSED_COLUMNS;
+    const row = Math.floor(m / COMPOSED_COLUMNS);
+    const { x, y } = extrudedPos(col, row);
+    renderMetatileLayer(
+      bottomBuf, extrudedWidth, x, y,
+      meta, "bottom",
+      primaryTiles, secTiles, combinedPalettes,
+    );
+  }
+  extrudeEdges(bottomBuf, extrudedWidth, totalMetatiles);
+
+  const bottomOutPath = resolve(ROOT, `public/game/tilesets/${interior.name}_bottom.png`);
+  await sharp(bottomBuf, {
+    raw: { width: extrudedWidth, height: extrudedHeight, channels: 4 },
+  })
+    .png()
+    .toFile(bottomOutPath);
+  console.log(`  Written: ${bottomOutPath}`);
+
+  // ── Render top-layer tileset ──
+  console.log("Rendering top-layer tileset...");
+  const topBuf = Buffer.alloc(extrudedWidth * extrudedHeight * 4, 0);
+  for (let m = 0; m < totalMetatiles; m++) {
+    const origId = usedIds[m];
+    const meta = allMetatiles[origId];
+    if (!meta) continue;
+    const col = m % COMPOSED_COLUMNS;
+    const row = Math.floor(m / COMPOSED_COLUMNS);
+    const { x, y } = extrudedPos(col, row);
+    renderMetatileLayer(
+      topBuf, extrudedWidth, x, y,
+      meta, "top",
+      primaryTiles, secTiles, combinedPalettes,
+    );
+  }
+  extrudeEdges(topBuf, extrudedWidth, totalMetatiles);
+
+  const topOutPath = resolve(ROOT, `public/game/tilesets/${interior.name}_top.png`);
+  await sharp(topBuf, {
+    raw: { width: extrudedWidth, height: extrudedHeight, channels: 4 },
+  })
+    .png()
+    .toFile(topOutPath);
+  console.log(`  Written: ${topOutPath}`);
+
+  // ── Determine which metatiles have visible top layer ──
+  const metatileTopHasContent = new Set();
+  for (let m = 0; m < totalMetatiles; m++) {
+    const col = m % COMPOSED_COLUMNS;
+    const row = Math.floor(m / COMPOSED_COLUMNS);
+    const { x: baseX, y: baseY } = extrudedPos(col, row);
+    let hasOpaque = false;
+    for (let py = 0; py < META_PX && !hasOpaque; py++) {
+      for (let px = 0; px < META_PX && !hasOpaque; px++) {
+        const off = ((baseY + py) * extrudedWidth + (baseX + px)) * 4;
+        if (topBuf[off + 3] > 0) hasOpaque = true;
+      }
+    }
+    if (hasOpaque) metatileTopHasContent.add(m);
+  }
+  console.log(`  Metatiles with visible top layer: ${metatileTopHasContent.size}/${totalMetatiles}`);
+
+  // ── Generate Tiled JSON map ──
+  console.log("Generating Tiled JSON map...");
+
+  // GID mapping: we use compact indices.
+  // Bottom tileset: firstgid = 1, compact index m → GID m + 1
+  // Top tileset:    firstgid = totalMetatiles + 1
+  const BOTTOM_FIRSTGID = 1;
+  const TOP_FIRSTGID = totalMetatiles + 1;
+
+  // Ground layer: map each cell's metatile ID to its compact GID
+  const groundLayerData = mapData.map((origId) => {
+    const compact = idToCompact.get(origId);
+    if (compact === undefined) {
+      console.warn(`  WARNING: metatile ID ${origId} not in compact map`);
+      return 0;
+    }
+    return compact + BOTTOM_FIRSTGID;
+  });
+
+  // Collision layer
+  const collisionLayerData = collisionData.map((c) =>
+    c !== 0 ? BOTTOM_FIRSTGID : 0,
+  );
+
+  console.log(`  Total collision: ${collisionLayerData.filter(c => c > 0).length}/${mapData.length}`);
+
+  const tiledMap = {
+    compressionlevel: -1,
+    height: interior.height,
+    infinite: false,
+    layers: [
+      {
+        data: groundLayerData,
+        height: interior.height,
+        id: 1,
+        name: "Ground",
+        opacity: 1,
+        type: "tilelayer",
+        visible: true,
+        width: interior.width,
+        x: 0,
+        y: 0,
+      },
+      {
+        data: collisionLayerData,
+        height: interior.height,
+        id: 2,
+        name: "Collision",
+        opacity: 1,
+        type: "tilelayer",
+        visible: false,
+        width: interior.width,
+        x: 0,
+        y: 0,
+        properties: [
+          {
+            name: "ge_collide",
+            type: "bool",
+            value: true,
+          },
+        ],
+      },
+    ],
+    nextlayerid: 3,
+    nextobjectid: 1,
+    orientation: "orthogonal",
+    renderorder: "right-down",
+    tiledversion: "1.10.2",
+    tileheight: META_PX,
+    tilewidth: META_PX,
+    tilesets: [
+      {
+        columns: COMPOSED_COLUMNS,
+        firstgid: BOTTOM_FIRSTGID,
+        image: `../tilesets/${interior.name}_bottom.png`,
+        imageheight: extrudedHeight,
+        imagewidth: extrudedWidth,
+        margin: TS_MARGIN,
+        name: `${interior.name}_bottom`,
+        spacing: TS_SPACING,
+        tilecount: totalMetatiles,
+        tileheight: META_PX,
+        tilewidth: META_PX,
+        tiles: [
+          {
+            id: 0,
+            properties: [
+              { name: "ge_collide", type: "bool", value: true },
+            ],
+          },
+        ],
+      },
+    ],
+    type: "map",
+    version: "1.10",
+    width: interior.width,
+  };
+
+  const mapOutPath = resolve(ROOT, `public/game/maps/${interior.name}.json`);
+  writeFileSync(mapOutPath, JSON.stringify(tiledMap, null, 2));
+  console.log(`  Written: ${mapOutPath}`);
+}
+
+// ─── Summary ─────────────────────────────────────────────────────────────────
+
+console.log("\n" + "═".repeat(60));
+console.log("Done! All interior maps composed.");
+for (const interior of INTERIORS) {
+  console.log(`  ${interior.name}:`);
+  console.log(`    Bottom: public/game/tilesets/${interior.name}_bottom.png`);
+  console.log(`    Top:    public/game/tilesets/${interior.name}_top.png`);
+  console.log(`    Map:    public/game/maps/${interior.name}.json`);
+}

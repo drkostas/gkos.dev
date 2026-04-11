@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import GridEngine from "grid-engine";
 import { BootScene } from "./scenes/BootScene";
 import { OverworldScene } from "./scenes/OverworldScene";
+import { InteriorScene } from "./scenes/InteriorScene";
 
 /** Pixel scale factor — how many screen pixels per game pixel. */
 export const PIXEL_SCALE = 3;
@@ -44,6 +45,6 @@ export function createGameConfig(
         },
       ],
     },
-    scene: [BootScene, OverworldScene],
+    scene: [BootScene, OverworldScene, InteriorScene],
   };
 }
