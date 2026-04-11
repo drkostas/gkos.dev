@@ -22,9 +22,8 @@
 
 □ 3.  Hidden Items System
       - Data map: tile coordinate → item definition (name, pocket, url)
-      - hidden item will be picked up if I click A on the block Im facing.
-      - Pickup dialog → item to correct bag pocket → mark collected in save, play pickup itme sound.
-      - Item populates in bag.
+      - A-press priority: NPC facing > sign facing > hidden item standing on
+      - Pickup dialog → item to correct bag pocket → mark collected in save
       - No visual on tile (truly hidden)
       - Placement types: rocks (easy), flowers (medium), ground between grass (hard)
 
