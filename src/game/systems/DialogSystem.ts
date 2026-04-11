@@ -13,6 +13,77 @@ import {
   onGameEvent,
   type DialogPayload,
 } from "@/game/EventBridge";
+import { getSave } from "@/game/systems/GameSave";
+
+/**
+ * Replace `{NAME}` placeholders in a string with the player's name
+ * from the current save (fallback: "TRAINER"). Other placeholders
+ * can be added here as the game grows (e.g. `{RIVAL}`, `{MOM}`).
+ */
+export function interpolateText(text: string): string {
+  const save = getSave();
+  const name = save.playerName || "TRAINER";
+  return text.replace(/\{NAME\}/g, name);
+}
+
+/** Run `interpolateText` on every entry of an array. */
+export function interpolateLines(lines: string[]): string[] {
+  return lines.map(interpolateText);
+}
+
+/**
+ * Word-wrap a single string at word boundaries.
+ * Returns an array of lines, each at most `maxWidth` characters.
+ */
+export function wordWrap(text: string, maxWidth: number = 36): string[] {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if (current.length + word.length + 1 > maxWidth && current.length > 0) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current ? current + " " + word : word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+/**
+ * Paginate dialog lines into 2-line pages (OG Pokemon Emerald style).
+ *
+ * - Long lines are word-wrapped at 36 characters.
+ * - Empty strings act as forced page breaks.
+ * - Lines are grouped into pages of `linesPerPage` (default 2),
+ *   joined with `\n` so DialogBox can render them with pre-wrap.
+ */
+export function paginateDialog(rawLines: string[], linesPerPage: number = 2): string[] {
+  const wrapped = rawLines.flatMap((line) => {
+    if (line === "") return [""]; // preserve forced page breaks
+    return wordWrap(line, 36);
+  });
+
+  const pages: string[] = [];
+  let buffer: string[] = [];
+  for (const line of wrapped) {
+    if (line === "") {
+      if (buffer.length > 0) {
+        pages.push(buffer.join("\n"));
+        buffer = [];
+      }
+      continue;
+    }
+    buffer.push(line);
+    if (buffer.length >= linesPerPage) {
+      pages.push(buffer.join("\n"));
+      buffer = [];
+    }
+  }
+  if (buffer.length > 0) pages.push(buffer.join("\n"));
+  return pages;
+}
 
 export class DialogSystem {
   private isActive = false;
@@ -40,7 +111,19 @@ export class DialogSystem {
    */
   showDialog(payload: DialogPayload): Promise<void> {
     this.isActive = true;
-    emitGameEvent(GameEvents.SHOW_DIALOG, payload);
+    // 1. Interpolate {NAME} placeholders using the current save
+    // 2. Word-wrap + group into 2-line pages
+    // Interpolation runs BEFORE pagination so wrap sees the final length.
+    const interpolated = interpolateLines(payload.lines);
+    const paginated = paginateDialog(interpolated);
+    const speakerName = payload.speakerName
+      ? interpolateText(payload.speakerName)
+      : undefined;
+    emitGameEvent(GameEvents.SHOW_DIALOG, {
+      ...payload,
+      lines: paginated,
+      speakerName,
+    });
     return new Promise<void>((resolve) => {
       this.resolveDialog = resolve;
     });

@@ -1,10 +1,18 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { createGameConfig } from "@/game/config";
 import { initSettings } from "@/game/systems/Settings";
+import { initPC } from "@/game/systems/PCStore";
+import { bgm } from "@/game/systems/BGMManager";
+import { getSave, updateSave } from "@/game/systems/GameSave";
 import DialogBox from "./DialogBox";
 import StartMenu from "./StartMenu";
-import { GameLoadingScreen } from "./GameLoadingScreen";
+import MapNamePopup from "./MapNamePopup";
+import PCInterface from "./PCInterface";
+import QuestionnaireInterface from "./QuestionnaireInterface";
+import MartShopInterface from "./MartShopInterface";
+import NotificationBanner from "./NotificationBanner";
+import ResearchLogWrapper from "./ResearchLogWrapper";
 
 /**
  * React wrapper that creates and destroys a Phaser.Game instance.
@@ -19,32 +27,41 @@ import { GameLoadingScreen } from "./GameLoadingScreen";
  */
 export default function PhaserGame() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [assetsReady, setAssetsReady] = useState(false);
-  const [loadComplete, setLoadComplete] = useState(false);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
 
-  // Wire Phaser's loader progress to the React loading screen
-  const attachLoadListeners = useCallback((game: Phaser.Game) => {
-    game.events.on("step", () => {
-      const bootScene = game.scene.getScene("BootScene");
-      if (bootScene && bootScene.load) {
-        setLoadProgress(bootScene.load.progress * 100);
-      }
-    });
-
-    // Wait for OverworldScene to be active — assets loaded, world built
-    const checkScene = () => {
-      const overworld = game.scene.getScene("OverworldScene");
-      if (overworld && overworld.scene.isActive()) {
-        setLoadProgress(100);
-        setAssetsReady(true);
-        // Don't setLoadComplete yet — wait for user interaction to start BGM
-      } else {
-        requestAnimationFrame(checkScene);
-      }
-    };
-    requestAnimationFrame(checkScene);
+  // Tick the in-save play time once per second while the tab is visible.
+  // Pauses automatically when backgrounded so a forgotten tab doesn't
+  // inflate the timer.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      const save = getSave();
+      updateSave({ playTimeSeconds: save.playTimeSeconds + 1 });
+    }, 1000);
+    return () => window.clearInterval(interval);
   }, []);
+
+  // Unlock audio on first user gesture (click/tap/keypress on THIS page).
+  // Browser autoplay policy requires a gesture on the current document.
+  useEffect(() => {
+    if (audioUnlocked) return;
+    const unlock = () => {
+      // Pre-warm audio by playing BGM immediately on gesture
+      bgm.play("mauville");
+      setAudioUnlocked(true);
+      window.removeEventListener("click", unlock);
+      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("touchstart", unlock);
+    };
+    window.addEventListener("click", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    window.addEventListener("touchstart", unlock, { once: true });
+    return () => {
+      window.removeEventListener("click", unlock);
+      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("touchstart", unlock);
+    };
+  }, [audioUnlocked]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -71,15 +88,37 @@ export default function PhaserGame() {
     // Initialize settings (text speed, frame style, debug coords) and
     // apply the --ui-frame CSS var so the dialog/menu pick it up.
     initSettings();
-
-    // Inject the actual Pokemon DS font as a self-hosted @font-face.
-    // We host the TTF in /public/fonts/pokemon-ds.ttf — sourced from
-    // boranblok/PokemonRomTools, this is the font Pokemon Gen3+ games
-    // use for Latin glyphs and is very close to Pokemon Emerald's text.
+    // Seed the PC with default items on first play.
+    initPC();
+    // Auto-register party Pokemon as CAUGHT in the Pokedex so the
+    // list shows them (filled ball) even before the player has
+    // triggered their first overworld encounter. Idempotent, safe
+    // to call on every boot. Runs async but lands before the
+    // player can open the Pokedex themselves.
+    import("@/game/systems/PartyDexRegistrar").then(
+      ({ registerPartyInPokedex }) => registerPartyInPokedex(),
+    );
+    // Inject the self-hosted @font-face declarations for the Pokemon
+    // fan-made font recreations we use across the UI.
+    //
+    // - 'Pokemon Emerald Pro' by crystalwalrein (CC BY-SA 3.0) is a
+    //   recreation of the Gen 3 Ruby/Sapphire/Emerald GBA dialogue
+    //   font. Hosted in /public/fonts/pokemon-emerald-pro.ttf.
+    // - 'Pokemon DS' is the Gen 4+ DS Latin glyph font kept as a
+    //   fallback for anywhere the thinner DS-era look is wanted.
+    // - 'Pokemon GB' is the Gen 1/2 Game Boy monospace font kept as
+    //   a secondary fallback.
     if (!document.getElementById("pkmn-font-style")) {
       const style = document.createElement("style");
       style.id = "pkmn-font-style";
       style.textContent = `
+        @font-face {
+          font-family: 'Pokemon Emerald Pro';
+          src: url('/fonts/pokemon-emerald-pro.ttf') format('truetype');
+          font-weight: normal;
+          font-style: normal;
+          font-display: swap;
+        }
         @font-face {
           font-family: 'Pokemon DS';
           src: url('/fonts/pokemon-ds.ttf') format('truetype');
@@ -99,7 +138,7 @@ export default function PhaserGame() {
     }
     document.documentElement.style.setProperty(
       "--pkmn-font",
-      "'Pokemon DS', 'Courier New', monospace",
+      "'Pokemon Emerald Pro', 'Pokemon DS', 'Courier New', monospace",
     );
 
     const existing = (window as any).__PHASER_GAME__ as Phaser.Game | undefined;
@@ -118,10 +157,23 @@ export default function PhaserGame() {
     const config = createGameConfig(containerRef.current);
     const game = new Phaser.Game(config);
     (window as any).__PHASER_GAME__ = game;
-    attachLoadListeners(game);
+
+    // Run new-content detection AFTER the Phaser game has booted and
+    // the NotificationBanner has had a tick to mount its listener.
+    // The banner queues multiple fires, so the slight delay just
+    // ensures the boot notification isn't dropped on the floor if
+    // the banner component hasn't hydrated yet on cold starts.
+    const newContentTimer = window.setTimeout(() => {
+      import("@/game/systems/NewContentDetector").then(
+        ({ detectNewContent }) => {
+          detectNewContent();
+        },
+      );
+    }, 1500);
 
     return () => {
       window.removeEventListener("resize", updateUiScale);
+      window.clearTimeout(newContentTimer);
       // In prod, fully destroy. In dev, keep the game alive for HMR —
       // the new mount will reattach the canvas via the branch above.
       if (import.meta.env.PROD) {
@@ -129,22 +181,32 @@ export default function PhaserGame() {
         delete (window as any).__PHASER_GAME__;
       }
     };
-  }, [attachLoadListeners]);
+  }, []);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div
+      style={{
+        position: "relative",
+        width: "100vw",
+        // Shrink vertically by the touch bar height so the Phaser
+        // canvas doesn't render behind the on-screen controls. On
+        // desktop `--touch-bar-h` is 0px so the game fills the
+        // whole viewport.
+        height: "calc(100vh - var(--touch-bar-h, 0px))",
+      }}
+    >
       <div
         ref={containerRef}
         style={{ width: "100%", height: "100%", background: "#000" }}
       />
-      <GameLoadingScreen
-        progress={loadProgress}
-        assetsReady={assetsReady}
-        isComplete={loadComplete}
-        onStart={() => setLoadComplete(true)}
-      />
       <DialogBox />
       <StartMenu />
+      <MapNamePopup />
+      <PCInterface />
+      <QuestionnaireInterface />
+      <MartShopInterface />
+      <NotificationBanner />
+      <ResearchLogWrapper />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Direction } from "grid-engine";
 import { MovementBehavior, type NPCDefinition, type SignDefinition } from "@/game/types/npc";
+import { WILD_POKEMON } from "@/game/data/wild-pokemon";
 
 /**
  * Offset applied to all Mauville positions to account for the stitched
@@ -15,6 +16,23 @@ export const MAUVILLE_ORIGIN = { x: 50, y: 50 };
 function offsetPos(p: { x: number; y: number }) {
   return { x: p.x + MAUVILLE_ORIGIN.x, y: p.y + MAUVILLE_ORIGIN.y };
 }
+
+/**
+ * Shared Pokedex data for the 10 Poochyena NPCs in the Aqua/Magma
+ * standoff. All 10 reference the same entry so that talking to the
+ * first one registers the species, and all subsequent talks — on any
+ * of the 10 — fall into the repeat-dialog path in NPCSystem.
+ */
+const POOCHYENA_DEX: NonNullable<NPCDefinition["pokemon"]> = {
+  pokedexNumber: 35,
+  speciesName: "POOCHYENA",
+  projectName: "Log Hounds",
+  projectDescription: "Distributed log monitoring\nagents.",
+  repeatDialog: [
+    "The POOCHYENA snarls.",
+    "Grrrr...!",
+  ],
+};
 
 /**
  * Raw NPC definitions sourced from Pokemon Emerald's Mauville events.json,
@@ -74,11 +92,11 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     animated: true,
   },
 
-  // NPC 4: Woman at (18,6), looks around
+  // NPC 4: Woman at (18,8), looks around — moved from (18,6) which was inside building
   {
     id: "npc_woman_4",
     spriteKey: "woman_4",
-    position: { x: 18, y: 6 },
+    position: { x: 18, y: 8 },
     facingDirection: Direction.DOWN,
     movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
@@ -312,7 +330,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
   {
     id: "npc_r110_girl_2",
     spriteKey: "girl_2",
-    position: { x: 66, y: 87 },
+    position: { x: 60, y: 78 },
     facingDirection: Direction.LEFT,
     movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
@@ -470,6 +488,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
 
   // Snorlax blocker — sits on a 32x32 sprite in Route 111 rocky area.
   // Classic Kanto-style path blocker. Non-animated, not a pickup.
+  // First encounter registers in Pokedex as a Boundary Pokemon.
   {
     id: "npc_snorlax",
     spriteKey: "snorlax",
@@ -490,45 +509,63 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     speakerName: "???",
     animated: false,
+    pokemon: {
+      pokedexNumber: 32,
+      speciesName: "SNORLAX",
+      projectName: "LLM Trainer",
+      projectDescription: "Long-running deep learning\ntraining infrastructure.",
+      repeatDialog: [
+        "SNORLAX is still sleeping,",
+        "dreaming of PyTorch runs...",
+        "Zzz... Zzz...",
+      ],
+    },
   },
 
   // ── Magma vs Aqua standoff on Route 117 ─────────────────────
   // Col 14: Aqua grunts facing right | Col 15: Aqua Poochyena facing right
   // Col 16: Magma Poochyena facing left | Col 17: Magma grunts facing left
   // Uses OG overworld Poochyena sprite (both teams use them in-game).
+  //
+  // All 10 Poochyena share the same Pokedex entry (#35). The first one
+  // the player talks to registers; subsequent talks — on ANY of them —
+  // show the repeat dialog automatically (NPCSystem checks the shared
+  // pokedexNumber).
 
   // Row 57
   { id: "npc_aqua_grunt_1", spriteKey: "aqua_member_m", position: { x: 14, y: 57 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Team Aqua will expand the sea!", "For all water Pokemon!"], speakerName: "Aqua Grunt", animated: true },
-  { id: "npc_aqua_pooch_1", spriteKey: "poochyena_ow", position: { x: 15, y: 57 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true },
-  { id: "npc_magma_pooch_1", spriteKey: "poochyena_ow", position: { x: 16, y: 57 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true },
+  { id: "npc_aqua_pooch_1", spriteKey: "poochyena_ow", position: { x: 15, y: 57 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
+  { id: "npc_magma_pooch_1", spriteKey: "poochyena_ow", position: { x: 16, y: 57 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_grunt_1", spriteKey: "magma_member_m", position: { x: 17, y: 57 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Team Magma will expand the land!", "For all ground Pokemon!"], speakerName: "Magma Grunt", animated: true },
 
   // Row 58
   { id: "npc_aqua_grunt_2", spriteKey: "aqua_member_f", position: { x: 14, y: 58 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["You can't stop us!", "The ocean will swallow everything!"], speakerName: "Aqua Grunt", animated: true },
-  { id: "npc_aqua_pooch_2", spriteKey: "poochyena_ow", position: { x: 15, y: 58 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Bark bark!"], speakerName: "POOCHYENA", animated: true },
-  { id: "npc_magma_pooch_2", spriteKey: "poochyena_ow", position: { x: 16, y: 58 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Rrruff!"], speakerName: "POOCHYENA", animated: true },
+  { id: "npc_aqua_pooch_2", spriteKey: "poochyena_ow", position: { x: 15, y: 58 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Bark bark!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
+  { id: "npc_magma_pooch_2", spriteKey: "poochyena_ow", position: { x: 16, y: 58 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Rrruff!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_grunt_2", spriteKey: "magma_member_f", position: { x: 17, y: 58 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["More land means more room", "for Pokemon to live!"], speakerName: "Magma Grunt", animated: true },
 
   // Row 59
   { id: "npc_aqua_grunt_3", spriteKey: "aqua_member_m", position: { x: 14, y: 59 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Our leader ARCHIE will", "awaken KYOGRE!"], speakerName: "Aqua Grunt", animated: true },
-  { id: "npc_aqua_pooch_3", spriteKey: "poochyena_ow", position: { x: 15, y: 59 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true },
-  { id: "npc_magma_pooch_3", spriteKey: "poochyena_ow", position: { x: 16, y: 59 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true },
+  { id: "npc_aqua_pooch_3", spriteKey: "poochyena_ow", position: { x: 15, y: 59 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
+  { id: "npc_magma_pooch_3", spriteKey: "poochyena_ow", position: { x: 16, y: 59 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_grunt_3", spriteKey: "magma_member_m", position: { x: 17, y: 59 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["MAXIE will awaken GROUDON!", "Just you wait!"], speakerName: "Magma Grunt", animated: true },
 
   // Row 60
   { id: "npc_aqua_grunt_4", spriteKey: "aqua_member_f", position: { x: 14, y: 60 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Get out of our way, kid!", "This is Team Aqua territory!"], speakerName: "Aqua Grunt", animated: true },
-  { id: "npc_aqua_pooch_4", spriteKey: "poochyena_ow", position: { x: 15, y: 60 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Bark bark!"], speakerName: "POOCHYENA", animated: true },
-  { id: "npc_magma_pooch_4", spriteKey: "poochyena_ow", position: { x: 16, y: 60 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Rrruff!"], speakerName: "POOCHYENA", animated: true },
+  { id: "npc_aqua_pooch_4", spriteKey: "poochyena_ow", position: { x: 15, y: 60 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Bark bark!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
+  { id: "npc_magma_pooch_4", spriteKey: "poochyena_ow", position: { x: 16, y: 60 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Rrruff!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_grunt_4", spriteKey: "magma_member_f", position: { x: 17, y: 60 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Scram! This is a Magma", "operation!"], speakerName: "Magma Grunt", animated: true },
 
   // Row 61
   { id: "npc_aqua_grunt_5", spriteKey: "aqua_member_m", position: { x: 14, y: 61 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Heh... you think you can", "take on all of Team Aqua?"], speakerName: "Aqua Grunt", animated: true },
-  { id: "npc_aqua_pooch_5", spriteKey: "poochyena_ow", position: { x: 15, y: 61 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true },
-  { id: "npc_magma_pooch_5", spriteKey: "poochyena_ow", position: { x: 16, y: 61 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true },
+  { id: "npc_aqua_pooch_5", spriteKey: "poochyena_ow", position: { x: 15, y: 61 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
+  { id: "npc_magma_pooch_5", spriteKey: "poochyena_ow", position: { x: 16, y: 61 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_grunt_5", spriteKey: "magma_member_m", position: { x: 17, y: 61 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["We won't lose to you", "sea-loving fools!"], speakerName: "Magma Grunt", animated: true },
 
   // ── Sleepy Pokemon trio on Route 110 ─────────────────────────
   // Slakoth above, Slaking in the middle, Slakoth below — all sleeping.
+  // Both Slakoth share the same Pokedex entry (first talk registers,
+  // subsequent talks — on either Slakoth — show repeatDialog).
   {
     id: "npc_slakoth_top",
     spriteKey: "slakoth",
@@ -544,7 +581,16 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     speakerName: "???",
     animated: false,
-    scale: 2 / 3,
+    pokemon: {
+      pokedexNumber: 34,
+      speciesName: "SLAKOTH",
+      projectName: "Notebook Lab",
+      projectDescription: "Research sandbox for\nJupyter experiments.",
+      repeatDialog: [
+        "The SLAKOTH yawns slowly.",
+        "Zzz...",
+      ],
+    },
   },
   {
     id: "npc_slaking",
@@ -564,7 +610,16 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     speakerName: "???",
     animated: false,
-    scale: 2 / 3,
+    pokemon: {
+      pokedexNumber: 33,
+      speciesName: "SLAKING",
+      projectName: "Data Lake",
+      projectDescription: "Large-scale data processing\nand ETL pipeline.",
+      repeatDialog: [
+        "SLAKING hasn't moved an inch.",
+        "Typical SLAKING.",
+      ],
+    },
   },
   {
     id: "npc_slakoth_bottom",
@@ -582,8 +637,16 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     speakerName: "???",
     animated: false,
-    scale: 2 / 3,
-    offsetY: 8,
+    pokemon: {
+      pokedexNumber: 34,
+      speciesName: "SLAKOTH",
+      projectName: "Notebook Lab",
+      projectDescription: "Research sandbox for\nJupyter experiments.",
+      repeatDialog: [
+        "The SLAKOTH yawns slowly.",
+        "Zzz...",
+      ],
+    },
   },
 
   // Daycare Man (Old Man) at Route117 (47,4) -> stitched (37, 54)
@@ -621,6 +684,7 @@ export const MAUVILLE_NPCS: NPCDefinition[] = [
     position: offsetPos(npc.position),
   })),
   ...ROUTE_NPCS,
+  ...WILD_POKEMON,
 ];
 
 /**
@@ -645,33 +709,47 @@ const MAUVILLE_SIGNS_RAW: SignDefinition[] = [
       "The Shocking ML Engineer",
     ],
   },
-  // Pokemon Center signs at (23,5) and (24,5)
-  {
-    position: { x: 23, y: 5 },
-    text: ["POKEMON CENTER"],
-  },
+  // Pokemon Center sign at (24,5). The original OG layout had signs
+  // at (23,5) and (24,5); (23,5) is the RIGHT half of the PC's double
+  // warp door, so any sign placed there is permanently shadowed by
+  // the warp trigger. Kept a single sign on the non-warp tile.
   {
     position: { x: 24, y: 5 },
     text: ["POKEMON CENTER"],
   },
-  // Poke Mart signs at (24,14) and (25,14)
-  {
-    position: { x: 24, y: 14 },
-    text: ["POKE MART"],
-  },
+  // Poke Mart sign at (25,14). Same story — (24,14) is the RIGHT
+  // half of the Mart's double warp door and was dropped.
   {
     position: { x: 25, y: 14 },
     text: ["POKE MART"],
   },
-  // Bike Shop sign at (33,6)
+  // Bike Shop sign at (33,6) — Rydel's is closed for maintenance.
+  // (Pre-merge there were two additional sign entries here at (11,6)
+  // and (33,6) with stale "locked door" text — the (11,6) entry had
+  // the wrong position (gym tile) and the (33,6) entry duplicated
+  // the storefront sign. They were merged into this single entry.)
   {
     position: { x: 33, y: 6 },
-    text: ["RYDEL'S CYCLES"],
+    text: [
+      "RYDEL'S CYCLES",
+      "Closed for maintenance.",
+      "Check back later!",
+    ],
   },
   // Game Corner sign at (11,15)
   {
     position: { x: 11, y: 15 },
     text: ["GAME CORNER"],
+  },
+
+  // ── Locked door messages ──────────────────────────────
+  // Houses — press A on the door tile to read.
+  {
+    position: { x: 0, y: 6 },
+    text: [
+      "The door is locked.",
+      "Nobody seems to be home.",
+    ],
   },
 ];
 

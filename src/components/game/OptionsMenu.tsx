@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
+import { useMenuNavigation } from "@/game/hooks/useMenuNavigation";
 import {
   getSettings,
   setSetting,
@@ -18,8 +20,8 @@ interface OptionsMenuProps {
 const TEXT_SPEEDS: TextSpeed[] = ["slow", "mid", "fast"];
 const FRAME_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-type Row = "TEXT SPEED" | "FRAME" | "SHOW COORDS" | "CLEAR PROGRESS";
-const ROWS: Row[] = ["TEXT SPEED", "FRAME", "SHOW COORDS", "CLEAR PROGRESS"];
+type Row = "TEXT SPEED" | "FRAME" | "SHOW COORDS";
+const ROWS: Row[] = ["TEXT SPEED", "FRAME", "SHOW COORDS"];
 
 /**
  * Pokemon Emerald-style Options screen.
@@ -34,21 +36,12 @@ const ROWS: Row[] = ["TEXT SPEED", "FRAME", "SHOW COORDS", "CLEAR PROGRESS"];
  */
 export default function OptionsMenu({ onClose }: OptionsMenuProps) {
   const [settings, setSettings] = useState(() => getSettings());
-  const [rowIndex, setRowIndex] = useState(0);
-  const [confirmingClear, setConfirmingClear] = useState(false);
+  const { index: rowIndex, moveUp: rowUp, moveDown: rowDown } =
+    useMenuNavigation(ROWS.length);
+  // confirmingClear removed — New Game moved to HELP screen
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-
-  const clearAllProgress = () => {
-    if (typeof localStorage !== "undefined") {
-      // Wipe everything under the gkos:explore:* namespace.
-      const keys = Object.keys(localStorage).filter((k) => k.startsWith("gkos:explore:"));
-      for (const k of keys) localStorage.removeItem(k);
-    }
-    // Hard reload so the Phaser scene re-initializes from scratch.
-    window.location.reload();
-  };
 
   // ── Setting modifier helpers ─────────────────────────────────
   const cycleTextSpeed = (delta: 1 | -1) => {
@@ -74,59 +67,22 @@ export default function OptionsMenu({ onClose }: OptionsMenuProps) {
   };
 
   // ── Keyboard input ───────────────────────────────────────────
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Confirm dialog handles its own keys.
-      if (confirmingClear) {
-        if (e.key === "Enter" || e.key === "z" || e.key === "Z") {
-          e.preventDefault();
-          clearAllProgress();
-        } else if (e.key === "Escape" || e.key === "x" || e.key === "X" || e.key === "Backspace") {
-          e.preventDefault();
-          setConfirmingClear(false);
-        }
-        return;
-      }
+  const bumpRow = (dir: -1 | 1) => {
+    const row = ROWS[rowIndex];
+    sfx.optionChange();
+    if (row === "TEXT SPEED") cycleTextSpeed(dir);
+    else if (row === "FRAME") cycleFrame(dir);
+    else if (row === "SHOW COORDS") toggleCoords();
+  };
 
-      if (e.key === "Escape" || e.key === "x" || e.key === "X" || e.key === "Backspace") {
-        e.preventDefault();
-        sfx.cancel();
-        onCloseRef.current();
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        sfx.select();
-        setRowIndex((i) => (i <= 0 ? ROWS.length - 1 : i - 1));
-        return;
-      }
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        sfx.select();
-        setRowIndex((i) => (i >= ROWS.length - 1 ? 0 : i + 1));
-        return;
-      }
-      const row = ROWS[rowIndex];
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        sfx.optionChange();
-        if (row === "TEXT SPEED") cycleTextSpeed(-1);
-        else if (row === "FRAME") cycleFrame(-1);
-        else if (row === "SHOW COORDS") toggleCoords();
-      } else if (e.key === "ArrowRight" || e.key === "Enter" || e.key === "z" || e.key === "Z") {
-        e.preventDefault();
-        sfx.optionChange();
-        if (row === "TEXT SPEED") cycleTextSpeed(1);
-        else if (row === "FRAME") cycleFrame(1);
-        else if (row === "SHOW COORDS") toggleCoords();
-        else if (row === "CLEAR PROGRESS") setConfirmingClear(true);
-      }
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowIndex, settings, confirmingClear]);
+  useGameKeyboard(true, {
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+    up: () => { sfx.select(); rowUp(); },
+    down: () => { sfx.select(); rowDown(); },
+    left: () => bumpRow(-1),
+    right: () => bumpRow(1),
+    confirm: () => bumpRow(1),
+  });
 
   // ── Render ───────────────────────────────────────────────────
   const sY = "var(--ui-scale-y, 1)";
@@ -154,38 +110,10 @@ export default function OptionsMenu({ onClose }: OptionsMenuProps) {
           selected={ROWS[rowIndex] === "SHOW COORDS"}
           sY={sY}
         />
-        <Row
-          label="CLEAR PROGRESS"
-          value="..."
-          selected={ROWS[rowIndex] === "CLEAR PROGRESS"}
-          sY={sY}
-        />
-
         <div style={hintStyle}>
           ◀▶ change&nbsp;&nbsp;ESC back
         </div>
       </div>
-
-      {confirmingClear && (
-        <div style={confirmOverlayStyle}>
-          <div style={confirmBoxStyle}>
-            <div style={{ marginBottom: `calc(8px * ${sY})` }}>
-              Clear all progress?
-            </div>
-            <div style={{ fontSize: `calc(11px * ${sY})`, color: "rgba(0,0,0,0.6)", marginBottom: `calc(10px * ${sY})` }}>
-              Items, position, settings — all wiped.
-            </div>
-            <div style={{ display: "flex", gap: `calc(16px * ${sY})`, justifyContent: "center" }}>
-              <button onClick={clearAllProgress} style={confirmButtonStyle}>
-                ▶ YES
-              </button>
-              <button onClick={() => setConfirmingClear(false)} style={confirmButtonStyle}>
-                NO
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -211,10 +139,10 @@ function Row({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: `calc(4px * ${sY}) calc(8px * ${sY})`,
+        padding: `calc(5px * ${sY}) calc(8px * ${sY})`,
         background: selected ? "rgba(0,0,0,0.08)" : "transparent",
         borderRadius: `calc(2px * ${sY})`,
-        fontSize: `calc(13px * ${sY})`,
+        fontSize: `calc(17px * ${sY})`,
         color: "#000",
         gap: `calc(20px * ${sY})`,
       }}
@@ -268,54 +196,16 @@ const panelStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   textAlign: "center",
-  fontSize: "calc(15px * var(--ui-scale-y, 1))",
+  fontSize: "calc(20px * var(--ui-scale-y, 1))",
   fontWeight: 700,
   letterSpacing: "2px",
-  marginBottom: "calc(6px * var(--ui-scale-y, 1))",
+  marginBottom: "calc(8px * var(--ui-scale-y, 1))",
 };
 
 const hintStyle: React.CSSProperties = {
-  marginTop: "calc(8px * var(--ui-scale-y, 1))",
+  marginTop: "calc(10px * var(--ui-scale-y, 1))",
   textAlign: "center",
-  fontSize: "calc(10px * var(--ui-scale-y, 1))",
+  fontSize: "calc(13px * var(--ui-scale-y, 1))",
   color: "rgba(0, 0, 0, 0.55)",
 };
 
-const confirmOverlayStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "transparent",
-  pointerEvents: "auto",
-};
-
-const confirmBoxStyle: React.CSSProperties = {
-  borderStyle: "solid",
-  borderWidth: "calc(24px * var(--ui-scale-y, 1))",
-  borderImageSource: "var(--ui-frame, url('/game/ui/text_window/1.png'))",
-  borderImageSlice: "8 fill",
-  borderImageRepeat: "stretch",
-  borderImageWidth: "calc(24px * var(--ui-scale-y, 1))",
-  background: "transparent",
-  padding: "calc(12px * var(--ui-scale-y, 1)) calc(20px * var(--ui-scale-y, 1))",
-  fontFamily: FONT,
-  color: "#000",
-  fontSize: "calc(13px * var(--ui-scale-y, 1))",
-  textAlign: "center",
-  imageRendering: "pixelated",
-  outline: "none",
-};
-
-const confirmButtonStyle: React.CSSProperties = {
-  background: "transparent",
-  border: "calc(2px * var(--ui-scale-y, 1)) solid #000",
-  borderRadius: "calc(3px * var(--ui-scale-y, 1))",
-  color: "#000",
-  fontFamily: FONT,
-  fontSize: "calc(13px * var(--ui-scale-y, 1))",
-  padding: "calc(4px * var(--ui-scale-y, 1)) calc(14px * var(--ui-scale-y, 1))",
-  cursor: "pointer",
-  letterSpacing: "0.5px",
-};

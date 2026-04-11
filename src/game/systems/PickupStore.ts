@@ -5,10 +5,18 @@
 
 const STORAGE_KEY = "gkos:explore:pickups";
 
-/** An entry in the Bag's key items list. */
+/** An entry in the Bag. */
 export interface CollectedItem {
   name: string;
   url?: string;
+  /**
+   * Bag pocket this item belongs in. One of the BagMenu pocket ids —
+   * `"items" | "projects" | "papers" | "pypi" | "contacts"`. Older
+   * saved entries may omit this; callers should default to `"items"`.
+   */
+  pocket?: string;
+  /** Optional flavor text shown in the Bag item description box. */
+  description?: string;
 }
 
 function loadState(): Record<string, CollectedItem> {
@@ -46,6 +54,17 @@ export function recordPickup(npcId: string, item: CollectedItem): void {
 /** Get all collected items (for display in the Bag). */
 export function getCollectedItems(): CollectedItem[] {
   return Object.values(loadState());
+}
+
+/**
+ * Get all collected items whose pocket matches the given id. Items
+ * without a stored pocket are treated as living in `"items"` for
+ * backwards compatibility with older saves.
+ */
+export function getCollectedItemsByPocket(pocket: string): CollectedItem[] {
+  return Object.values(loadState()).filter(
+    (it) => (it.pocket ?? "items") === pocket,
+  );
 }
 
 /** Clear all pickups (useful for testing). */

@@ -63,6 +63,11 @@ export const POKEDEX: PokedexEntry[] = [
   { number: 29, name: "Eye in the Sky", level: 56, types: ["Flying", "Dark"],       status: "seen",   pokemon: "Altaria",   description: "Satellite imagery analysis system" },
   { number: 30, name: "Face Detector",  level: 53, types: ["Psychic", "Normal"],    status: "seen",   pokemon: "Kirlia",    description: "Real-time face detection pipeline" },
   { number: 31, name: "Portfolio v2",   level: 42, types: ["Fire", "Electric"],     status: "caught", pokemon: "Blaziken",  description: "This very site — Astro + Phaser Pokemon portfolio",    url: "https://gkos.dev" },
+  // ── Boundary Pokemon — map blockers that register on first talk ──
+  { number: 32, name: "LLM Trainer",    level: 90, types: ["Normal", "Psychic"],    status: "seen",   pokemon: "Snorlax",   description: "Long-running deep learning training infrastructure" },
+  { number: 33, name: "Data Lake",      level: 80, types: ["Normal", "Ground"],     status: "seen",   pokemon: "Slaking",   description: "Large-scale data processing and ETL pipeline" },
+  { number: 34, name: "Notebook Lab",   level: 30, types: ["Normal", "Grass"],      status: "seen",   pokemon: "Slakoth",   description: "Research sandbox for Jupyter experiments" },
+  { number: 35, name: "Log Hounds",     level: 28, types: ["Dark", "Normal"],       status: "seen",   pokemon: "Poochyena", description: "Distributed log monitoring agents" },
 ];
 
 /** Total projects with caught status */
