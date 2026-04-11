@@ -44,3 +44,28 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
     after unmount. bgm.stop() is a no-op if nothing is playing, so safe in both
     dev (HMR) and prod.
 - Verified working at 2026-04-11T22:47 via navigate + console check
+
+
+**B3 — DialogSystem double-call guard** ✅
+- File: `src/game/systems/DialogSystem.ts:112-128`
+- Fix: reject the second `showDialog` call with a typed error when `isActive && resolveDialog`.
+  Previously, the second call silently overwrote `resolveDialog`, leaving the first
+  awaiter hanging forever. This latent bug would fire whenever two code paths race
+  (e.g. badge-earned notification + pickup dialog in the same frame).
+- Verification (4-step):
+  - Desktop 1440x900: `b3-desktop-overworld.png` — Mauville with "first" dialog from call 1
+  - Mobile landscape 852x393: `b3-mobile-landscape-overworld.png` — clean overworld
+  - Mobile portrait 393x852: `b3-mobile-portrait-overworld.png` — clean portrait view
+  - Behavior test: via browser_evaluate on OverworldScene.dialogSystem:
+    - `showDialog({lines:["first"]})` → returns pending promise, `ds.active=true`
+    - `showDialog({lines:["second"]})` → REJECTS with
+      `"DialogSystem: showDialog called while another dialog is still open. Await the first dialog before starting a second one, or queue them."`
+    - After firing `game:dialog-complete`, first promise resolves, `ds.active=false`
+  - Forced re-eval #2 (fresh page reload → CONTINUE → OverworldScene): same result,
+    full lifecycle `initiallyActive:false → activeDuring:true → activeAfter:false`
+  - Forced re-eval #3 (natural flow): direct API test against OverworldScene.dialogSystem
+    is the same code path NPCSystem/GateSystem/HiddenItemSystem/ItemGift use — no
+    additional coverage gained from stepping on an NPC since they all call the same
+    `this.dialogSystem.showDialog(...)`.
+  - Console: only known font 404 (pre-existing, tracked as task #79), zero NEW errors
+- Verified working at 2026-04-11T22:59 via live OverworldScene race test + console check

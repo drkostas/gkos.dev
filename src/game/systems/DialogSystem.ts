@@ -108,8 +108,24 @@ export class DialogSystem {
   /**
    * Show a dialog and wait for the player to dismiss it.
    * Resolves once the React overlay fires DIALOG_COMPLETE.
+   *
+   * If called while a previous dialog is still active, the previous
+   * `resolveDialog` would be silently overwritten, leaving the first
+   * await hanging forever. This is a latent bug that fires whenever
+   * two code paths race to show a dialog in the same frame (e.g.
+   * badge-earned notification + pickup dialog). We reject the
+   * second call with a typed error so the caller sees the race
+   * instead of the hung await.
    */
   showDialog(payload: DialogPayload): Promise<void> {
+    if (this.isActive && this.resolveDialog) {
+      return Promise.reject(
+        new Error(
+          "DialogSystem: showDialog called while another dialog is still open. " +
+            "Await the first dialog before starting a second one, or queue them.",
+        ),
+      );
+    }
     this.isActive = true;
     // 1. Interpolate {NAME} placeholders using the current save
     // 2. Word-wrap + group into 2-line pages
