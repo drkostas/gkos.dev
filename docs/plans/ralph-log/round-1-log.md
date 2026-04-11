@@ -217,3 +217,42 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
     expected vw clamps.
   - Console: zero errors across the full flow on all 3 viewports
 - Verified working at 2026-04-11T23:35 via live Playwright viewport sweep
+
+
+**M4 — BirchTextBox oversized text fix + border-box rework** ✅
+- User followup: "I tested on mobile safari and the same issue with the prof
+  birch text is there too exactly the same". The DialogBox fix (M2) covered
+  the in-game text overlay but BirchTextBox is a separate component shown
+  during the NEW GAME → Birch speech path, using the same calc(*px * sX) math.
+- Files: `src/components/game/BirchTextBox.tsx`, `src/components/game/DialogBox.tsx`
+- Fix:
+  1. BirchTextBox — replaced the calc(*px * sX) sizing math with the same
+     vw-based clamp pattern as DialogBox (font 14-26, border 8-24, etc).
+  2. BirchTextBox width — changed from `min(88vw, 720px)` to `width: 92%;
+     maxWidth: 720px` so the dialog fits inside its parent BirchSpeechLayer's
+     3:2 aspect container (`min(135vh, 90vw)`) which has `overflow: hidden`.
+     The viewport-based math was overflowing the container by ~190px and
+     getting clipped, showing "there! Welcome to the ▼" instead of
+     "Hello there! Welcome to the ▼".
+  3. Both components — switched from `box-sizing: content-box` to `border-box`
+     so the authored width/height are the VISUAL width/height (simpler math,
+     matches what the user sees).
+  4. Both components — inline `WebkitTextSizeAdjust: '100%'` + `textSizeAdjust: '100%'`
+     on root + speaker pill divs.
+- Verification (4-step):
+  - Desktop 1440x900 Birch: `m4-birch-desktop-fixed.png` — KOSTAS pill,
+    Pokemon Emerald frame, "Hello there! Welcome to the ▼" at ~24px font
+  - Mobile landscape 852x393 Birch: `m4-birch-landscape-fixed.png` — dialog
+    inside the 3:2 container at 92% width, full text visible, compact
+  - Mobile portrait 393x852 Birch: `m4-birch-portrait-fixed.png` — dialog
+    below the Birch sprite, full text visible, ~7% of viewport vertical
+  - Desktop 1440x900 DialogBox regression: `m2-desktop-final.png` — in-game
+    dialog still renders correctly with border-box,
+    "Hello there! Welcome to the world of / POKeMON! ▼" wraps cleanly
+  - DOM inspection: dialog x=66, width=720 BEFORE fix → clipped by parent
+    container at x=161, w=531. After fix: dialog inside container bounds
+    with 92% width, "Hello there! Welcome to the" fully rendered.
+  - Console: zero errors across full NEW GAME → Birch → speech flow on
+    all 3 viewports
+- Verified working at 2026-04-11T23:50 via live Playwright viewport sweep
+  through NEW GAME → BirchSpeechLayer flow on desktop + mobile landscape + portrait
