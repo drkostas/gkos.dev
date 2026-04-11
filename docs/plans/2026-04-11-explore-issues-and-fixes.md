@@ -684,3 +684,170 @@ interface NPCDefinition {
   ephemeral?: EphemeralPokemonConfig;
 }
 ```
+
+---
+
+## ISSUE 17: Play Time Tracking is Fake
+
+### What the code does now:
+- TrainerCard.tsx line 79: `const yearsExperience = new Date().getFullYear() - 2017;`
+- Line 169: displays `{yearsExperience}h 00m` — this shows "9h 00m" (years since 2017), NOT actual play time
+- GameSave.ts has NO `playTimeSeconds` field
+
+### What we want:
+- Real play time tracker: seconds increment while game is running
+- Pauses when tab is hidden or menu is in a non-game state
+- Trainer Card shows actual play time: "0h 12m"
+- Persisted in GameSave
+
+### What needs to change:
+- Add `playTimeSeconds: number` to GameSave interface + defaults
+- Add a 1-second interval in PhaserGame.tsx or OverworldScene that increments
+- TrainerCard reads from GameSave instead of `yearsExperience`
+
+---
+
+## ISSUE 18: Gym Trainers Don't Have autoGive (Interior Gap)
+
+### What the code does now:
+- `autoGive` field exists on `NPCDefinition` (overworld NPC type)
+- NPCSystem.ts handles `autoGive`: gives item → moves NPC to aside position
+- BUT gym trainers are `InteriorNPC` (different type in `interiors.ts`)
+- `InteriorNPC` does NOT have `autoGive`, `asidePosition`, or `clearedDialog`
+- Gym trainers currently have static dialog only — no paper giving, no stepping aside
+
+### What we want:
+- Gym trainers give papers automatically (mandatory, no yes/no)
+- After giving, trainer walks to aside position (clearing the path)
+- On revisit, trainer is already aside with different dialog
+- State persisted: `gymTrainersCleared[]` in GameSave
+
+### What needs to change:
+- Add `autoGive` to `InteriorNPC` interface (or unify with NPCDefinition)
+- InteriorScene `handleInteraction()` needs autoGive handling (same pattern as NPCSystem)
+- TrainerStore.ts already exists — just needs to be wired into InteriorScene
+- Gym trainers in `interiors.ts` need `autoGive` fields with paper items + aside positions
+
+---
+
+## ISSUE 19: No Async API-Powered NPCs
+
+### What the code does now:
+- `dialogFn` exists and is async-capable (returns `Promise<DynamicDialogResult>`)
+- KOSTAS uses `dialogFn` for dynamic badge dialog ✓
+- BUT no NPCs actually fetch from APIs (Strava, Spotify, GitHub, PyPI)
+- All dialog is currently static or save-state-based
+
+### What we want (design doc):
+- Strava Nerd (Pokecenter): fetches `/api/strava/recent` → shows last 3 activities
+- Spotify Guy (Mauville): fetches `/api/spotify/now-playing` → shows current track
+- Day Care Man (Route 117): fetches `/api/stats/github` → shows commit activity
+- Mart Clerk: fetches `/api/stats/pypi` → shows download counts
+
+### This is MY task (content), not yours:
+- The `dialogFn` async support already exists ✓
+- I just need to write the `dialogFn` implementations that call fetch()
+- BUT: need to verify the game handles the async delay gracefully (no freeze, no error on network failure)
+
+### What you should verify:
+- Does InteriorScene await `dialogFn` correctly? (line 995-996: yes, it does)
+- Does NPCSystem await `dialogFn` correctly? (line 328-329: yes, it does)
+- What happens if fetch fails? → The `dialogFn` should catch and return fallback dialog
+- **No engine work needed** — just verification that async path works
+
+---
+
+## ISSUE 20: No Analytics Tracking in Game
+
+### What the code does now:
+- Zero Umami tracking calls anywhere in the game code
+- The main site has Umami tracking (via the loading screen script)
+- But game interactions (Pokemon caught, badges earned, items found) are not tracked
+
+### What we want:
+- Track key game events for portfolio analytics:
+  ```javascript
+  umami.track('game-start', { name, gender });
+  umami.track('pokedex-register', { pokemon, project });
+  umami.track('paper-collected', { paper });
+  umami.track('badge-earned', { badge });
+  umami.track('url-opened', { type, id });
+  umami.track('champion-badge');
+  umami.track('game-session', { duration, steps, badges });
+  ```
+
+### This is a LATE task — not blocking anything. Wire it after content is placed.
+
+---
+
+## ISSUE 21: No spawnCondition Used Anywhere
+
+### What the code does now:
+- `NPCDefinition` has `spawnCondition?: () => boolean` ✓
+- NPCSystem.init() checks it: `if (npc.spawnCondition && !npc.spawnCondition()) continue;` ✓
+- BUT no NPC in `npcs.ts` or `wild-pokemon.ts` actually uses it
+
+### What we want:
+- Blog NPCs only spawn when their blog exists
+- Guard NPCs disappear when building opens
+- Some NPCs appear only after certain badges are earned
+
+### This is MY task — I'll set conditions when I write the final NPC data. Engine support is already there. ✓
+
+---
+
+## ISSUE 22: Missing Mart NPC for Step Display
+
+### What the code does now:
+- Mart has: clerk (static PyPI dialog), expert (static), developer (static)
+- No NPC that SHOWS the player's step count or TM purchase status
+
+### What we want:
+- A "Step Tracker" NPC in the mart who tells you your step count
+- After the shop interface is built (Issue 9), this NPC might be merged with the clerk
+- OR: the clerk opens the shop, and a separate Step Tracker NPC shows your count/history
+
+### Depends on Issue 1/9 (mart shop) — design the NPC role after shop UI is decided.
+
+---
+
+## UPDATED SUMMARY
+
+### YOUR ENGINE TASKS (priority order):
+
+**CRITICAL (blocks everything):**
+1. Map analyzer tool + walkability encoding (Issue 11 + 15)
+2. Step counter → mart shop purchase system (Issue 1 + 9)
+3. Dialog word-wrap + 2 lines per page pagination (Issue 3 + 7)
+
+**HIGH (gameplay correctness):**
+4. Add `pokemon` field to Snorlax/Slaking/Slakoth/Poochyena (Issue 2)
+5. Fix DEVOTED badge: remove key-items condition, keep URL-opens only (Issue 5)
+6. Fix CHAMPION badge: MEW/contacts chain, not badge-count auto-award (Issue 6)
+7. Reconcile Pokedex total count (Issue 10)
+8. Add `autoGive` to InteriorNPC + wire in InteriorScene (Issue 18)
+9. Add play time tracking (Issue 17)
+
+**MEDIUM (polish):**
+10. Fix Slaking/Slakoth sprites (Issue 4)
+11. Fix questionnaire reward (Issue 12)
+12. Fix PC defaults to TMs not contacts (Issue 13)
+13. Add MartShopInterface.tsx component (Issue 9)
+14. Add mart step-display NPC (Issue 22)
+
+**ENHANCEMENTS (new features):**
+15. Advanced NPC movement behaviors (Issue 16)
+16. Ephemeral Pokemon system (Issue 16)
+17. Analytics tracking (Issue 20)
+18. Puzzle system design (Issue 14)
+
+### MY CONTENT TASKS (after your engine work):
+- Place all NPCs, Pokemon, items with exact coordinates
+- Write all dialog (dynamic, static, conditional)
+- Write API-powered dialogFn implementations
+- Set spawnConditions for blog NPCs
+- Configure KOSTAS state machine dialog tree
+- Write Research Log stories
+- Design questionnaire questions
+- Configure mart shop TM prices
+- Source/create sound effects
