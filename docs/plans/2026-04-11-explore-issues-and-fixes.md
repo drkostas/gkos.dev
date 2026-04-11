@@ -1126,3 +1126,202 @@ This way: party Pokemon = seen (auto) but NOT caught. Only overworld encounters 
 18. Advanced NPC movement behaviors (Issue 16)
 19. Ephemeral Pokemon system (Issue 16)
 20. Analytics tracking (Issue 20)
+
+---
+
+## ISSUE 31: Hidden Items on FACING Tile vs STANDING Tile
+
+### What the code does now:
+- OverworldScene line 748: `HiddenItemSystem.tryPickup(dialogSystem, "overworld", facingTile.x, facingTile.y)`
+- Checks the tile the player is FACING, not the tile they're STANDING on
+
+### Design decision needed:
+- For **rocks and flowers** (easy/medium): facing tile makes sense — you face the rock and press A
+- For **ground between grass** (hard): facing tile is weird — you're facing empty ground
+- OG Pokemon Emerald: hidden items are on the tile you STAND on (press A while on the tile)
+
+### Recommendation:
+- Check BOTH: first check facing tile (for rock/flower items), then check standing tile (for ground items)
+- Or: keep facing-only but accept that hard items need to be on a tile the player faces (next to grass, not between grass)
+
+---
+
+## ISSUE 32: 2 Hidden Items on COMPLETELY UNREACHABLE Tiles
+
+### BFS reachability analysis found:
+```
+✗ ow_flower_linkedin (55,35) — COMPLETELY UNREACHABLE
+✗ ow_flower_huggingface (20,28) — COMPLETELY UNREACHABLE
+```
+These coordinates are in disconnected areas of Route 111 (50% reachable) that the player cannot walk to from spawn.
+
+### Also found 3 Wild Pokemon unreachable:
+```
+✗ Wailord (130,59) — Route 118, deep in disconnected eastern area
+✗ Pelipper (108,55) — Route 118, in disconnected northern section
+✗ Absol (66,21) — Route 111, in disconnected northern area
+```
+
+### Root cause:
+These are PLACEHOLDER coordinates placed without verifying walkability. The map analyzer tool (Issue 11/15) would have caught this.
+
+### Fix:
+When I do content placement, I'll use the reachability data to pick ONLY reachable tiles. But current test data has these bugs — you should be aware for testing.
+
+---
+
+## ISSUE 33: 27% of Walkable Tiles Are Disconnected
+
+### BFS analysis from spawn (72,58):
+```
+Reachable:  2321 tiles
+Total:      3180 tiles
+Disconnected: 859 tiles (27%)
+```
+
+### Per-zone breakdown:
+| Zone | Reachable | Total | % |
+|---|---|---|---|
+| Mauville | 430 | 469 | 92% |
+| Route 117 | 693 | 862 | 80% |
+| Route 118 | 116 | 277 | **42%** |
+| Route 110 | 643 | 690 | 93% |
+| Route 111 | 439 | 882 | **50%** |
+
+### Implication:
+- Route 118 is 58% UNREACHABLE — most of the eastern section is behind water
+- Route 111 is 50% UNREACHABLE — northern section is behind cliffs/rocks
+- These areas are intentionally blocked (boundaries) BUT contain "walkable" collision tiles
+- Any content placed in these areas is WASTED — players can never reach it
+- The map analyzer tool MUST flag these zones so I only place content on reachable tiles
+
+### This is NOT a bug — the disconnected areas are OG Emerald terrain that exists in the tilemap but is behind natural barriers (water, cliffs, Snorlax). But we MUST know which tiles are actually reachable.
+
+---
+
+## ISSUE 34: Hidden Item Priority Check Order
+
+### What the code does now (OverworldScene handleInteraction):
+```
+1. PC tile check
+2. Hidden item check (FACING tile) ← takes priority over NPCs!
+3. NPC interaction
+4. Sign interaction
+```
+
+### Problem:
+Hidden items are checked BEFORE NPCs. If a hidden item is on a tile adjacent to an NPC, the player might trigger the hidden item when trying to talk to the NPC.
+
+### Our design said:
+```
+Priority: NPC facing > sign facing > hidden item standing on
+```
+
+### Fix:
+Reorder the checks:
+```
+1. NPC interaction (facing tile)
+2. Sign interaction (facing tile)  
+3. Hidden item (facing tile OR standing tile)
+4. PC tile
+```
+This matches OG Pokemon behavior — NPC interaction always takes priority.
+
+---
+
+## ISSUE 35: Birch Speech Character Should Be KOSTAS-themed
+
+### What the code does now:
+- BirchSpeechLayer uses generic Professor Birch dialog
+- References "POKEMON" and generic speech about the world
+- The professor character uses a Birch sprite
+
+### What we want:
+- The professor IS KOSTAS (or represents the world builder)
+- Speech explains THIS game specifically:
+  - "This world is built from my portfolio"
+  - "Projects are Pokemon, papers are in the Gym"
+  - "Skills are TMs, contacts are hidden items"
+- Player understands the game's PURPOSE before starting
+
+### This is MY content task — the engine (BirchSpeechLayer) works, I just need to rewrite the dialog text. But you should know it needs customization.
+
+---
+
+## ISSUE 36: Title Screen Rayquaza Represents What?
+
+### What the code does now:
+- TitleScreenLayer shows Rayquaza (OG Emerald legendary)
+- Pokemon Emerald logo
+- "EXPLORE MODE" banner
+
+### Design consideration:
+- Rayquaza is Emerald-authentic ✓
+- But the "EXPLORE MODE" banner should communicate this is a PORTFOLIO GAME
+- Maybe add a small subtitle: "KOSTAS GEORGIOU — ML Engineer" under the logo?
+- Or keep it pure Pokemon — the Birch speech explains the portfolio context
+
+### Not a bug — just a UX consideration. The title screen works.
+
+---
+
+## FINAL UPDATED TASK LIST FOR YOU
+
+### CRITICAL (5):
+1. **Map analyzer tool** — walkability graph, reachability from spawn, distances (Issue 11+15+33)
+2. **Step counter → mart shop** — remove auto-award, spendSteps(), MartShopInterface (Issue 1+9)
+3. **Dialog text** — word-wrap at word boundaries + 2 lines per page (Issue 3+7)
+4. **NEW GAME full reset** — clear ALL 8 localStorage keys, not just GameSave (Issue 23)
+5. **Research Log discovery count** — use pokedexCaught not pokedexSeen (Issue 24)
+
+### HIGH (6):
+6. Add `pokemon` field to Snorlax/Slaking/Slakoth/Poochyena (Issue 2)
+7. Fix DEVOTED badge conflict — single definition using urlsOpened (Issue 5)
+8. Fix CHAMPION badge — MEW/contacts, not badge-count auto-award (Issue 6)
+9. Reconcile Pokedex total count (Issue 10)
+10. Add `autoGive` to InteriorNPC + wire in InteriorScene (Issue 18)
+11. Real play time tracking in GameSave (Issue 17)
+
+### MEDIUM (7):
+12. Slaking/Slakoth OG sprites (Issue 4)
+13. Questionnaire reward (Issue 12)
+14. PC defaults to TMs not contacts (Issue 13)
+15. Route 118 music: `route118: "mus_route111.ogg"` (Issue 26)
+16. Pokemon encounter SFX — find/create se_encounter.ogg (Issue 25)
+17. Trainer Card back = progress checklist (Issue 17)
+18. Hidden item priority order — NPCs first, then hidden (Issue 34)
+
+### ENHANCEMENTS (3):
+19. Advanced NPC movement behaviors (Issue 16)
+20. Ephemeral Pokemon system (Issue 16)
+21. Analytics tracking (Issue 20)
+
+### VERIFIED WORKING (no changes needed):
+- Title screen (Rayquaza + logo + animations) ✓
+- Birch speech (14-phase state machine + name/gender) ✓
+- CONTINUE / NEW GAME / OPTION menu flow ✓
+- All BGM tracks exist and map correctly (except Route 118) ✓
+- 17 SFX files all used correctly ✓
+- Door enter/exit sounds ✓
+- Badge/blog/TM jingles ✓
+- Hidden items system (facing tile check) ✓
+- Zone tracking for EXPLORER badge ✓
+- Notification banner queue ✓
+- KOSTAS dialogFn state machine (partial — needs content) ✓
+- Research Log viewer ✓
+- PC interface ✓
+- Questionnaire interface ✓
+- Mobile detection ✓
+
+### MY CONTENT TASKS (after engine is ready):
+- Rewrite Birch speech dialog (KOSTAS-themed, explains game purpose)
+- Write all NPC dialog (40+ NPCs)
+- Write KOSTAS state machine dialog tree (7 priorities)
+- Place all Pokemon at REACHABLE coordinates only
+- Place all hidden items at REACHABLE coordinates only
+- Configure TM prices for mart shop
+- Write questionnaire questions about portfolio
+- Set PC defaults to Python/Git/Linux TMs
+- Configure blog NPC spawnConditions
+- Write Research Log stories
+- Add Umami analytics events
