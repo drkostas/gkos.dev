@@ -194,6 +194,12 @@ export default function PhaserGame() {
     return () => {
       window.removeEventListener("resize", updateUiScale);
       window.clearTimeout(newContentTimer);
+      // Stop BGM on unmount. Without this, navigating away from
+      // /explore to a different portfolio page would leak an
+      // HTMLAudioElement that keeps looping the track forever.
+      // Safe to call in both dev and prod — bgm.stop is a no-op
+      // when nothing is playing.
+      bgm.stop();
       // In prod, fully destroy. In dev, keep the game alive for HMR —
       // the new mount will reattach the canvas via the branch above.
       if (import.meta.env.PROD) {

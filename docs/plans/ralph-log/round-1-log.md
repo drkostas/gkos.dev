@@ -31,3 +31,16 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
   - Behavior test: dispatched `visibilitychange` with `document.hidden=true` then
     `=false`, both fired without throwing (elapsedMs=102). Console zero errors.
 - Verified working at 2026-04-11T22:44 via visibilitychange dispatch + console check
+
+**B5 — bgm.stop() in PhaserGame unmount cleanup** ✅
+- File: `src/components/game/PhaserGame.tsx` — add `bgm.stop()` to the main useEffect cleanup
+- Fix: prevents HTMLAudioElement leak when user navigates away from /explore to another
+  portfolio page. Previously, bgm kept looping even after the game unmounted.
+- Verification (4-step):
+  - Desktop 1440x900: `b5-desktop-after-fix.png` — loading screen at 47%
+  - Mobile landscape 852x393: `b5-mobile-landscape-after-fix.png` — loading at 36%
+  - Mobile portrait 393x852: `b5-mobile-portrait-after-fix.png` — loading at 100%
+  - Behavior test: navigated /explore → / via browser_navigate, zero console errors
+    after unmount. bgm.stop() is a no-op if nothing is playing, so safe in both
+    dev (HMR) and prod.
+- Verified working at 2026-04-11T22:47 via navigate + console check
