@@ -1325,3 +1325,114 @@ This matches OG Pokemon behavior — NPC interaction always takes priority.
 - Configure blog NPC spawnConditions
 - Write Research Log stories
 - Add Umami analytics events
+
+---
+
+## ISSUE 37: No Way to Return to Normal Portfolio From In-Game
+
+### What the code does now:
+- `explore.astro` uses bare `<html>` — no navbar, no Layout, no back button
+- Main branch has `GameLayout.astro` with navbar, but the worktree doesn't use it
+- The noscript tag has "Return to normal site" but only shows without JS
+- Once the game loads, the player is TRAPPED — only browser back/URL change exits
+
+### What we want:
+A way for the player to reach the normal portfolio without closing the tab. Options:
+- **A)** Use GameLayout (navbar at top) — reduces game area but always visible
+- **B)** Add "WEBSITE" option to the title screen menu (CONTINUE / NEW GAME / WEBSITE / OPTION)
+- **C)** Add "Back to gkos.dev" link in the HELP screen
+- **D)** Add it to the OPTIONS menu
+
+### Recommendation:
+**Option B + C combined.** The title screen menu gets a "WEBSITE" option that opens `/` in the same tab. The HELP screen also has a "Visit normal site" link at the bottom. The game itself stays full-screen (no navbar — maximum immersion).
+
+---
+
+## ISSUE 38: Overworld PC Tiles Are Outside Buildings
+
+### What the code does now:
+- OverworldScene line 720-722: `PC_TILES = new Set(["73,55", "74,55"])`
+- These tiles are at the Pokemon Center ENTRANCE (the door tiles)
+- Comment says: "We put one outside near the center"
+- Pressing A on these tiles opens the PC interface from the OVERWORLD
+
+### Is this intentional?
+- OG Pokemon: PC is INSIDE the Pokemon Center, on the desk
+- Current: PC is accessible from OUTSIDE the building (standing at the door)
+- This means the player can access PC without entering the building
+
+### Design question for you:
+- Keep it as-is (convenience — PC from outside)?
+- Or remove overworld PC and keep it inside only (more authentic)?
+- The interior scene already has PC support ✓
+
+---
+
+## ISSUE 39: Door Tiles Are BLOCKED in Collision (Correct Behavior)
+
+### Verified:
+All 6 door tiles (gym, pokecenter, mart) are collision=BLOCKED. This is CORRECT — the warp triggers when the player walks INTO the blocked door tile facing up. Grid Engine detects the blocked movement, OverworldScene checks for a warp, and transitions. Not a bug. ✓
+
+---
+
+## ISSUE 40: KOSTAS Menu Item Opens Trainer Card
+
+### What the code does now:
+- "KOSTAS" in StartMenu opens the Trainer Card sub-screen
+- This matches OG Emerald where your name opens the Trainer Card ✓
+- Working correctly ✓
+
+---
+
+## COMPLETE AND FINAL TASK LIST
+
+### YOUR ENGINE TASKS:
+
+**CRITICAL (5):**
+| # | Task | Issue(s) |
+|---|---|---|
+| 1 | Map analyzer script — BFS reachability accounting for NPC blockers + collision, output reachable tile list + zone stats + distances | 11, 15, 33 |
+| 2 | Step counter → mart shop — remove StepMilestones auto-award, add spendSteps() to StepStore, build MartShopInterface.tsx, wire to mart clerk dialogFn | 1, 9 |
+| 3 | Dialog text — word-wrap function (break at word boundaries, not mid-word), paginate 2 lines per page (group dialog strings, use \n for line breaks within a page) | 3, 7 |
+| 4 | NEW GAME full reset — clearSave() must also clear all 7 other localStorage keys (steps, pickups, pokedex, PC, trainers, interior, settings optional) | 23 |
+| 5 | Research Log discovery count — change getTotalDiscoveries() to use pokedexCaught instead of pokedexSeen (party auto-seen shouldn't count) | 24 |
+
+**HIGH (6):**
+| # | Task | Issue(s) |
+|---|---|---|
+| 6 | Add `pokemon` field to Snorlax, Slaking, Slakoth, and 1 Poochyena in npcs.ts — each needs pokedexNumber, speciesName, projectName, projectDescription, repeatDialog | 2 |
+| 7 | Fix DEVOTED badge — remove key-items condition from BadgeMilestones.ts, keep ONLY the urlsOpened check in GameSave.ts, change threshold from hardcoded 10 to dynamic total | 5 |
+| 8 | Fix CHAMPION badge — remove `badges.length >= 7` from BadgeMilestones, CHAMPION should be awarded when player has ALL contacts including phone number from MEW (or given directly by MEW interaction) | 6 |
+| 9 | Reconcile Pokedex count — verify pokemon.ts entries match wild-pokemon.ts + party + boundary Pokemon, update TOTAL_POKEDEX in BadgeMilestones | 10 |
+| 10 | Add `autoGive` to InteriorNPC interface + handle in InteriorScene handleInteraction() — trainer gives item, walks to aside position, cleared state persisted | 18 |
+| 11 | Real play time tracking — add playTimeSeconds to GameSave, 1-second interval, pause when tab hidden, display on Trainer Card (replace fake yearsExperience) | 17 |
+
+**MEDIUM (8):**
+| # | Task | Issue(s) |
+|---|---|---|
+| 12 | Fix Slaking/Slakoth sprites — source OG 32x32 overworld sprites or convert to 32x64 icon format matching other wild Pokemon | 4 |
+| 13 | Questionnaire reward — replace MYSTERY TICKET with meaningful TM or portfolio-related reward | 12 |
+| 14 | PC default items — change from contact links to TMs (Python, Git, Linux) | 13 |
+| 15 | Route 118 music — change `route118: "mus_route110.ogg"` to `route118: "mus_route111.ogg"` in BGMManager | 26 |
+| 16 | Pokemon encounter SFX — find/create se_encounter.ogg, add sfx.encounter() to SoundManager, replace sfx.pickup() in NPCSystem Pokemon flash | 25 |
+| 17 | Trainer Card back side — replace current back content with progress checklist (papers N/M, blogs N/M, Pokemon N/M, TMs N/M, items N/M, badges N/8) | 17 |
+| 18 | Hidden item priority — reorder handleInteraction: NPC first → sign → hidden item (currently hidden item is checked before NPCs) | 34 |
+| 19 | Return to portfolio — add "WEBSITE" to title screen menu (navigates to /) + add "Visit gkos.dev" link in HELP screen | 37 |
+
+**ENHANCEMENTS (3):**
+| # | Task | Issue(s) |
+|---|---|---|
+| 20 | Advanced NPC movement behaviors — wander_area, pace_horizontal/vertical, run types | 16 |
+| 21 | Ephemeral Pokemon system — appear/disappear cycle at random locations | 16 |
+| 22 | Analytics tracking — wire Umami events for game interactions | 20 |
+
+### NOT YOUR TASKS (confirmed MY content work):
+- Birch speech rewrite (KOSTAS-themed) — Issue 35
+- Unreachable Pokemon/item coordinates — Issue 32 (my placement error)
+- All NPC dialog writing
+- KOSTAS state machine dialog content
+- Blog NPC conditional spawn configuration
+- Questionnaire question content
+- TM prices for mart shop
+- Research Log story content
+- Pokemon-to-project mapping finalization
