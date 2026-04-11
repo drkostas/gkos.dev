@@ -1127,8 +1127,87 @@ const menuSimpleSelStyle: React.CSSProperties = {
 | 21 | Ephemeral Pokemon system |
 | 22 | Analytics tracking |
 
-**Total: 25 tasks** (5 critical + 6 high + 10 medium + 1 low + 3 enhancements)
+| 26 | **Player name/gender impact** — StartMenu shows player name, `{NAME}` template in dialog |
+
+**Total: 26 tasks** (5 critical + 6 high + 11 medium + 1 low + 3 enhancements)
 
 Note on Task 3: The dialog word-wrap + pagination fix should be implemented as a SHARED utility
 that BOTH DialogBox.tsx (in-game) and BirchSpeechLayer.tsx (opening) use. Don't implement it
 twice — one function, two consumers.
+
+---
+
+## TASK 26: Player Name/Gender Impact Across the Game [MEDIUM]
+
+### What the code does now:
+
+**Gender — WORKS correctly:**
+- BootScene line 41-42: loads `brendan.png` or `may.png` based on `save.playerGender` ✓
+- InteriorScene reuses the cached `"player"` texture → correct sprite ✓
+- TrainerCard line 180: shows correct portrait (brendan_pic or may_pic) ✓
+- BirchSpeechLayer: shows correct player sprite during intro ✓
+- **Gender is fully wired. No changes needed.**
+
+**Name — PARTIALLY works:**
+- Saved to `save.playerName` ✓
+- Shown on Trainer Card (`NAME: [playerName]`) ✓
+- Shown on CONTINUE screen ✓
+- **BUT: no NPC in the entire game ever says the player's name**
+  - NPCs in `npcs.ts` use static `dialog: string[]` — no `{NAME}` interpolation
+  - KOSTAS's `dialogFn` reads `save` but never uses `save.playerName`
+  - Nurse Joy, gym trainers, blog NPCs — all generic text
+- **AND: Start Menu shows "KOSTAS" instead of player's name**
+  - `MENU_ITEMS[3]` is hardcoded as `"KOSTAS"` (line 23 in StartMenu.tsx)
+  - In OG Pokemon, this slot shows YOUR name (opens Trainer Card)
+  - Currently: the menu says KOSTAS but opens YOUR card — confusing
+
+### Why this matters:
+The player chose a name during the Birch intro. If nobody ever USES it, the choice
+feels meaningless. In OG Pokemon, NPCs frequently say "Hey [PLAYER]!" or "Good luck,
+[PLAYER]!" It creates a personal connection. For a portfolio game, this matters even
+more — the visitor feels like a participant, not a spectator.
+
+### What to fix:
+
+**A) StartMenu — show player name instead of "KOSTAS":**
+```typescript
+// StartMenu.tsx
+const save = getSave();
+const MENU_ITEMS = [
+  "POKeDEX",
+  "POKeMON",
+  "BAG",
+  save.playerName || "TRAINER",  // ← dynamic, not hardcoded
+  "HELP",
+  "OPTION",
+  "EXIT",
+] as const;
+```
+
+**B) Support `{NAME}` template in dialog strings:**
+Add a utility that replaces `{NAME}` in dialog lines with the player's name:
+```typescript
+function interpolateDialog(lines: string[], save: GameSave): string[] {
+  return lines.map(line => line.replace(/\{NAME\}/g, save.playerName || "TRAINER"));
+}
+```
+Apply this in `NPCSystem.interact()` and `InteriorScene.handleInteraction()` before
+passing dialog to `DialogSystem.showDialog()`.
+
+Then NPCs can use: `"Hey {NAME}! Have you explored Route 117?"` and it renders as
+`"Hey ALEX! Have you explored Route 117?"`
+
+**C) KOSTAS dialogFn should use player name:**
+His dynamic dialog should address the player: `"${save.playerName}, you've earned..."` 
+This is mostly MY content task — but the `{NAME}` interpolation from B) must exist first.
+
+### Files to modify:
+- `src/components/game/StartMenu.tsx` — dynamic menu item name
+- `src/game/systems/NPCSystem.ts` — add `interpolateDialog()` before showing dialog
+- `src/game/scenes/InteriorScene.ts` — same interpolation for interior NPCs
+- `src/game/data/interiors.ts` — KOSTAS dialogFn uses save.playerName (content: me)
+
+### Note:
+The `{NAME}` template support is an ENGINE feature (you build the interpolation).
+Actually USING it in NPC dialog text is MY content task (I write the dialog strings
+with `{NAME}` placeholders where appropriate).
