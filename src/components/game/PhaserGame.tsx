@@ -4,7 +4,7 @@ import { createGameConfig } from "@/game/config";
 import { initSettings } from "@/game/systems/Settings";
 import { initPC } from "@/game/systems/PCStore";
 import { bgm } from "@/game/systems/BGMManager";
-import { getSave, updateSave } from "@/game/systems/GameSave";
+import { flushSave, getSave, updateSave } from "@/game/systems/GameSave";
 import DialogBox from "./DialogBox";
 import StartMenu from "./StartMenu";
 import MapNamePopup from "./MapNamePopup";
@@ -51,6 +51,9 @@ export default function PhaserGame() {
     const onVisibilityChange = () => {
       if (document.hidden) {
         bgm.pause();
+        // B1: also force-flush any pending save mutations so mobile
+        // browsers that kill backgrounded tabs don't lose state.
+        flushSave();
       } else {
         bgm.resume();
       }
@@ -58,6 +61,19 @@ export default function PhaserGame() {
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
+  // B1: flush pending save writes on page unload. queueMicrotask usually
+  // fires before the beforeunload handler, but explicit flush ensures
+  // correctness when tab close races a synchronous updateSave().
+  useEffect(() => {
+    const onBeforeUnload = () => flushSave();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onBeforeUnload);
     };
   }, []);
 
