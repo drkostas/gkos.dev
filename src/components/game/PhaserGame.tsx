@@ -109,12 +109,27 @@ export default function PhaserGame() {
     //                  window height vs the reference 720px
     //   --ui-scale-x → text/dialog box — based on window width vs the
     //                  reference 1280px
-    // A floor of 0.6 prevents the UI from getting unreadably small.
+    //
+    // M4/M5: Floor of 0.6 was too high for iPhone 14 Pro portrait
+    // (393px × 0.6 = 236px effective base, which overshot real
+    // dimensions) — menu borders and buttons looked chonky. New
+    // clamp(0.35, viewport/reference, 1.3) gives a smoother scale:
+    //   393px  portrait  → 0.35 (floor hit)
+    //   852px  landscape → 0.67
+    //   1280px desktop   → 1.00
+    //   1920px+          → 1.30 (cap)
+    // Every existing `calc(Npx * var(--ui-scale-x))` now scales down
+    // proportionally on small screens, and inflated mobile text is
+    // already blocked by the text-size-adjust: 100% rule in global.css.
     const REFERENCE_HEIGHT = 720;
     const REFERENCE_WIDTH = 1280;
+    const SCALE_MIN = 0.35;
+    const SCALE_MAX = 1.3;
+    const clampScale = (raw: number) =>
+      Math.min(SCALE_MAX, Math.max(SCALE_MIN, raw));
     const updateUiScale = () => {
-      const sy = Math.max(0.6, window.innerHeight / REFERENCE_HEIGHT);
-      const sx = Math.max(0.6, window.innerWidth / REFERENCE_WIDTH);
+      const sy = clampScale(window.innerHeight / REFERENCE_HEIGHT);
+      const sx = clampScale(window.innerWidth / REFERENCE_WIDTH);
       document.documentElement.style.setProperty("--ui-scale-y", String(sy));
       document.documentElement.style.setProperty("--ui-scale-x", String(sx));
     };
