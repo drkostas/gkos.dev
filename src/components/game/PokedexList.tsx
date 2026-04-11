@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { POKEDEX } from "@/game/data/pokemon";
+import { isPokedexSeen, getPokedexSeenCount } from "@/game/systems/PokedexStore";
 import {
-  POKEDEX,
-  POKEDEX_CAUGHT,
-  POKEDEX_SEEN,
-} from "@/game/data/pokemon";
+  markUrlOpened,
+  hasUrlOpened,
+  checkBadges,
+  isPokedexCaughtInSave,
+} from "@/game/systems/GameSave";
+import { showNotification } from "@/game/EventBridge";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 
 interface PokedexListProps {
   onClose: () => void;
@@ -59,49 +64,46 @@ export default function PokedexList({ onClose }: PokedexListProps) {
     });
   }, []);
 
-  const openSelected = useCallback(() => {
-    const entry = POKEDEX[selectedIndexRef.current];
-    if (entry?.url) {
-      window.open(entry.url, "_blank", "noopener,noreferrer");
+  /**
+   * Open a Pokedex entry's project URL and record that it's been
+   * viewed so the list can render a ✓ mark next time the player
+   * visits the page, and so the DEVOTED badge-check count moves up.
+   */
+  const openEntry = useCallback((entry: (typeof POKEDEX)[number]) => {
+    if (!entry.url || !isPokedexSeen(entry.number)) return;
+    window.open(entry.url, "_blank", "noopener,noreferrer");
+    const key = `pokedex:${entry.number}`;
+    const wasFirstOpen = markUrlOpened(key);
+    if (wasFirstOpen) {
+      const newBadges = checkBadges();
+      if (newBadges.includes("devoted")) {
+        showNotification("DEVOTED badge earned!", "★");
+      }
     }
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case "ArrowUp":
-          e.preventDefault();
-          sfx.select();
-          moveSelection(-1);
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          sfx.select();
-          moveSelection(1);
-          break;
-        case "Enter":
-        case "z":
-        case "Z":
-          e.preventDefault();
-          sfx.confirm();
-          openSelected();
-          break;
-        case "Escape":
-        case "x":
-        case "X":
-        case "Backspace":
-          e.preventDefault();
-          sfx.cancel();
-          onCloseRef.current();
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [moveSelection, openSelected]);
+  const openSelected = useCallback(() => {
+    const entry = POKEDEX[selectedIndexRef.current];
+    if (entry) openEntry(entry);
+  }, [openEntry]);
+
+  useGameKeyboard(true, {
+    up: () => { sfx.select(); moveSelection(-1); },
+    down: () => { sfx.select(); moveSelection(1); },
+    confirm: () => { sfx.confirm(); openSelected(); },
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+  });
 
   const visibleEntries = POKEDEX.slice(scrollOffset, scrollOffset + VISIBLE_ROWS);
   const selectedEntry = POKEDEX[selectedIndex];
+  const selectedSeen = selectedEntry ? isPokedexSeen(selectedEntry.number) : false;
+  const seenCount = getPokedexSeenCount();
+  // "OWN" = entries the player has actually encountered in the
+  // overworld. Party-roster entries are counted as SEEN but NOT
+  // OWN, so the counter jumps up only after real catches.
+  const ownCount = POKEDEX.filter(
+    (p) => p.status === "caught" && isPokedexCaughtInSave(p.number),
+  ).length;
 
   return (
     <div ref={overlayRef} style={overlayStyle}>
@@ -111,17 +113,17 @@ export default function PokedexList({ onClose }: PokedexListProps) {
         <div style={statsAreaStyle}>
           <div style={statBoxStyle}>
             <span style={statLabelStyle}>SEEN</span>
-            <span style={statValueStyle}>{POKEDEX_SEEN}</span>
+            <span style={statValueStyle}>{seenCount}</span>
           </div>
           <div style={statBoxStyle}>
             <span style={statLabelStyle}>OWN</span>
-            <span style={statValueStyle}>{POKEDEX_CAUGHT}</span>
+            <span style={statValueStyle}>{ownCount}</span>
           </div>
         </div>
 
         {/* ── Detail panel (left white preview area) — Pokemon sprite + info ── */}
         <div style={detailAreaStyle}>
-          {selectedEntry && (
+          {selectedEntry && selectedSeen ? (
             <>
               <img
                 key={selectedEntry.number}
@@ -146,7 +148,12 @@ export default function PokedexList({ onClose }: PokedexListProps) {
                 ))}
               </div>
             </>
-          )}
+          ) : selectedEntry ? (
+            <div style={detailUnseenStyle}>
+              <div style={detailPokemonNameStyle}>???</div>
+              <div style={detailDescStyle}>Not yet discovered.</div>
+            </div>
+          ) : null}
         </div>
 
         {/* ── Right list panel ── */}
@@ -154,12 +161,19 @@ export default function PokedexList({ onClose }: PokedexListProps) {
           {visibleEntries.map((entry) => {
             const idx = entry.number - 1;
             const isSelected = idx === selectedIndex;
+            const seen = isPokedexSeen(entry.number);
+            // "Caught" = actually encountered in the overworld. Party
+            // roster entries are `seen` but NOT `caught`, so they
+            // render with a desaturated outline ball instead of the
+            // red-and-white filled ball.
+            const caught = seen && isPokedexCaughtInSave(entry.number);
+            const opened = seen && hasUrlOpened(`pokedex:${entry.number}`);
             return (
               <div
                 key={entry.number}
                 onClick={() => {
                   setSelectedIndex(idx);
-                  if (entry.url) window.open(entry.url, "_blank", "noopener,noreferrer");
+                  openEntry(entry);
                 }}
                 style={{
                   ...entryRowStyle,
@@ -169,8 +183,23 @@ export default function PokedexList({ onClose }: PokedexListProps) {
                 <span style={cursorStyle}>
                   {isSelected ? "\u25B6" : "\u00A0"}
                 </span>
-                {entry.status === "caught" ? (
+                {caught && entry.status === "caught" ? (
                   <img src="/game/ui/pokedex_caught_ball.png" alt="" style={ballIconStyle} />
+                ) : seen && entry.status === "caught" ? (
+                  // Party-only entry: show the same ball icon but
+                  // desaturated + half-opacity so the player can
+                  // tell it came from the party roster, not from an
+                  // overworld encounter.
+                  <img
+                    src="/game/ui/pokedex_caught_ball.png"
+                    alt=""
+                    style={{
+                      ...ballIconStyle,
+                      filter: "grayscale(1) brightness(1.3)",
+                      opacity: 0.45,
+                    }}
+                    title="Seen via party — not yet encountered in the overworld"
+                  />
                 ) : (
                   <span style={ballPlaceholderStyle} />
                 )}
@@ -178,8 +207,23 @@ export default function PokedexList({ onClose }: PokedexListProps) {
                   No{String(entry.number).padStart(3, "0")}
                 </span>
                 <span style={entryNameTextStyle}>
-                  {entry.status !== "unseen" ? entry.name.toUpperCase() : "----------"}
+                  {seen ? entry.name.toUpperCase() : "----------"}
                 </span>
+                {opened && (
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      paddingRight: "0.6cqi",
+                      color: "#2aa33a",
+                      fontSize: "1.9cqi",
+                      flexShrink: 0,
+                    }}
+                    aria-label="opened"
+                    title="Project already opened"
+                  >
+                    ✓
+                  </span>
+                )}
               </div>
             );
           })}
@@ -214,9 +258,10 @@ export default function PokedexList({ onClose }: PokedexListProps) {
 const FONT = "var(--pkmn-font, 'Courier New', monospace)";
 
 /** Scaled fonts — proportional to the 3:2 frame. */
-const F = "min(2.2vh, 1.47vw)";    // main text (bumped from 2vh)
-const F_SM = "min(1.8vh, 1.2vw)";  // small text (bumped from 1.6vh)
-const F_LG = "min(2.8vh, 1.87vw)"; // large (detail name)
+// Container-relative font sizing (frame = 100cqi)
+const F = "2.6cqi";     // main text (list entries)
+const F_SM = "2.2cqi";  // small text
+const F_LG = "3.2cqi";  // large (detail name)
 
 const overlayStyle: React.CSSProperties = {
   position: "fixed",
@@ -235,8 +280,9 @@ const overlayStyle: React.CSSProperties = {
 
 const menuFrameStyle: React.CSSProperties = {
   position: "relative",
-  width: "min(82.5vh, 55vw)",
-  height: "min(55vh, 36.67vw)",
+  width: "min(135vh, 90vw)",
+  height: "min(90vh, 60vw)",
+  containerType: "inline-size",
   backgroundImage: "url('/game/ui/pokedex/bg_full.png?v=4')",
   backgroundSize: "100% 100%",
   backgroundRepeat: "no-repeat",
@@ -281,28 +327,31 @@ const statValueStyle: React.CSSProperties = {
 };
 
 // ── Detail panel (left white preview) ─────────────────────────
-// Interior: x=62-113, y=22-137
+// Background bg_full.png detail box interior: x=62-129 (25.8%-53.8%),
+// y~20-140 (12.5%-87.5%). Shifted slightly down for better visual balance.
 const detailAreaStyle: React.CSSProperties = {
   position: "absolute",
   top: "16%",
-  left: "26%",
-  width: "21%",
-  height: "72%",
+  left: "25.8%",
+  width: "28%",
+  height: "75%",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  padding: "min(0.4vh, 0.27vw) min(0.4vh, 0.27vw) min(1vh, 0.67vw)",
+  justifyContent: "flex-start",
+  padding: "2.5cqi 0 0.5cqi 0",
+  boxSizing: "border-box",
   overflow: "hidden",
 };
 
 // Pokemon sprite — top of the detail panel
 const spriteStyle: React.CSSProperties = {
-  width: "65%",
+  width: "60%",
   height: "auto",
-  maxHeight: "42%",
+  maxHeight: "35%",
   objectFit: "contain",
   imageRendering: "pixelated",
-  marginTop: "min(0.4vh, 0.27vw)",
+  marginTop: "0.5cqi",
 };
 
 const detailPokemonNameStyle: React.CSSProperties = {
@@ -310,8 +359,9 @@ const detailPokemonNameStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "#333",
   textAlign: "center",
-  marginTop: "min(0.2vh, 0.13vw)",
+  marginTop: "0.8cqi",
   lineHeight: 1.1,
+  width: "100%",
 };
 
 const detailProjectNameStyle: React.CSSProperties = {
@@ -319,30 +369,44 @@ const detailProjectNameStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "#000",
   textAlign: "center",
-  marginTop: "min(0.3vh, 0.2vw)",
+  marginTop: "0.4cqi",
   lineHeight: 1.1,
+  width: "100%",
 };
 
 const detailDescStyle: React.CSSProperties = {
-  fontSize: "min(1.5vh, 1vw)",
+  fontSize: "1.7cqi",
   color: "#444",
   textAlign: "center",
-  marginTop: "min(0.3vh, 0.2vw)",
+  marginTop: "0.6cqi",
   lineHeight: 1.2,
   overflow: "hidden",
-  display: "-webkit-box",
-  WebkitLineClamp: 3,
-  WebkitBoxOrient: "vertical",
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "0 1cqi",
+  wordWrap: "break-word",
+  overflowWrap: "break-word",
+  maxHeight: "18%",
+};
+
+const detailUnseenStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "100%",
+  height: "100%",
+  opacity: 0.5,
 };
 
 const typeBadgeRowStyle: React.CSSProperties = {
   display: "flex",
-  gap: "min(0.4vh, 0.27vw)",
-  marginTop: "min(0.5vh, 0.33vw)",
+  gap: "0.5cqi",
+  marginTop: "0.8cqi",
 };
 
 const typeBadgeStyle: React.CSSProperties = {
-  fontSize: "min(1.3vh, 0.87vw)",
+  fontSize: "1.7cqi",
   fontWeight: 700,
   color: "#fff",
   padding: "min(0.15vh, 0.1vw) min(0.5vh, 0.33vw)",
@@ -404,8 +468,8 @@ const entryRowSelectedStyle: React.CSSProperties = {
 };
 
 const cursorStyle: React.CSSProperties = {
-  width: "min(1.4vh, 0.93vw)",
-  fontSize: "min(1.2vh, 0.8vw)",
+  width: "3cqi",
+  fontSize: "3cqi",
   flexShrink: 0,
   textAlign: "center",
 };
@@ -426,6 +490,7 @@ const entryNumberStyle: React.CSSProperties = {
   fontSize: F,
   color: "#000",
   flexShrink: 0,
+  marginRight: "2cqi", // space between "No001" and the name
 };
 
 const entryNameTextStyle: React.CSSProperties = {

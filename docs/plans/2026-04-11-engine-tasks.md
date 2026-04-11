@@ -841,7 +841,7 @@ Only 3 behaviors. World feels static.
 ### What to add:
 ```typescript
 WANDER_UP_DOWN     // shuffles vertically within range
-WANDER_AREA        // wanders freely in a range box (both axes)
+WANDER_AREA        // wanders freely in a range box (both axes randomly)
 PACE_HORIZONTAL    // predictable back-and-forth horizontally
 PACE_VERTICAL      // predictable back-and-forth vertically
 RUN_HORIZONTAL     // runs back and forth (speed 8 instead of 2)
@@ -1100,6 +1100,7 @@ const menuSimpleSelStyle: React.CSSProperties = {
 | 9 | Reconcile Pokedex total count |
 | 10 | Add autoGive to InteriorNPC |
 | 11 | Real play time tracking |
+| 29 | **Research Log bug fix** — auto-awards on first step, discovery count inflated |
 
 ### MEDIUM (10):
 | # | Task |
@@ -1114,6 +1115,8 @@ const menuSimpleSelStyle: React.CSSProperties = {
 | 19 | Return-to-portfolio link |
 | 23 | **Birch speech sound effects** |
 | 24 | **Birch text box scaling + container size match** |
+| 27 | **Gate system — clearable obstacles** |
+| 28 | **Dynamic party + field moves** |
 
 ### LOW (1):
 | # | Task |
@@ -1128,8 +1131,11 @@ const menuSimpleSelStyle: React.CSSProperties = {
 | 22 | Analytics tracking |
 
 | 26 | **Player name/gender impact** — StartMenu shows player name, `{NAME}` template in dialog |
+| 27 | **Gate system** — clearable obstacles unlocked by field moves (party Pokemon) |
+| 28 | **Dynamic party + field moves** — party grows 4→5→6, KOSTAS teaches moves, MEW joins |
+| 29 | **Research Log bug fix** — auto-awards on first step, party inflates discovery count |
 
-**Total: 26 tasks** (5 critical + 6 high + 11 medium + 1 low + 3 enhancements)
+**Total: 29 tasks** (5 critical + 7 high + 13 medium + 1 low + 3 enhancements)
 
 Note on Task 3: The dialog word-wrap + pagination fix should be implemented as a SHARED utility
 that BOTH DialogBox.tsx (in-game) and BirchSpeechLayer.tsx (opening) use. Don't implement it
@@ -1211,3 +1217,878 @@ This is mostly MY content task — but the `{NAME}` interpolation from B) must e
 The `{NAME}` template support is an ENGINE feature (you build the interpolation).
 Actually USING it in NPC dialog text is MY content task (I write the dialog strings
 with `{NAME}` placeholders where appropriate).
+
+---
+
+## TASK 27: Gate System — Clearable Obstacles [MEDIUM]
+
+### What the code does now:
+- Boundary NPCs (Snorlax, Slaking, Aqua/Magma) are permanent obstacles — they never move or
+  despawn regardless of player state
+- The `spawnCondition` field on `NPCDefinition` exists (npc.ts line 111) and controls whether
+  an NPC appears when the scene loads, but no boundary NPC uses it
+- Collision tiles in the Tiled map are static — no mechanism exists to unblock a collision tile
+  at runtime based on player progress
+- The party system (`party.ts`) has a `Move` interface with name/type/pp/description — but
+  moves are cosmetic project-tech labels. No move has any gameplay effect.
+- The game has ~1700 unreachable walkable tiles behind terrain (water, cliffs, rocks). Some of
+  these orphan pockets are 1-2 tiles away from the reachable area — prime spots for small gated
+  shortcuts that would reward exploration
+
+### Why this matters:
+In real Pokemon, earning badges unlocks HM abilities that open new map areas. This creates a
+feedback loop: explore → earn badge → discover new area → find new content → earn next badge.
+Without gates, our game is fully open from the start and badges are just achievement tracking.
+
+Our design uses 2-3 SMALL gates (not big area unlocks). Each gate is a subtle obstacle — a
+tinted tree, a different-colored fence, or a large Pokemon blocking a path. Behind each: a
+tiny 4-72 tile pocket with one reward (hidden item, rare Pokemon, or special NPC). No in-game
+indicator tells the player which obstacles are clearable. The player is told a Pokemon learned
+a move, but must figure out where to use it themselves.
+
+**How gates unlock (integrated with Task 28):**
+
+Gates are unlocked by FIELD MOVES — custom-named moves that party Pokemon learn. These are
+NOT standard Pokemon moves like CUT or SURF. They are custom moves with names chosen during
+the content phase (e.g. "TERRAFORM", "DECONSTRUCT", "FORCE PUSH" — whatever fits the theme).
+
+The unlock chain:
+1. Player earns a badge from KOSTAS
+2. KOSTAS says: "Your KYOGRE learned FORCE PUSH!"
+3. A field move is added to that party Pokemon (see Task 28 for the save/party system)
+4. Player finds a suspicious obstacle somewhere on the map
+5. Presses A → game checks if any party Pokemon knows the required move
+6. If yes: "[POKEMON] used FORCE PUSH!" → obstacle clears → path opens
+7. If no: generic locked message (no hint about which move is needed)
+
+**Alternatively**, for one gate: a wild Pokemon that joins the party (Task 28) already knows
+the required field move. This creates a different unlock path — exploration-driven instead of
+badge-driven.
+
+### What to build:
+
+**A) Gate data file — `src/game/data/gates.ts`:**
+
+```typescript
+export interface GateDefinition {
+  /** Unique gate id, used in save.gatesCleared. */
+  id: string;
+  /** Human-readable description (for analyzer / dev tooling only). */
+  description: string;
+  /** "npc" = despawn an NPC character. "terrain" = unblock collision tiles. */
+  type: "npc" | "terrain";
+  /** "overworld" or an interior key. */
+  map: "overworld" | string;
+
+  // ── What opens ─────────────────────────────────────────
+  /** For NPC gates: the NPC id to despawn when cleared. */
+  npcId?: string;
+  /** For terrain gates: collision tile positions to unblock. */
+  tiles?: { x: number; y: number }[];
+  /** For terrain gates: sprite key for the obstacle visual. */
+  spriteKey?: string;
+
+  // ── When it opens ──────────────────────────────────────
+  /**
+   * Field move name required to clear this gate. The gate checks if ANY
+   * party Pokemon knows a field move with this exact name. Field moves
+   * are taught by KOSTAS (on badge award) or pre-loaded on a Pokemon
+   * that joins the party mid-game.
+   *
+   * Move names are custom (NOT standard Pokemon moves). Examples:
+   * "TERRAFORM", "DECONSTRUCT", "FORCE PUSH". Decided in content phase.
+   */
+  requiredMove: string;
+
+  // ── Player-facing messages ─────────────────────────────
+  /** Shown when player presses A and a party Pokemon knows the move.
+   *  Use {POKEMON} placeholder — replaced with the Pokemon's nickname. */
+  clearMessage: string;
+  /** Shown when no party Pokemon knows the required move. */
+  lockedMessage: string;
+}
+
+export const GATES: GateDefinition[] = [
+  // Gate definitions will be added during content phase.
+  // Example structure (DO NOT implement — just shows the shape):
+  //
+  // {
+  //   id: "snorlax_gate",
+  //   description: "Snorlax blocking Route 111 north",
+  //   type: "npc",
+  //   map: "overworld",
+  //   npcId: "npc_snorlax",
+  //   requiredMove: "FORCE PUSH",
+  //   clearMessage: "{POKEMON} used FORCE PUSH!\nSNORLAX moved aside!",
+  //   lockedMessage: "This SNORLAX won't budge…",
+  // },
+  // {
+  //   id: "r111_tree",
+  //   description: "Tinted tree on Route 111 mid",
+  //   type: "terrain",
+  //   map: "overworld",
+  //   tiles: [{ x: 66, y: 20 }],
+  //   spriteKey: "tree_cuttable",
+  //   requiredMove: "DECONSTRUCT",
+  //   clearMessage: "{POKEMON} used DECONSTRUCT!\nThe tree was removed!",
+  //   lockedMessage: "This tree looks different somehow…",
+  // },
+];
+```
+
+Start with an EMPTY `GATES` array. I (Claude) will populate it during the content phase.
+The engine code must handle 0 gates gracefully (no crashes, no wasted cycles).
+
+**B) GameSave — add `gatesCleared` field:**
+
+```typescript
+// In GameSave interface, add:
+gatesCleared: string[];
+
+// In defaults(), add:
+gatesCleared: [],
+```
+
+**C) Gate system — `src/game/systems/GateSystem.ts`:**
+
+```typescript
+import { GATES, type GateDefinition } from "@/game/data/gates";
+import { getSave, updateSave } from "./GameSave";
+import { getActiveParty } from "./PartySystem"; // Task 28
+
+/** Check if a gate has been cleared in the current save. */
+export function isGateCleared(gateId: string): boolean {
+  return getSave().gatesCleared.includes(gateId);
+}
+
+/** Mark a gate as cleared and persist. */
+export function clearGate(gateId: string): void {
+  const save = getSave();
+  if (save.gatesCleared.includes(gateId)) return;
+  updateSave({ gatesCleared: [...save.gatesCleared, gateId] });
+}
+
+/** Get the gate definition at a given tile (if any), for the given map. */
+export function getGateAt(
+  map: string,
+  x: number,
+  y: number,
+): GateDefinition | null {
+  for (const g of GATES) {
+    if (g.map !== map) continue;
+    if (g.type === "npc") continue; // NPC gates matched by NPC id, not tile
+    if (g.tiles?.some((t) => t.x === x && t.y === y)) return g;
+  }
+  return null;
+}
+
+/** Get the gate definition for an NPC id (if any). */
+export function getGateForNpc(npcId: string): GateDefinition | null {
+  return GATES.find((g) => g.type === "npc" && g.npcId === npcId) ?? null;
+}
+
+/**
+ * Find the first party Pokemon that knows the required field move.
+ * Returns { nickname, moveName } or null if nobody knows it.
+ */
+export function findPokemonWithMove(
+  requiredMove: string,
+): { nickname: string; moveName: string } | null {
+  const party = getActiveParty(); // from Task 28
+  for (const pm of party) {
+    const fm = pm.fieldMoves?.find((m) => m === requiredMove);
+    if (fm) return { nickname: pm.nickname, moveName: fm };
+  }
+  return null;
+}
+```
+
+**D) OverworldScene integration — hook into handleInteraction():**
+
+The A-press handler currently has this priority:
+1. NPC → 2. Sign → 3. Hidden item → 4. PC tile
+
+Add gate check. The gate interaction uses `findPokemonWithMove()` instead of badge checks:
+
+```typescript
+// After hidden item check, before PC tile check:
+
+// 3.5. Terrain gate obstacle
+const gate = getGateAt("overworld", facingTile.x, facingTile.y);
+if (gate && !isGateCleared(gate.id)) {
+  const user = findPokemonWithMove(gate.requiredMove);
+  if (user) {
+    clearGate(gate.id);
+    this.removeGateSprite(gate.id);
+    for (const t of gate.tiles ?? []) {
+      this.unblockCollisionTile(t.x, t.y);
+    }
+    const msg = gate.clearMessage.replace("{POKEMON}", user.nickname);
+    await this.dialogSystem.showDialog({ lines: msg.split("\n") });
+  } else {
+    await this.dialogSystem.showDialog({ lines: [gate.lockedMessage] });
+  }
+  return;
+}
+```
+
+For **NPC-type gates** (like Snorlax), check after NPC dialog:
+
+```typescript
+if (npcHit) {
+  const npcGate = getGateForNpc(npcHit.npcId);
+  if (npcGate && !isGateCleared(npcGate.id)) {
+    const user = findPokemonWithMove(npcGate.requiredMove);
+    if (user) {
+      clearGate(npcGate.id);
+      this.gridEngine.removeCharacter(npcGate.npcId!);
+      const sprite = this.npcSystem.getNpcSprite(npcGate.npcId!);
+      if (sprite) sprite.destroy();
+      const msg = npcGate.clearMessage.replace("{POKEMON}", user.nickname);
+      await this.dialogSystem.showDialog({ lines: msg.split("\n") });
+    }
+    // If no Pokemon knows the move, NPC just shows its normal dialog (already shown)
+  }
+  return;
+}
+```
+
+**Important:** `NPCSystem.tryInteract` needs to return the NPC id so the caller knows
+WHICH NPC was interacted with: `{ npcId: string } | null` instead of `boolean`.
+
+**E) Scene load — apply cleared gates on `OverworldScene.create()`:**
+
+```typescript
+for (const gate of GATES) {
+  if (gate.map !== "overworld") continue;
+  if (!isGateCleared(gate.id)) {
+    // Gate NOT cleared — spawn gate sprite (terrain type only)
+    if (gate.type === "terrain" && gate.tiles) {
+      this.spawnGateSprite(gate);
+    }
+    // NPC-type: NPC spawns normally via NPC system (gated by spawnCondition — see F)
+  } else {
+    // Gate IS cleared — unblock tiles (terrain) or NPC already skipped (spawnCondition)
+    if (gate.type === "terrain" && gate.tiles) {
+      for (const t of gate.tiles) this.unblockCollisionTile(t.x, t.y);
+    }
+  }
+}
+```
+
+**F) NPC spawnCondition for NPC-type gates:**
+
+```typescript
+// In npcs.ts, for gated NPCs:
+spawnCondition: () => !isGateCleared("snorlax_gate"),
+```
+
+No circular dependency: `npcs.ts` → `GateSystem.ts` → `gates.ts` (pure data, no imports
+from npcs.ts).
+
+**G) Collision tile unblocking at runtime:**
+
+```typescript
+private unblockCollisionTile(x: number, y: number): void {
+  // Set collision layer tile to empty (gid 0)
+  this.tilemap.putTileAt(-1, x, y, false, "Collision");
+  // Grid Engine caches collision at init. Force re-read:
+  this.gridEngine.setTransition({ x, y }, "Collision");
+}
+```
+
+**Caveat:** Grid Engine may not re-read collision from `putTileAt` alone. If
+`setTransition` doesn't work, the fallback is maintaining a `Set<string>` of unblocked
+tiles and patching the `ge_collide` check. Test with Grid Engine docs — search "dynamic
+collision" or "runtime tile modification".
+
+**H) Gate sprite management:**
+
+```typescript
+private gateSprites: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
+
+private spawnGateSprite(gate: GateDefinition): void {
+  if (!gate.tiles || !gate.spriteKey) return;
+  const sprites: Phaser.GameObjects.Sprite[] = [];
+  for (const t of gate.tiles) {
+    const sprite = this.add.sprite(t.x * 16 + 8, t.y * 16 + 8, gate.spriteKey);
+    sprite.setDepth(t.y * 16);
+    sprites.push(sprite);
+  }
+  this.gateSprites.set(gate.id, sprites);
+}
+
+private removeGateSprite(gateId: string): void {
+  const sprites = this.gateSprites.get(gateId);
+  if (sprites) {
+    for (const s of sprites) s.destroy();
+    this.gateSprites.delete(gateId);
+  }
+}
+```
+
+Use placeholder colored rectangles during development. Actual gate sprites (tinted trees,
+special fences) are art assets — created during content phase.
+
+### Interaction priority (updated):
+```
+1. NPC (→ after dialog, check NPC gate)
+2. Sign
+3. Hidden item
+4. Terrain gate  ← NEW
+5. PC tile
+```
+
+### Files to create:
+- `src/game/data/gates.ts` — GateDefinition interface + GATES array (empty)
+- `src/game/systems/GateSystem.ts` — isGateCleared, clearGate, getGateAt, findPokemonWithMove
+
+### Files to modify:
+- `src/game/systems/GameSave.ts` — add `gatesCleared: string[]` to interface + defaults
+- `src/game/scenes/OverworldScene.ts` — gate sprite management, collision unblocking,
+  handleInteraction gate check, scene load gate application
+- `src/game/systems/NPCSystem.ts` — tryInteract returns `{ npcId } | null` instead of bool
+
+### Dependencies:
+- **Task 28 (Dynamic Party + Field Moves)** — gate checks call `getActiveParty()` and read
+  `fieldMoves` from party members. Task 27 and 28 can be built in parallel — just stub
+  `getActiveParty()` to return the current static PARTY during development.
+- Tasks 7-8 (badge system) — KOSTAS teaches field moves on badge award
+
+### What NOT to build:
+- **Specific gate definitions** — GATES array stays empty. I (Claude) fill it.
+- **Gate sprite assets** — placeholder during dev.
+- **Interior gates** — gym puzzle uses `autoGive` (Task 10), not the gate system.
+- **Analyzer `--progression` flag** — after GATES has data.
+- **Move names** — custom names decided in content phase, not engine phase.
+
+### Testing:
+Add 1 temporary test gate to verify end-to-end:
+```typescript
+// Temporary — remove after testing
+{
+  id: "test_gate",
+  description: "Test gate near spawn",
+  type: "terrain",
+  map: "overworld",
+  tiles: [{ x: 73, y: 58 }],
+  spriteKey: "tree_cuttable",
+  requiredMove: "TEST_MOVE",
+  clearMessage: "{POKEMON} used TEST MOVE!\nThe obstacle vanished!",
+  lockedMessage: "Something blocks the way…",
+},
+```
+Also temporarily add `"TEST_MOVE"` to a party Pokemon's `fieldMoves` (Task 28) to verify
+the full flow: walk to (73,58), press A → "MEDiC used TEST MOVE!" → tile unblocked.
+Without the field move → "Something blocks the way…"
+
+---
+
+## TASK 28: Dynamic Party + Field Moves [MEDIUM]
+
+### What the code does now:
+
+**Party — static, always 6 members:**
+- `party.ts` exports `const PARTY: PartyMember[]` with exactly 6 entries (MEDiC, FleetSmart,
+  MaskDistill, XpensAI, ShiftMD, Soma)
+- The Pokemon menu in `StartMenu` reads `PARTY` directly — no save state involved
+- `PartyDexRegistrar.ts` registers all 6 in `pokedexSeen` on game start
+- No mechanism to add or remove party members at runtime
+- Party size is always 6 from the very first step
+
+**Moves — cosmetic only:**
+- Each `PartyMember` has `moves: Move[]` (up to 4) representing project technologies
+  (e.g. "CLIP DISTILL", "ROUTE OPTIM")
+- Moves have name, type, pp, maxPp, description
+- Moves are displayed in the Pokemon summary screen but have ZERO gameplay effect
+- No concept of "field moves" — moves that do something in the overworld
+
+### Why this matters:
+
+**Party growth as a story arc:**
+The party growing from 4 → 5 → 6 tells a story:
+- Start with 4 (Kostas's core projects)
+- A wild Pokemon joins mid-game (a project the player "discovers")
+- MEW joins at the end (MEW = portfolio-v2, the game itself — beautifully self-referential)
+
+Each addition is a visible milestone. The party screen IS the progress indicator.
+
+**Field moves unlock gates:**
+Task 27's gate system checks if any party Pokemon knows a required field move. KOSTAS teaches
+field moves when awarding badges: "Your KYOGRE learned FORCE PUSH!" Now the player can clear
+a specific obstacle somewhere on the map — but must find it themselves.
+
+Field moves are separate from the existing 4 project-tech moves. A Pokemon can have up to
+4 regular moves (shown in summary) PLUS field moves (used at gates). Field moves don't take
+a regular move slot — they're a separate list, like HMs in OG Pokemon.
+
+### What to build:
+
+**A) PartySystem — `src/game/systems/PartySystem.ts`:**
+
+The core system that manages dynamic party membership.
+
+```typescript
+import { PARTY, type PartyMember } from "@/game/data/party";
+import { getSave, updateSave } from "./GameSave";
+
+/**
+ * Get the active party — the subset of PARTY members that the player
+ * currently has, plus any field moves they've learned.
+ *
+ * On first play, only STARTING_PARTY_IDS are active. More join via
+ * wild encounters (mid-game) and MEW (endgame). Field moves are
+ * added by KOSTAS on badge awards.
+ */
+export function getActiveParty(): ActivePartyMember[] {
+  const save = getSave();
+  const ids = save.partyMemberIds;
+  return ids.map((id) => {
+    const base = PARTY_BY_ID[id];
+    if (!base) return null;
+    const fieldMoves = save.fieldMoves[id] ?? [];
+    return { ...base, fieldMoves };
+  }).filter((p): p is ActivePartyMember => p !== null);
+}
+
+/** Add a Pokemon to the party. Returns false if already in party or party full (6). */
+export function addToParty(pokemonId: string): boolean {
+  const save = getSave();
+  if (save.partyMemberIds.includes(pokemonId)) return false;
+  if (save.partyMemberIds.length >= 6) return false;
+  updateSave({ partyMemberIds: [...save.partyMemberIds, pokemonId] });
+  return true;
+}
+
+/** Teach a field move to a specific party Pokemon. */
+export function teachFieldMove(pokemonId: string, moveName: string): void {
+  const save = getSave();
+  const existing = save.fieldMoves[pokemonId] ?? [];
+  if (existing.includes(moveName)) return;
+  updateSave({
+    fieldMoves: {
+      ...save.fieldMoves,
+      [pokemonId]: [...existing, moveName],
+    },
+  });
+}
+
+/** Check if any party Pokemon knows a specific field move. */
+export function partyKnowsMove(moveName: string): {
+  pokemonId: string;
+  nickname: string;
+} | null {
+  const party = getActiveParty();
+  for (const pm of party) {
+    if (pm.fieldMoves.includes(moveName)) {
+      return { pokemonId: pm.id, nickname: pm.nickname };
+    }
+  }
+  return null;
+}
+```
+
+**B) Party data refactor — `src/game/data/party.ts`:**
+
+Add an `id` field to `PartyMember` and a lookup map. Split into starting vs joinable.
+
+```typescript
+export interface PartyMember {
+  /** Unique id for save state reference. */
+  id: string;
+  nickname: string;
+  species: string;
+  // ... all existing fields stay the same ...
+}
+
+export interface ActivePartyMember extends PartyMember {
+  /** Field moves this Pokemon has learned (separate from regular moves). */
+  fieldMoves: string[];
+}
+
+/** All possible party members (starting + joinable + MEW). */
+export const ALL_PARTY: PartyMember[] = [
+  { id: "medic", nickname: "MEDiC", species: "latias", /* ... existing ... */ },
+  { id: "fleetsmart", nickname: "FleetSmart", species: "kyogre", /* ... */ },
+  { id: "maskdistill", nickname: "MaskDistll", species: "absol", /* ... */ },
+  { id: "xpensai", nickname: "XpensAI", species: "manectric", /* ... */ },
+  { id: "shiftmd", nickname: "ShiftMD", species: "breloom", /* ... */ },
+  { id: "soma", nickname: "Soma", species: "medicham", /* ... */ },
+  // MEW — added during content phase:
+  // { id: "mew", nickname: "MEW", species: "mew", ... },
+];
+
+/** Lookup by id for quick access. */
+export const PARTY_BY_ID: Record<string, PartyMember> =
+  Object.fromEntries(ALL_PARTY.map((p) => [p.id, p]));
+
+/**
+ * Which Pokemon the player starts with. The remaining members join
+ * via wild encounters or special events. IDs chosen in content phase.
+ *
+ * Currently set to all 6 for backwards compatibility — change to 4
+ * during content customization.
+ */
+export const STARTING_PARTY_IDS: string[] = [
+  "medic", "fleetsmart", "maskdistill", "xpensai", "shiftmd", "soma",
+];
+```
+
+**IMPORTANT:** For now, keep `STARTING_PARTY_IDS` as all 6 so nothing breaks. During
+content phase, I (Claude) will reduce it to 4 and configure which Pokemon joins mid-game
+vs which is MEW.
+
+**C) GameSave — add party + field move state:**
+
+```typescript
+// Add to GameSave interface:
+
+/** Ordered list of party Pokemon ids. Initialized from STARTING_PARTY_IDS. */
+partyMemberIds: string[];
+
+/**
+ * Field moves learned by each party Pokemon.
+ * Key = pokemon id, value = array of move names.
+ * Field moves are SEPARATE from the 4 regular moves in party.ts.
+ * They are used at overworld gates (Task 27).
+ */
+fieldMoves: Record<string, string[]>;
+
+// Add to defaults():
+partyMemberIds: [...STARTING_PARTY_IDS],
+fieldMoves: {},
+```
+
+New saves get `STARTING_PARTY_IDS`. Old saves get the default via shallow merge.
+
+**D) PartyDexRegistrar — use dynamic party:**
+
+Currently `PartyDexRegistrar.ts` registers all 6 `PARTY` members in `pokedexSeen`. Change
+it to register only the active party members from the save:
+
+```typescript
+// Instead of:
+for (const pm of PARTY) markPokedexSeenInSave(pm.dexNo);
+
+// Use:
+const save = getSave();
+for (const id of save.partyMemberIds) {
+  const pm = PARTY_BY_ID[id];
+  if (pm) markPokedexSeenInSave(pm.dexNo);
+}
+```
+
+**E) Pokemon menu — use dynamic party:**
+
+The Pokemon menu (inside StartMenu) currently reads the static `PARTY` array. Change it
+to call `getActiveParty()`:
+
+```typescript
+// Instead of:
+import { PARTY } from "@/game/data/party";
+// rendering PARTY.map(...)
+
+// Use:
+import { getActiveParty } from "@/game/systems/PartySystem";
+const party = getActiveParty();
+// rendering party.map(...)
+```
+
+The party screen should show 4-6 entries dynamically. Empty slots (if party < 6) show
+nothing — no placeholder "empty slot" UI needed. In OG Pokemon, the party screen only
+shows Pokemon you have.
+
+**F) Wild Pokemon join mechanic:**
+
+A new encounter variant for specific wild Pokemon. Instead of just registering in the
+Pokedex, the Pokemon offers to join the party.
+
+This is triggered by a flag on the wild Pokemon data or by the encounter handler checking
+a special condition. The simplest approach: add a `joinsParty?: string` field to the
+wild Pokemon definition:
+
+```typescript
+// In wild-pokemon.ts or a new joinable-pokemon config:
+{
+  // ... normal wild Pokemon fields ...
+  joinsParty: "shiftmd",  // party member id to add when encountered
+}
+```
+
+The encounter flow for a joinable Pokemon:
+
+```
+[Screen flash]
+"A wild BRELOOM appeared!"
+"BRELOOM seems to like you!"
+"BRELOOM wants to join your team!"
+→ ♪ "BRELOOM joined your party!"
+[Party notification shows new member]
+```
+
+Automatic — no yes/no prompt. The Pokemon joins and is immediately usable.
+
+**Implementation:** In the wild Pokemon encounter handler (OverworldScene), after the
+standard Pokedex registration:
+
+```typescript
+if (wildDef.joinsParty) {
+  const added = addToParty(wildDef.joinsParty);
+  if (added) {
+    // Register in Pokedex as "caught" too
+    markPokedexCaughtInSave(wildDef.pokedexNumber);
+    await this.dialogSystem.showDialog({
+      lines: [
+        `${wildDef.species} seems to like you!`,
+        `${wildDef.species} wants to join your team!`,
+      ],
+    });
+    emitGameEvent(GameEvents.SHOW_NOTIFICATION, {
+      message: `${wildDef.nickname} joined your party!`,
+    });
+  }
+}
+```
+
+The `joinsParty` field stays empty for all Pokemon during engine phase. I (Claude) will
+configure which Pokemon joins and where during content phase.
+
+**G) MEW join mechanic:**
+
+MEW's encounter at (139,59) already has special handling (CHAMPION badge). Extend it to
+also add MEW to the party:
+
+```typescript
+// In MEW encounter handler:
+addToParty("mew");
+markPokedexSeenInSave(MEW_DEX_NO);
+// MEW = portfolio-v2, the game itself. Self-referential Pokedex entry.
+```
+
+The MEW `PartyMember` definition is added to `ALL_PARTY` during content phase. Its Pokedex
+entry describes portfolio-v2:
+
+```
+"A mythical project said to contain the
+code of every project in this world.
+Built with Astro, Phaser, and React.
+It is self-aware."
+```
+
+**H) KOSTAS teaches field moves on badge award:**
+
+In the KOSTAS `dialogFn` (interiors.ts), after awarding a badge, check if a field move
+should be taught. Field move → badge mapping is defined in a config:
+
+```typescript
+// src/game/data/gates.ts (or a new fieldMoveConfig.ts)
+export interface FieldMoveAward {
+  /** Badge id that triggers teaching this move. */
+  badgeId: string;
+  /** Party Pokemon id that learns the move. */
+  pokemonId: string;
+  /** Field move name (matches gate requiredMove). */
+  moveName: string;
+  /** Message: "Your KYOGRE learned FORCE PUSH!" */
+  learnMessage: string;
+}
+
+export const FIELD_MOVE_AWARDS: FieldMoveAward[] = [
+  // Populated during content phase. Example:
+  // {
+  //   badgeId: "opensource",
+  //   pokemonId: "kyogre",
+  //   moveName: "FORCE PUSH",
+  //   learnMessage: "Your KYOGRE learned FORCE PUSH!",
+  // },
+];
+```
+
+In KOSTAS's `dialogFn`, after `awardBadge(next.id)`:
+
+```typescript
+import { FIELD_MOVE_AWARDS } from "@/game/data/gates";
+import { teachFieldMove } from "@/game/systems/PartySystem";
+
+const fma = FIELD_MOVE_AWARDS.find((f) => f.badgeId === next.id);
+if (fma) {
+  teachFieldMove(fma.pokemonId, fma.moveName);
+  emitGameEvent(GameEvents.SHOW_NOTIFICATION, {
+    message: fma.learnMessage,
+  });
+}
+```
+
+**I) Party summary screen — show field moves:**
+
+The Pokemon summary screen should show field moves below or alongside regular moves.
+Simple display — a "FIELD" section with move names:
+
+```
+MOVES                    FIELD
+─────                    ─────
+CLIP DISTILL    30/30    FORCE PUSH
+CONTRASTIVE     25/25
+FINE-TUNE       20/20
+ZERO-SHOT       15/15
+```
+
+This is a UI addition to the existing Pokemon detail view. Low priority — can show field
+moves as a simple list below regular moves.
+
+### Files to create:
+- `src/game/systems/PartySystem.ts` — getActiveParty, addToParty, teachFieldMove, partyKnowsMove
+
+### Files to modify:
+- `src/game/data/party.ts` — add `id` field, `ALL_PARTY`, `PARTY_BY_ID`, `STARTING_PARTY_IDS`
+- `src/game/systems/GameSave.ts` — add `partyMemberIds`, `fieldMoves` to interface + defaults
+- `src/game/systems/PartyDexRegistrar.ts` — use dynamic party from save, not static PARTY
+- `src/components/game/StartMenu.tsx` — Pokemon menu reads `getActiveParty()` instead of PARTY
+- `src/game/data/gates.ts` — add `FieldMoveAward` interface + `FIELD_MOVE_AWARDS` array (empty)
+- `src/game/data/interiors.ts` — KOSTAS dialogFn calls `teachFieldMove` on badge award
+
+### Dependencies:
+- **Task 27 (Gate System)** — gates consume `findPokemonWithMove()` from this task.
+  Can be built in parallel — stub `getActiveParty()` to return static PARTY.
+- Tasks 7-8 (badge system) — field moves taught on badge award
+
+### What NOT to build:
+- **Which 4 Pokemon start** — keep all 6 for now, reduce during content phase
+- **Which Pokemon joins mid-game** — content decision
+- **MEW's PartyMember definition** — content phase
+- **Field move names** — custom names, decided during content phase
+- **Field move → badge mapping** — `FIELD_MOVE_AWARDS` stays empty
+
+### Testing:
+1. Verify `getActiveParty()` returns the same 6 Pokemon as before (backwards compatible)
+2. Temporarily add a 7th entry to `ALL_PARTY`, call `addToParty("test")` — verify party
+   screen shows 7... wait, max is 6. Verify it rejects the 7th.
+3. Call `teachFieldMove("medic", "TEST_MOVE")` — verify it persists across page reload
+4. Combine with Task 27 test gate: verify `findPokemonWithMove("TEST_MOVE")` returns MEDiC
+   and the gate clears with "MEDiC used TEST MOVE!"
+
+---
+
+## TASK 29: Research Log Auto-Award Bug Fix [HIGH]
+
+### What the code does now:
+
+**The bug:** The Research Log key item auto-awards on the player's FIRST STEP after
+starting a new game — before they've done anything.
+
+**Root cause chain:**
+1. `BootScene` → `registerPartyInPokedex()` → marks all 6 party Pokemon in `pokedexCaught`
+2. `OverworldScene.update()` line 528-543 → checks `shouldAwardResearchLog()` every frame
+3. `shouldAwardResearchLog()` → `getTotalDiscoveries() >= LOG_ENTRIES[0].threshold`
+4. `getTotalDiscoveries()` in `researchLog.ts` line 107-116 counts:
+   ```
+   pokedexCaught.length (= 6, from party auto-registration)
+   + papersCollected.length (= 0)
+   + blogsCollected.length (= 0)
+   + tmsCollected.length (= 0)
+   + keyItemsCollected.length (= 0)
+   = 6
+   ```
+5. `LOG_ENTRIES[0].threshold` = 5
+6. 6 >= 5 → auto-awards Research Log immediately on first step
+
+**Two separate problems:**
+
+**Problem 1 — Discovery count is inflated.** Party Pokemon register in `pokedexCaught` on
+boot (via `PartyDexRegistrar`). They shouldn't count as "discoveries" because the player
+already has them — they didn't discover MEDiC by walking up to it in the overworld. Real
+discoveries = things the player actively found: wild Pokemon caught in the field, papers
+collected, TMs bought, etc.
+
+**Problem 2 — Research Log auto-awards in the overworld.** Per the design doc (§13 and
+§5 priority 4), the Research Log is a personal story KOSTAS tells when a milestone is
+reached. The overworld popup at lines 528-543 bypasses KOSTAS entirely. The player should
+get the Research Log from KOSTAS during a gym visit, not as a random popup while walking.
+
+### What to fix:
+
+**A) `getTotalDiscoveries()` — exclude party Pokemon:**
+
+In `src/game/data/researchLog.ts`, change `getTotalDiscoveries()` to filter out party
+Pokemon from the caught count:
+
+```typescript
+import { getSave } from "@/game/systems/GameSave";
+import { PARTY_BY_ID } from "@/game/data/party";
+
+export function getTotalDiscoveries(): number {
+  const save = getSave();
+  // Party Pokemon are "already yours" — don't count as discoveries.
+  // Only overworld encounters (wild Pokemon the player walked up to) count.
+  const partyDexNumbers = new Set(
+    save.partyMemberIds
+      .map((id) => PARTY_BY_ID[id]?.dexNo)
+      .filter((n): n is number => n !== undefined),
+  );
+  const overworldCaught = save.pokedexCaught.filter(
+    (n) => !partyDexNumbers.has(n),
+  );
+  return (
+    overworldCaught.length +
+    save.papersCollected.length +
+    save.blogsCollected.length +
+    save.tmsCollected.length +
+    save.keyItemsCollected.length
+  );
+}
+```
+
+Now a fresh save has 0 discoveries. The count only grows when the player actively does
+something.
+
+**B) Remove the overworld auto-award block:**
+
+In `src/game/scenes/OverworldScene.ts`, DELETE lines 528-543 entirely:
+
+```typescript
+// DELETE THIS ENTIRE BLOCK:
+// Auto-award research log at 5 discoveries
+if (!hasItem("key_research_log") && shouldAwardResearchLog() && !this.isInteracting) {
+  giveItem("key_research_log");
+  this.isInteracting = true;
+  sfx.pickup();
+  this.dialogSystem.showDialog({
+    lines: [
+      "Obtained RESEARCH LOG!",
+      "A journal with personal entries.",
+      "Check KEY ITEMS in your BAG!",
+    ],
+  }).then(() => {
+    this.isInteracting = false;
+  });
+  return;
+}
+```
+
+Also remove the import of `shouldAwardResearchLog` from OverworldScene if no other code
+uses it there.
+
+**C) Keep `shouldAwardResearchLog()` and `getUnlockedEntries()`** — they're still useful.
+KOSTAS's dialogFn will call `shouldAwardResearchLog()` as part of his state machine
+priority 4 to decide when to tell a personal story. That wiring is my content task, but
+the helper function stays in the engine.
+
+### Files to modify:
+- `src/game/data/researchLog.ts` — new import of `PARTY_BY_ID`, filter party from count
+- `src/game/scenes/OverworldScene.ts` — delete auto-award block (lines 528-543), remove
+  unused `shouldAwardResearchLog` import
+
+### Dependencies:
+- **Task 28 (Dynamic Party) must be done** — `getTotalDiscoveries()` reads
+  `save.partyMemberIds` and uses `PARTY_BY_ID`, both added in Task 28. ✅ Already done.
+- **Do this BEFORE content phase** — I need correct discovery counts when writing KOSTAS's
+  state machine and Research Log milestone triggers.
+
+### Testing:
+1. Fresh save → start game → walk around for 30+ steps → Research Log does NOT appear
+2. Open browser console → check `getTotalDiscoveries()` → should be 0
+3. Walk up to a wild Pokemon (catch it) → `getTotalDiscoveries()` → should be 1
+4. Collect a paper from a gym trainer → `getTotalDiscoveries()` → should be 2
+5. Accumulate 5+ real discoveries → `shouldAwardResearchLog()` → returns true
+6. But NO popup appears — KOSTAS will give it during content phase
+7. `npx tsc --noEmit` clean

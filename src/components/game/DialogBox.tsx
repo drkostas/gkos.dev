@@ -7,6 +7,7 @@ import {
 } from "@/game/EventBridge";
 import { getSettings, textSpeedMs } from "@/game/systems/Settings";
 import { sfx } from "@/game/systems/SoundManager";
+import { useTypewriter } from "@/game/hooks/useTypewriter";
 
 /**
  * Read the current text-speed setting at the moment a dialog opens.
@@ -29,57 +30,22 @@ export default function DialogBox() {
   const [lines, setLines] = useState<string[]>([]);
   const [speakerName, setSpeakerName] = useState<string | undefined>();
   const [lineIndex, setLineIndex] = useState(0);
-  const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
 
-  // Refs to access latest state inside event handlers / timers
+  // Shared typewriter — the getter form of `speedMs` means live
+  // Options-menu speed changes apply to in-progress lines.
+  const { displayedText, isTyping, start, skipToEnd, reset } = useTypewriter({
+    speedMs: getTypeSpeedMs,
+    onStart: () => sfx.text(),
+  });
+
+  // Refs to give the keyboard `advance` handler access to live state
+  // without re-installing the listener on every character reveal.
   const linesRef = useRef(lines);
   const lineIndexRef = useRef(lineIndex);
   const isTypingRef = useRef(isTyping);
-  const displayedTextRef = useRef(displayedText);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Keep refs in sync
   linesRef.current = lines;
   lineIndexRef.current = lineIndex;
   isTypingRef.current = isTyping;
-  displayedTextRef.current = displayedText;
-
-  // ---------------------------------------------------------------------------
-  // Typewriter effect
-  // ---------------------------------------------------------------------------
-  const startTyping = useCallback((text: string) => {
-    setDisplayedText("");
-    setIsTyping(true);
-    sfx.text(); // single blip when line starts
-
-    let charIndex = 0;
-
-    const tick = () => {
-      charIndex++;
-      setDisplayedText(text.slice(0, charIndex));
-
-      if (charIndex < text.length) {
-        timerRef.current = setTimeout(tick, getTypeSpeedMs());
-      } else {
-        setIsTyping(false);
-        timerRef.current = null;
-      }
-    };
-
-    timerRef.current = setTimeout(tick, getTypeSpeedMs());
-  }, []);
-
-  /** Skip to end of current line instantly. */
-  const skipToEnd = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    const fullLine = linesRef.current[lineIndexRef.current] ?? "";
-    setDisplayedText(fullLine);
-    setIsTyping(false);
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Advance handler (called on keypress / click)
@@ -97,13 +63,13 @@ export default function DialogBox() {
     if (nextIndex < linesRef.current.length) {
       // More lines to show
       setLineIndex(nextIndex);
-      startTyping(linesRef.current[nextIndex]);
+      start(linesRef.current[nextIndex]);
     } else {
       // All lines read — close dialog
       setVisible(false);
       emitGameEvent(GameEvents.DIALOG_COMPLETE);
     }
-  }, [skipToEnd, startTyping]);
+  }, [skipToEnd, start]);
 
   // ---------------------------------------------------------------------------
   // Listen for SHOW_DIALOG events from Phaser
@@ -113,70 +79,40 @@ export default function DialogBox() {
       const payload = detail as DialogPayload;
       if (!payload?.lines?.length) return;
 
-      // Reset state
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-
       setLines(payload.lines);
       setSpeakerName(payload.speakerName);
       setLineIndex(0);
-      setDisplayedText("");
-      setIsTyping(false);
       setVisible(true);
-
-      // Kick off typing for the first line on the next tick so
-      // state updates have flushed (refs will be current).
-      setTimeout(() => {
-        // Re-read from payload directly so we don't depend on stale ref
-        let charIndex = 0;
-        const text = payload.lines[0];
-
-        setIsTyping(true);
-        sfx.text(); // single blip when line starts
-
-        const tick = () => {
-          charIndex++;
-          setDisplayedText(text.slice(0, charIndex));
-
-          if (charIndex < text.length) {
-            timerRef.current = setTimeout(tick, getTypeSpeedMs());
-          } else {
-            setIsTyping(false);
-            timerRef.current = null;
-          }
-        };
-
-        timerRef.current = setTimeout(tick, getTypeSpeedMs());
-      }, 0);
+      // `start` schedules the first tick synchronously — no need
+      // for the previous `setTimeout(0)` hand-off dance.
+      start(payload.lines[0]);
     });
 
     const unsubHide = onGameEvent(GameEvents.HIDE_DIALOG, () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
+      reset();
       setVisible(false);
     });
 
     return () => {
       unsubShow();
       unsubHide();
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
     };
-  }, []); // stable — no deps needed, uses refs internally
+  }, [start, reset]);
 
   // ---------------------------------------------------------------------------
-  // Keyboard handler (Enter / Space / Z to advance)
+  // Keyboard handler (A button = a/Space to advance)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!visible) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " " || e.key === "z" || e.key === "Z") {
+      // A/Space/Enter advance dialog. B/S/Backspace also advance
+      // (but these keys do NOT initiate conversations — that's handled
+      // by the scene's interaction handler which only uses A).
+      if (
+        e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter" ||
+        e.key === "s" || e.key === "S" || e.key === "Backspace"
+      ) {
         e.preventDefault();
         advance();
       }
@@ -201,7 +137,9 @@ export default function DialogBox() {
       onClick={advance}
       style={{
         position: "fixed",
-        bottom: "6%",
+        // Touch devices: lift the dialog above the on-screen controls
+        // bar (desktop keeps --touch-bar-h = 0 so this is just 6%).
+        bottom: "calc(6% + var(--touch-bar-h, 0px))",
         left: "50%",
         transform: "translateX(-50%)",
         width: `min(92%, calc(720px * ${sX}))`,
@@ -224,10 +162,10 @@ export default function DialogBox() {
         // (not including border + padding). This prevents the squeeze
         // where border+padding ate all of minHeight.
         boxSizing: "content-box",
-        minHeight: `calc(48px * ${sX})`,
-        padding: `calc(6px * ${sX}) calc(16px * ${sX})`,
+        minHeight: `calc(68px * ${sX})`,
+        padding: `calc(10px * ${sX}) calc(20px * ${sX})`,
         fontFamily: "var(--pkmn-font, 'Courier New', monospace)",
-        fontSize: `calc(16px * ${sX})`,
+        fontSize: `calc(26px * ${sX})`,
         lineHeight: 1.5,
         color: "#000",
         cursor: "pointer",
@@ -243,16 +181,16 @@ export default function DialogBox() {
             position: "absolute",
             // Sit just above the dialog's top edge with no overlap.
             // The negative top equals the pill's full height + a few px.
-            top: `calc(-32px * ${sX})`,
-            left: `calc(20px * ${sX})`,
+            top: `calc(-50px * ${sX})`,
+            left: `calc(24px * ${sX})`,
             // Simple pill: solid white bg + thin black border. The 9-slice
             // frame is too thick for a small label and its transparent
             // corner pixels would reveal whatever's behind, producing a
             // halo when the pill sits over the dialog box.
             background: "#fff",
             color: "#000",
-            padding: `calc(4px * ${sX}) calc(12px * ${sX})`,
-            fontSize: `calc(13px * ${sX})`,
+            padding: `calc(8px * ${sX}) calc(18px * ${sX})`,
+            fontSize: `calc(22px * ${sX})`,
             fontWeight: 700,
             letterSpacing: "0.5px",
             border: `calc(2px * ${sX}) solid #000`,
@@ -265,7 +203,7 @@ export default function DialogBox() {
         </div>
       )}
 
-      <span>{displayedText}</span>
+      <span style={{ whiteSpace: "pre-wrap" }}>{displayedText}</span>
 
       {/* Bouncing ▼ indicator when waiting for input */}
       {!isTyping && (

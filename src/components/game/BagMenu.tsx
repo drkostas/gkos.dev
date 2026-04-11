@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { getCollectedItems } from "@/game/systems/PickupStore";
+import {
+  getCollectedByPocket,
+  markUrlOpened,
+  hasUrlOpened,
+  checkBadges,
+} from "@/game/systems/GameSave";
+import { showNotification, GameEvents, emitGameEvent, onGameEvent } from "@/game/EventBridge";
+import type { BagPocketId } from "@/game/data/itemDefinitions";
 import { sfx } from "@/game/systems/SoundManager";
+import { trackUrlOpened } from "@/game/systems/Analytics";
 
 interface BagMenuProps {
   onClose: () => void;
@@ -34,6 +42,7 @@ export default function BagMenu({ onClose }: BagMenuProps) {
   const [cursors, setCursors] = useState<number[]>(POCKETS.map(() => 0));
   const [contextItem, setContextItem] = useState<BagItem | null>(null);
   const [contextCursor, setContextCursor] = useState<0 | 1>(0);
+  const [logOpen, setLogOpen] = useState(false);
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -57,27 +66,29 @@ export default function BagMenu({ onClose }: BagMenuProps) {
     return () => window.removeEventListener("resize", syncStripes);
   }, []);
 
-  // Pull picked-up items from PickupStore into the ITEMS pocket dynamically.
-  const pockets = POCKETS.map((p, i): BagPocket => {
-    if (p.id === "items") {
-      return {
-        ...p,
-        items: [
-          ...getCollectedItems().map(
-            (it): BagItem => ({
-              name: it.name,
-              quantity: 1,
-              description:
-                ITEM_DESCRIPTIONS[it.name] ??
-                "An item collected from the world.",
-              url: it.url,
-            }),
-          ),
-        ],
-      };
-    }
-    return p;
-  });
+  // Listen for research log close to re-enable Bag input
+  useEffect(() => {
+    const unsub = onGameEvent(GameEvents.RESEARCH_LOG_CLOSE, () => {
+      setLogOpen(false);
+    });
+    return unsub;
+  }, []);
+
+  // Each pocket's item list is sourced from GameSave. The save
+  // stores an array of item ids per pocket; we look each id up in
+  // ITEM_DEFINITIONS to render name / description / url / icon.
+  const pockets: BagPocket[] = POCKETS.map((p) => ({
+    ...p,
+    items: getCollectedByPocket(p.id).map(
+      (def): BagItem => ({
+        id: def.id,
+        name: def.name,
+        quantity: 1,
+        description: def.description,
+        url: def.url,
+      }),
+    ),
+  }));
   void cursors[0]; // satisfy linter for state we manage
   void pockets[0];
 
@@ -93,6 +104,8 @@ export default function BagMenu({ onClose }: BagMenuProps) {
   // ── Keyboard input ───────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Research log viewer is open — let it handle keys
+      if (logOpen) return;
       // Context menu (USE / CLOSE BAG) handles its own keys.
       if (contextItem) {
         if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -101,27 +114,44 @@ export default function BagMenu({ onClose }: BagMenuProps) {
           setContextCursor((c) => (c === 0 ? 1 : 0));
           return;
         }
-        if (e.key === "Enter" || e.key === "z" || e.key === "Z") {
+        if (e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter") {
           e.preventDefault();
           sfx.confirm();
-          if (contextCursor === 0 && contextItem.url) {
-            window.open(contextItem.url, "_blank", "noopener,noreferrer");
+          if (contextCursor === 0) {
+            // Special items: RESEARCH LOG opens the log viewer
+            if (contextItem.id === "key_research_log") {
+              setLogOpen(true);
+              emitGameEvent(GameEvents.SHOW_RESEARCH_LOG);
+            } else if (contextItem.url) {
+              window.open(contextItem.url, "_blank", "noopener,noreferrer");
+              trackUrlOpened(currentPocket.id, contextItem.name);
+              // Track the open so the Bag can render a ✓ next time and
+              // so the DEVOTED badge check has a count to work against.
+              const urlKey = `${currentPocket.id}:${contextItem.name}`;
+              const wasFirstOpen = markUrlOpened(urlKey);
+              if (wasFirstOpen) {
+                const newBadges = checkBadges();
+                if (newBadges.includes("devoted")) {
+                  showNotification("DEVOTED badge earned!", "★");
+                }
+              }
+            }
           }
           setContextItem(null);
           return;
         }
-        if (e.key === "Escape" || e.key === "x" || e.key === "X" || e.key === "Backspace") {
+        if (e.key === "s" || e.key === "S" || e.key === "Backspace") {
           e.preventDefault();
-          sfx.cancel();
+          sfx.select();
           setContextItem(null);
           return;
         }
         return;
       }
 
-      if (e.key === "Escape" || e.key === "x" || e.key === "X" || e.key === "Backspace") {
+      if (e.key === "s" || e.key === "S" || e.key === "Backspace") {
         e.preventDefault();
-        sfx.cancel();
+        sfx.select();
         onCloseRef.current();
         return;
       }
@@ -160,12 +190,12 @@ export default function BagMenu({ onClose }: BagMenuProps) {
         return;
       }
       // Select item
-      if (e.key === "Enter" || e.key === "z" || e.key === "Z") {
+      if (e.key === "a" || e.key === "A" || e.key === " " || e.key === "Enter") {
         e.preventDefault();
         sfx.confirm();
         if (selected.name === "CLOSE BAG") {
           onCloseRef.current();
-        } else if (selected.url) {
+        } else if (selected.url || (selected as BagItem).id === "key_research_log") {
           setContextItem(selected as BagItem);
           setContextCursor(0);
         }
@@ -175,7 +205,7 @@ export default function BagMenu({ onClose }: BagMenuProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pocketIndex, cursor, contextItem, contextCursor, rows.length]);
+  }, [pocketIndex, cursor, contextItem, contextCursor, rows.length, logOpen]);
 
   // ── Render ──────────────────────────────────────────────────
 
@@ -249,28 +279,52 @@ export default function BagMenu({ onClose }: BagMenuProps) {
           {visibleRows.map((row, i) => {
             const realIndex = i + scrollStart;
             const sel = realIndex === cursor;
+            const isCloseBag = row.name === "CLOSE BAG";
+            // ✓ shows only for rows whose URL has already been
+            // opened via the USE action. CLOSE BAG is never ticked.
+            const opened =
+              !isCloseBag && hasUrlOpened(`${currentPocket.id}:${row.name}`);
             return (
               <div
                 key={`${row.name}-${realIndex}`}
                 style={{
                   ...listRowStyle,
-                  color: row.name === "CLOSE BAG" ? "#888" : "#000",
+                  color: isCloseBag ? "#888" : "#000",
                 }}
               >
                 <span style={cursorColStyle}>
                   {sel ? "\u25B6" : "\u00A0"}
                 </span>
                 <span style={itemNameStyle}>{row.name}</span>
-                {row.name !== "CLOSE BAG" && row.quantity != null && (
-                  <span style={itemQtyStyle}>x{"\u00A0"}{row.quantity}</span>
-                )}
+                {!isCloseBag && row.quantity != null ? (
+                  <span style={itemQtyStyle}>
+                    x{"\u00A0"}{row.quantity}
+                    {opened && (
+                      <span
+                        style={{
+                          marginLeft: "0.5em",
+                          color: "#2aa33a",
+                          fontWeight: 700,
+                        }}
+                        aria-label="opened"
+                        title="URL already opened"
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </span>
+                ) : null}
               </div>
             );
           })}
         </div>
 
         {/* ── Description (bottom cream area) ────────────── */}
-        <div style={descBoxStyle}>{selected.description}</div>
+        <div style={descBoxStyle}>
+          {currentPocket.items.length === 0
+            ? currentPocket.emptyMsg
+            : selected.description}
+        </div>
       </div>
 
       {/* USE / CLOSE BAG context menu */}
@@ -310,6 +364,8 @@ export default function BagMenu({ onClose }: BagMenuProps) {
 // ── Types ───────────────────────────────────────────────────────
 
 interface BagItem {
+  /** Item definition id (for special USE handlers). */
+  id?: string;
   name: string;
   quantity: number;
   description: string;
@@ -317,76 +373,42 @@ interface BagItem {
 }
 
 interface BagPocket {
-  id: string;
+  id: BagPocketId;
   name: string;
+  /** Shown in the item list when the pocket has nothing in it yet. */
+  emptyMsg: string;
   items: BagItem[];
 }
 
-// ── Static pocket data ────────────────────────────────────────
+// ── Pocket definitions ────────────────────────────────────────
+//
+// 4 bag pockets. Each pocket pulls its items dynamically from the
+// GameSave on every render — no static hand-curated rows. Items
+// only appear once the player has collected them via the pickup /
+// NPC gift / milestone / questionnaire flows.
 
-const POCKETS: BagPocket[] = [
-  {
-    id: "items",
-    name: "ITEMS",
-    items: [], // populated dynamically from PickupStore
-  },
-  {
-    id: "projects",
-    name: "PROJECTS",
-    items: [
-      { name: "FleetSmart.ai",      quantity: 40, description: "AI maritime optimization\nplatform. 40+ enterprise vessels.",      url: "https://fleetsmart.ai" },
-      { name: "ShiftMD",            quantity: 1,  description: "Hospital shift scheduling\nSaaS platform.",                           url: "https://shiftmd.com" },
-      { name: "XpensAI",            quantity: 1,  description: "AI-powered expense\nmanagement.",                                     url: "https://xpensai.com" },
-      { name: "MEDiC",              quantity: 1,  description: "Medical CLIP distillation.\nNeurIPS paper.",                          url: "https://github.com/drkostas" },
-      { name: "MaskDistill-PyTorch",quantity: 1,  description: "PyTorch implementation of\nmask distillation.",                       url: "https://github.com/drkostas" },
-      { name: "Soma",               quantity: 1,  description: "Personal health dashboard.",                                          url: "https://github.com/drkostas" },
-    ],
-  },
+const POCKETS: Pick<BagPocket, "id" | "name" | "emptyMsg">[] = [
   {
     id: "papers",
     name: "PAPERS",
-    items: [
-      { name: "MEDiC",          quantity: 12, description: "Medical CLIP distillation\nNeurIPS 2024.",          url: "https://scholar.google.com/citations?user=drkostas" },
-      { name: "MaskDistill",    quantity: 8,  description: "PyTorch mask distillation\npaper.",                  url: "https://scholar.google.com/citations?user=drkostas" },
-      { name: "WACV Paper",     quantity: 15, description: "Vision paper accepted at\nWACV.",                    url: "https://scholar.google.com/citations?user=drkostas" },
-      { name: "IGARSS Paper",   quantity: 11, description: "Geoscience and remote\nsensing paper at IGARSS.",     url: "https://scholar.google.com/citations?user=drkostas" },
-      { name: "CHASE Paper",    quantity: 7,  description: "Healthcare ML paper at\nCHASE.",                       url: "https://scholar.google.com/citations?user=drkostas" },
-      { name: "ECCV (review)",  quantity: 0,  description: "ECCV submission under\nreview.",                       url: "https://scholar.google.com/citations?user=drkostas" },
-    ],
+    emptyMsg: "Visit the GYM to collect\nresearch papers!",
   },
   {
-    id: "pypi",
-    name: "PYPI",
-    items: [
-      { name: "high_sql",         quantity: 1, description: "Python package on PyPi.",  url: "https://pypi.org/user/drkostas/" },
-      { name: "yaml_config",      quantity: 1, description: "Python package on PyPi.",  url: "https://pypi.org/user/drkostas/" },
-      { name: "termcolor_logger", quantity: 1, description: "Python package on PyPi.",  url: "https://pypi.org/user/drkostas/" },
-      { name: "email_app",        quantity: 1, description: "Python package on PyPi.",  url: "https://pypi.org/user/drkostas/" },
-      { name: "drkostas_tools",   quantity: 1, description: "Python package on PyPi.",  url: "https://pypi.org/user/drkostas/" },
-      { name: "fancy_logger",     quantity: 1, description: "Python package on PyPi.",  url: "https://pypi.org/user/drkostas/" },
-      { name: "torch_helpers",    quantity: 1, description: "Python package on PyPi.",  url: "https://pypi.org/user/drkostas/" },
-    ],
+    id: "blogs",
+    name: "BLOG POSTS",
+    emptyMsg: "Talk to people — they have\nstories to share!",
   },
   {
-    id: "contacts",
-    name: "CONTACTS",
-    items: [
-      { name: "GITHUB",     quantity: 1, description: "8,300+ followers.\nVisit KOSTAS's GitHub.",         url: "https://github.com/drkostas" },
-      { name: "LINKEDIN",   quantity: 1, description: "Professional profile\non LinkedIn.",                url: "https://linkedin.com/in/drkostas" },
-      { name: "SCHOLAR",    quantity: 1, description: "Google Scholar.\n10 papers, 102+ citations.",       url: "https://scholar.google.com/citations?user=drkostas" },
-      { name: "HUGGINGFACE",quantity: 1, description: "HuggingFace models\nand datasets.",                 url: "https://huggingface.co/drkostas" },
-      { name: "EMAIL",      quantity: 1, description: "Drop a line:\ndrkostas@gmail.com",                  url: "mailto:drkostas@gmail.com" },
-    ],
+    id: "keyItems",
+    name: "KEY ITEMS",
+    emptyMsg: "Explore the world and\npress A everywhere!",
+  },
+  {
+    id: "tms",
+    name: "TMs",
+    emptyMsg: "Walk more! Check the MART\nfor milestones.",
   },
 ];
-
-const ITEM_DESCRIPTIONS: Record<string, string> = {
-  "RESUME.PDF":      "KOSTAS's CV.\nUSE to download the PDF.",
-  "GITHUB.URL":      "Link to KOSTAS's GitHub\nprofile (8,300+ followers).",
-  "LINKEDIN.URL":    "KOSTAS's professional\nLinkedIn profile.",
-  "HUGGINGFACE.URL": "KOSTAS's HuggingFace\nmodels and datasets.",
-  "SCHOLAR.URL":     "KOSTAS's Google Scholar\npublications page.",
-};
 
 /**
  * Map an item name to one of the stock OG Pokemon item icon PNGs
@@ -400,6 +422,7 @@ const ITEM_DESCRIPTIONS: Record<string, string> = {
 const ITEM_ICON_MAP: Record<string, string> = {
   // ITEMS pocket (collected URLs)
   "RESUME.PDF":      "/game/ui/bag/aurora_ticket.png",
+  "BLOG.URL":        "/game/ui/bag/stardust.png",
   "GITHUB.URL":      "/game/ui/bag/master_ball.png",
   "LINKEDIN.URL":    "/game/ui/bag/amulet_coin.png",
   "HUGGINGFACE.URL": "/game/ui/bag/oran_berry.png",
@@ -456,13 +479,12 @@ function iconForItem(name: string): string {
 const FONT = "var(--pkmn-font, 'Courier New', monospace)";
 
 /**
- * Scale text with the frame. Frame height = min(55vh, 36.67vw).
- * OG GBA: 8px font in 160px frame = 5%. Use ~4.5% for web fonts
- * (they render taller than 8px bitmap fonts).
+ * Text size relative to the frame (container query inline-size).
+ * Frame width container = 100cqi. PartyMenu uses ~3.75cqi for its
+ * main slot text — match that for readability.
  */
-// Reduced ~20% vs prior: web fonts render taller than 8px GBA bitmap.
-const SCALED_FONT = "min(2vh, 1.33vw)";
-const SCALED_FONT_SM = "min(1.6vh, 1.07vw)";
+const SCALED_FONT = "3.5cqi";
+const SCALED_FONT_SM = "3cqi";
 
 // ── Pixel-accurate positions ─────────────────────────────────
 //
@@ -492,11 +514,12 @@ const overlayStyle: React.CSSProperties = {
   pointerEvents: "auto",
 };
 
-// OG GBA aspect ratio (3:2 = 240×160), sized ~55% of viewport.
+// OG GBA aspect ratio (3:2 = 240×160), sized ~90% of viewport.
 const menuFrameStyle: React.CSSProperties = {
   position: "relative",
-  width: "min(82.5vh, 55vw)",
-  height: "min(55vh, 36.67vw)",
+  width: "min(135vh, 90vw)",
+  height: "min(90vh, 60vw)",
+  containerType: "inline-size",
   backgroundImage: "url('/game/ui/bag/bg_full.png?v=9')",
   backgroundSize: "100% 100%",
   backgroundRepeat: "no-repeat",

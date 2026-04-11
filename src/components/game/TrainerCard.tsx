@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { sfx } from "@/game/systems/SoundManager";
+import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
+import { getSteps, formatSteps } from "@/game/systems/StepStore";
+import { getSave } from "@/game/systems/GameSave";
+import { ITEM_DEFINITIONS, getItemsByPocket } from "@/game/data/itemDefinitions";
+import { POKEDEX } from "@/game/data/pokemon";
+import { getUnlockedEntries } from "@/game/data/researchLog";
 
 interface TrainerCardProps {
   onClose: () => void;
@@ -28,6 +34,13 @@ interface TrainerCardProps {
  * Custom-renamed to skill badges. Clicking a badge opens an inline
  * confirm dialog that links to the relevant project / proof.
  */
+/** Format total seconds as "Nh MMm" for the OG Emerald PLAY TIME field. */
+function formatPlayTime(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  return `${hours}h ${mins.toString().padStart(2, "0")}m`;
+}
+
 export default function TrainerCard({ onClose }: TrainerCardProps) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -35,59 +48,52 @@ export default function TrainerCard({ onClose }: TrainerCardProps) {
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
   const [side, setSide] = useState<"front" | "back">("front");
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (selectedBadge) {
-        if (e.key === "Enter" || e.key === "z" || e.key === "Z") {
-          e.preventDefault();
-          sfx.confirm();
-          window.open(selectedBadge.url, "_blank", "noopener,noreferrer");
-          setSelectedBadge(null);
-          return;
-        }
-        if (e.key === "Escape" || e.key === "x" || e.key === "X" || e.key === "Backspace") {
-          e.preventDefault();
-          sfx.cancel();
-          setSelectedBadge(null);
-          return;
-        }
-        return;
-      }
-      // Enter / Z / Space flips the card (matches OG Emerald behavior).
-      if (e.key === "Enter" || e.key === " " || e.key === "z" || e.key === "Z") {
-        e.preventDefault();
-        sfx.flip();
-        setSide((s) => (s === "front" ? "back" : "front"));
-        return;
-      }
-      // ESC instantly exits the trainer card from either side.
-      if (e.key === "Escape" || e.key === "x" || e.key === "X" || e.key === "Backspace") {
-        e.preventDefault();
-        sfx.cancel();
-        onCloseRef.current();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedBadge]);
+  // Badge-popover mode: A opens the URL + dismisses, B cancels.
+  useGameKeyboard(selectedBadge !== null, {
+    confirm: () => {
+      if (!selectedBadge) return;
+      sfx.confirm();
+      window.open(selectedBadge.url, "_blank", "noopener,noreferrer");
+      setSelectedBadge(null);
+    },
+    cancel: () => { sfx.select(); setSelectedBadge(null); },
+  });
 
-  const yearsExperience = new Date().getFullYear() - 2017;
+  // Base card mode: A flips the card, B exits.
+  useGameKeyboard(selectedBadge === null, {
+    confirm: () => {
+      sfx.flip();
+      setSide((s) => (s === "front" ? "back" : "front"));
+    },
+    cancel: () => { sfx.select(); onCloseRef.current(); },
+  });
+
+  const steps = getSteps();
+  const save = getSave();
+  const playTimeText = formatPlayTime(save.playTimeSeconds);
+  const badgeCount = save.badges.length;
+  const cardColors = getCardColors(badgeCount);
 
   return (
     <div style={overlayStyle}>
       <div
         onClick={(e) => {
-          // Click anywhere on the card flips it (unless a badge button
-          // intercepted via stopPropagation).
           e.stopPropagation();
           sfx.flip();
           setSide((s) => (s === "front" ? "back" : "front"));
         }}
-        style={cardStyle}
+        style={{
+          ...cardStyle,
+          background: `linear-gradient(180deg, ${cardColors.light} 0%, ${cardColors.mid} 100%)`,
+        }}
       >
         {side === "front" ? (
           <FrontSide
-            yearsExperience={yearsExperience}
+            playTimeText={playTimeText}
+            steps={steps}
+            earnedBadgeIds={save.badges}
+            playerName={save.playerName || "RED"}
+            playerGender={save.playerGender || "boy"}
             onBadgeClick={(b) => setSelectedBadge(b)}
           />
         ) : (
@@ -128,10 +134,18 @@ export default function TrainerCard({ onClose }: TrainerCardProps) {
 // ── Front side ───────────────────────────────────────────────
 
 function FrontSide({
-  yearsExperience,
+  playTimeText,
+  steps,
+  earnedBadgeIds,
+  playerName,
+  playerGender,
   onBadgeClick,
 }: {
-  yearsExperience: number;
+  playTimeText: string;
+  steps: number;
+  earnedBadgeIds: string[];
+  playerName: string;
+  playerGender: "boy" | "girl";
   onBadgeClick: (b: Badge) => void;
 }) {
   return (
@@ -147,14 +161,15 @@ function FrontSide({
       {/* ── Body: fields on left, portrait on right ──── */}
       <div style={bodyStyle}>
         <div style={fieldsColStyle}>
-          <Field label="NAME" value="KOSTAS" />
+          <Field label="NAME" value={playerName} />
           <Field label="MONEY" value="$L5" />
           <Field label="POKeDEX" value="10  PAPERS" />
-          <Field label="PLAY TIME" value={`${yearsExperience}h 00m`} />
+          <Field label="PLAY TIME" value={playTimeText} />
+          <Field label="STEPS" value={formatSteps(steps)} />
         </div>
         <div style={portraitFrameStyle}>
           <img
-            src="/game/ui/trainer_card/brendan_pic.png"
+            src={`/game/ui/trainer_card/${playerGender === "girl" ? "may" : "brendan"}_pic.png`}
             alt="trainer"
             style={portraitImgStyle}
             draggable={false}
@@ -166,28 +181,39 @@ function FrontSide({
       <div style={badgesSectionStyle}>
         <div style={badgesLabelStyle}>BADGES</div>
         <div style={badgesRowStyle}>
-          {SKILL_BADGES.map((b, i) => (
-            <button
-              key={b.name}
-              onClick={(e) => {
-                e.stopPropagation(); // don't flip when clicking a badge
-                onBadgeClick(b);
-              }}
-              title={b.name}
-              style={badgeButtonStyle}
-            >
-              <img
-                src={`/game/ui/portraits/badge_${i}.png`}
-                alt={b.name}
-                style={badgeImgStyle}
-                draggable={false}
-              />
-            </button>
-          ))}
+          {SKILL_BADGES.map((b, i) => {
+            const earned = earnedBadgeIds.includes(b.badgeId);
+            return (
+              <button
+                key={b.badgeId}
+                onClick={(e) => {
+                  if (!earned) return;
+                  e.stopPropagation();
+                  onBadgeClick(b);
+                }}
+                title={earned ? b.name : "???"}
+                style={{
+                  ...badgeButtonStyle,
+                  opacity: earned ? 1 : 0.25,
+                  cursor: earned ? "pointer" : "default",
+                }}
+              >
+                <img
+                  src={`/game/ui/portraits/badge_${i}.png`}
+                  alt={earned ? b.name : "???"}
+                  style={{
+                    ...badgeImgStyle,
+                    filter: earned ? "none" : "grayscale(1) brightness(0.5)",
+                  }}
+                  draggable={false}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div style={hintStyle}>Click / Z to flip · ESC to close</div>
+      <div style={hintStyle}>A to flip · B to close</div>
     </>
   );
 }
@@ -195,30 +221,39 @@ function FrontSide({
 // ── Back side ────────────────────────────────────────────────
 
 function BackSide({ onProjectClick }: { onProjectClick: (b: Badge) => void }) {
+  const save = getSave();
+
+  const totalPapers = getItemsByPocket("papers").length;
+  const totalBlogs = getItemsByPocket("blogs").length;
+  const totalTMs = getItemsByPocket("tms").length;
+  const totalPokedex = POKEDEX.length;
+  const totalKeyItems = getItemsByPocket("keyItems").length;
+  const totalUrls =
+    Object.values(ITEM_DEFINITIONS).filter((i) => i.url).length +
+    POKEDEX.filter((p) => p.url).length;
+  const researchLogEntry = getUnlockedEntries().length;
+
   return (
     <>
-      {/* Header: TRAINER label + name */}
+      {/* Header */}
       <div style={backHeaderStyle}>
-        <span style={backTrainerLabelStyle}>TRAINER:</span>
-        <span style={backTrainerNameStyle}>KOSTAS</span>
+        <span style={backTrainerLabelStyle}>PROGRESS</span>
       </div>
 
-      {/* About me block */}
-      <div style={aboutMeBlockStyle}>
-        <div style={aboutMeLabelStyle}>ABOUT ME</div>
-        <p style={aboutMeTextStyle}>
-          PhD ML Engineer from Greece. Currently L5 Applied Scientist at
-          Amazon. 8+ years shipping AI: maritime optimization, expense
-          intelligence, healthcare scheduling, vision distillation.
-          10 papers, 102+ citations, 8.3K GitHub followers, 7 PyPi packages.
-          PhD defense April 2026, UTK Bredesen Center.
-        </p>
+      {/* Progress checklist */}
+      <div style={backChecklistStyle}>
+        <BackProgressRow label="Papers" current={save.papersCollected.length} total={totalPapers} />
+        <BackProgressRow label="Blog Posts" current={save.blogsCollected.length} total={totalBlogs} />
+        <BackProgressRow label="Pokemon" current={save.pokedexCaught.length} total={totalPokedex} />
+        <BackProgressRow label="TMs" current={save.tmsCollected.length} total={totalTMs} />
+        <BackProgressRow label="Key Items" current={save.keyItemsCollected.length} total={totalKeyItems} />
+        <BackProgressRow label="URLs Opened" current={save.urlsOpened.length} total={totalUrls} />
       </div>
 
-      {/* Stats: milestones */}
+      {/* Summary stats */}
       <div style={backStatsStyle}>
-        <BackRow label="HALL OF FAME DEBUT" value="2018" />
-        <BackRow label="PAPER CITATIONS" value="102+" />
+        <BackRow label="RESEARCH LOG" value={`#${researchLogEntry}`} />
+        <BackRow label="BADGES" value={`${save.badges.length}/8`} />
       </div>
 
       {/* Bottom: 6 Pokemon icons → linked to portfolio projects */}
@@ -243,8 +278,28 @@ function BackSide({ onProjectClick }: { onProjectClick: (b: Badge) => void }) {
         ))}
       </div>
 
-      <div style={hintStyle}>SPACE/Z flip · ESC back · click ⚪ for project</div>
+      <div style={hintStyle}>A flip · B back · click icon for project</div>
     </>
+  );
+}
+
+function BackProgressRow({ label, current, total }: { label: string; current: number; total: number }) {
+  const pct = total > 0 ? Math.min(1, current / total) : 0;
+  const filled = current >= total;
+  return (
+    <div style={backProgressRowStyle}>
+      <span style={{ color: filled ? "#2a7a2a" : TEXT_DARK }}>{filled ? "\u2713" : "\u25A0"}</span>
+      <span style={backProgressLabelStyle}>{label}</span>
+      <span style={backProgressDotsStyle}>
+        {"·".repeat(Math.max(1, 20 - label.length))}
+      </span>
+      <span style={{
+        ...backProgressValueStyle,
+        color: filled ? "#2a7a2a" : TEXT_DARK,
+      }}>
+        {current}/{total}
+      </span>
+    </div>
   );
 }
 
@@ -328,17 +383,20 @@ interface Badge {
   name: string;
   tagline: string;
   url: string;
+  /** Maps to GameSave.badges[] id. */
+  badgeId: string;
 }
 
+/** Badge display order matches the 8 badge sprites (badge_0..badge_7). */
 const SKILL_BADGES: Badge[] = [
-  { name: "Python",     tagline: "8+ years building production ML in Python.", url: "https://github.com/drkostas" },
-  { name: "PyTorch",    tagline: "PyTorch core for distillation + vision.",     url: "https://github.com/drkostas" },
-  { name: "AWS",        tagline: "L5 Applied Scientist at Amazon.",              url: "https://aws.amazon.com" },
-  { name: "React",      tagline: "Built FleetSmart.ai + this site in React.",    url: "https://github.com/drkostas" },
-  { name: "Docker",     tagline: "Containerized 6+ production services.",        url: "https://github.com/drkostas" },
-  { name: "NeurIPS",    tagline: "Paper accepted at NeurIPS.",                   url: "https://scholar.google.com/citations?user=drkostas" },
-  { name: "PhD",        tagline: "PhD ML — UTK Bredesen Center, April 2026.",    url: "https://scholar.google.com/citations?user=drkostas" },
-  { name: "Leadership", tagline: "Led teams across FleetSmart.ai + ShiftMD.",     url: "https://linkedin.com/in/drkostas" },
+  { badgeId: "phd",        name: "PhD",         tagline: "PhD ML — UTK Bredesen Center.",               url: "https://scholar.google.com/citations?user=drkostas" },
+  { badgeId: "scholar",    name: "SCHOLAR",     tagline: "Collected all research papers.",               url: "https://scholar.google.com/citations?user=drkostas" },
+  { badgeId: "opensource",  name: "OPEN SOURCE", tagline: "Discovered all Pokemon (projects).",           url: "https://github.com/drkostas" },
+  { badgeId: "author",     name: "AUTHOR",      tagline: "Collected all blog posts.",                    url: "https://gkos.dev/blog" },
+  { badgeId: "fullstack",  name: "FULL STACK",  tagline: "Earned all TMs (technologies).",               url: "https://github.com/drkostas" },
+  { badgeId: "explorer",   name: "EXPLORER",    tagline: "Visited all 5 zones.",                         url: "https://gkos.dev" },
+  { badgeId: "devoted",    name: "DEVOTED",     tagline: "Opened every project URL.",                     url: "https://github.com/drkostas" },
+  { badgeId: "champion",   name: "CHAMPION",    tagline: "Found MEW beyond the boundary.",               url: "https://gkos.dev" },
 ];
 
 // ── Styles ─────────────────────────────────────────────────────
@@ -352,6 +410,29 @@ const CARD_BG_MID   = "#d8e8f0";
 const CARD_BORDER_DARK = "#3a4860";
 const CARD_BORDER_LIGHT = "#a8c0c8";
 const LABEL_BLUE_DARK = "#3868c0";
+
+/**
+ * Card background color changes with EVERY badge (9 distinct tiers,
+ * 0..8). 0 badges = OG Emerald default gray; each successive badge
+ * walks the hue around the color wheel so the card evolves visibly as
+ * you progress. 8 badges = red (champion), matching OG's "all badges"
+ * visual reward.
+ */
+function getCardColors(badgeCount: number): { light: string; mid: string } {
+  const PALETTE: Array<{ light: string; mid: string }> = [
+    { light: CARD_BG_LIGHT, mid: CARD_BG_MID   },   // 0: default gray
+    { light: "#f4e8d4",     mid: "#c8a878"     },   // 1: bronze
+    { light: "#d8f0d8",     mid: "#a0d8a0"     },   // 2: green
+    { light: "#d8f0ec",     mid: "#80c8b8"     },   // 3: teal
+    { light: "#d8e8f8",     mid: "#a0c0e8"     },   // 4: blue
+    { light: "#e8dcf4",     mid: "#b0a0d8"     },   // 5: purple
+    { light: "#f8f0d0",     mid: "#e0c880"     },   // 6: gold
+    { light: "#f8e0c8",     mid: "#e8a868"     },   // 7: orange
+    { light: "#f8e0e0",     mid: "#e0a0a0"     },   // 8: red (champion)
+  ];
+  const i = Math.max(0, Math.min(PALETTE.length - 1, badgeCount));
+  return PALETTE[i];
+}
 const LABEL_BLUE_LIGHT = "#a0c8f0";
 const TEXT_DARK = "#1c2438";
 const DOT_TEAL = "#3aa090";
@@ -400,8 +481,8 @@ const topBarStyle: React.CSSProperties = {
 const cardLabelStyle: React.CSSProperties = {
   background: `linear-gradient(180deg, ${LABEL_BLUE_LIGHT} 0%, ${LABEL_BLUE_DARK} 100%)`,
   color: "#f0f8ff",
-  padding: `calc(3px * ${sY}) calc(10px * ${sY})`,
-  fontSize: `calc(12px * ${sY})`,
+  padding: `calc(4px * ${sY}) calc(10px * ${sY})`,
+  fontSize: `calc(15px * ${sY})`,
   fontWeight: 700,
   letterSpacing: "1.5px",
   border: `calc(2px * ${sY}) solid ${CARD_BORDER_DARK}`,
@@ -410,7 +491,7 @@ const cardLabelStyle: React.CSSProperties = {
 };
 
 const idStyle: React.CSSProperties = {
-  fontSize: `calc(11px * ${sY})`,
+  fontSize: `calc(14px * ${sY})`,
   color: TEXT_DARK,
   letterSpacing: "0.5px",
 };
@@ -437,9 +518,9 @@ const fieldRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: `calc(6px * ${sY})`,
-  fontSize: `calc(12px * ${sY})`,
+  fontSize: `calc(15px * ${sY})`,
   borderBottom: `calc(1px * ${sY}) solid rgba(58,72,96,0.3)`,
-  paddingBottom: `calc(2px * ${sY})`,
+  paddingBottom: `calc(3px * ${sY})`,
 };
 
 const fieldDotStyle: React.CSSProperties = {
@@ -494,7 +575,7 @@ const badgesSectionStyle: React.CSSProperties = {
 };
 
 const badgesLabelStyle: React.CSSProperties = {
-  fontSize: `calc(10px * ${sY})`,
+  fontSize: `calc(13px * ${sY})`,
   fontWeight: 700,
   letterSpacing: "1.5px",
   color: TEXT_DARK,
@@ -532,9 +613,9 @@ const badgeImgStyle: React.CSSProperties = {
 
 const hintStyle: React.CSSProperties = {
   textAlign: "center",
-  fontSize: `calc(9px * ${sY})`,
+  fontSize: `calc(12px * ${sY})`,
   color: "rgba(28,36,56,0.55)",
-  marginTop: `calc(2px * ${sY})`,
+  marginTop: `calc(3px * ${sY})`,
   letterSpacing: "0.5px",
 };
 
@@ -551,14 +632,14 @@ const backHeaderStyle: React.CSSProperties = {
 };
 
 const backTrainerLabelStyle: React.CSSProperties = {
-  fontSize: `calc(13px * ${sY})`,
+  fontSize: `calc(16px * ${sY})`,
   fontWeight: 700,
   color: LABEL_BLUE_DARK,
   letterSpacing: "1.5px",
 };
 
 const backTrainerNameStyle: React.CSSProperties = {
-  fontSize: `calc(15px * ${sY})`,
+  fontSize: `calc(19px * ${sY})`,
   fontWeight: 700,
   color: TEXT_DARK,
   letterSpacing: "1px",
@@ -575,7 +656,7 @@ const backRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  fontSize: `calc(12px * ${sY})`,
+  fontSize: `calc(15px * ${sY})`,
   borderBottom: `calc(1px * ${sY}) solid rgba(58,72,96,0.25)`,
   paddingBottom: `calc(4px * ${sY})`,
 };
@@ -589,7 +670,7 @@ const backRowLabelStyle: React.CSSProperties = {
 const backRowValueStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "#d04020",
-  fontSize: `calc(13px * ${sY})`,
+  fontSize: `calc(16px * ${sY})`,
 };
 
 const backIconsRowStyle: React.CSSProperties = {
@@ -617,13 +698,46 @@ const backIconSlotStyle: React.CSSProperties = {
   transition: "transform 80ms",
 };
 
+const backChecklistStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: `calc(4px * ${sY})`,
+  padding: `calc(6px * ${sY}) calc(4px * ${sY})`,
+};
+
+const backProgressRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  fontSize: `calc(14px * ${sY})`,
+  gap: `calc(4px * ${sY})`,
+};
+
+const backProgressLabelStyle: React.CSSProperties = {
+  fontWeight: 700,
+  minWidth: `calc(90px * ${sY})`,
+};
+
+const backProgressDotsStyle: React.CSSProperties = {
+  flex: 1,
+  color: "#aaa",
+  letterSpacing: "1px",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+};
+
+const backProgressValueStyle: React.CSSProperties = {
+  fontWeight: 700,
+  minWidth: `calc(40px * ${sY})`,
+  textAlign: "right",
+};
+
 const aboutMeBlockStyle: React.CSSProperties = {
   padding: `calc(6px * ${sY}) calc(2px * ${sY})`,
   borderBottom: `calc(1px * ${sY}) solid rgba(58,72,96,0.3)`,
 };
 
 const aboutMeLabelStyle: React.CSSProperties = {
-  fontSize: `calc(10px * ${sY})`,
+  fontSize: `calc(13px * ${sY})`,
   fontWeight: 700,
   letterSpacing: "1px",
   color: LABEL_BLUE_DARK,
@@ -632,8 +746,8 @@ const aboutMeLabelStyle: React.CSSProperties = {
 
 const aboutMeTextStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: `calc(11px * ${sY})`,
-  lineHeight: 1.45,
+  fontSize: `calc(14px * ${sY})`,
+  lineHeight: 1.5,
   color: TEXT_DARK,
 };
 
@@ -667,21 +781,21 @@ const confirmBoxStyle: React.CSSProperties = {
   padding: `calc(12px * ${sY}) calc(20px * ${sY})`,
   fontFamily: FONT,
   color: "#000",
-  fontSize: `calc(13px * ${sY})`,
+  fontSize: `calc(16px * ${sY})`,
   textAlign: "center",
   imageRendering: "pixelated",
   outline: "none",
-  minWidth: `calc(260px * ${sY})`,
+  minWidth: `calc(280px * ${sY})`,
 };
 
 const confirmTitleStyle: React.CSSProperties = {
-  fontSize: `calc(16px * ${sY})`,
+  fontSize: `calc(19px * ${sY})`,
   fontWeight: 700,
-  marginBottom: `calc(6px * ${sY})`,
+  marginBottom: `calc(8px * ${sY})`,
 };
 
 const confirmTaglineStyle: React.CSSProperties = {
-  fontSize: `calc(11px * ${sY})`,
+  fontSize: `calc(14px * ${sY})`,
   color: "#444",
   marginBottom: `calc(10px * ${sY})`,
 };
@@ -698,8 +812,8 @@ const confirmButtonStyle: React.CSSProperties = {
   borderRadius: `calc(3px * ${sY})`,
   color: "#000",
   fontFamily: FONT,
-  fontSize: `calc(13px * ${sY})`,
-  padding: `calc(4px * ${sY}) calc(14px * ${sY})`,
+  fontSize: `calc(16px * ${sY})`,
+  padding: `calc(5px * ${sY}) calc(16px * ${sY})`,
   cursor: "pointer",
   letterSpacing: "0.5px",
 };
