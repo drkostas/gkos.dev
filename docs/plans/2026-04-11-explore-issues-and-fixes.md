@@ -851,3 +851,278 @@ interface NPCDefinition {
 - Design questionnaire questions
 - Configure mart shop TM prices
 - Source/create sound effects
+
+---
+
+## ISSUE 23: NEW GAME Doesn't Fully Reset
+
+### What the code does now:
+- OpeningScreen "NEW GAME" calls `clearSave()` which ONLY clears `gkos:explore:save`
+- But there are **7 other localStorage keys** that persist independently:
+  - `gkos:explore:steps` (StepStore)
+  - `gkos:explore:pickups` (PickupStore)
+  - `gkos:explore:pokedex-seen` (PokedexStore)
+  - `gkos:explore:pc` (PCStore)
+  - `gkos:explore:trainers-cleared` (TrainerStore)
+  - `gkos:explore:settings` (Settings — should maybe persist?)
+  - `gkos:explore:interior` (InteriorStateStore)
+- OptionsMenu's "CLEAR PROGRESS" wipes ALL `gkos:explore:*` keys ✓ (correct)
+- But NEW GAME from the title screen only wipes one key ✗ (broken)
+
+### What we want:
+- NEW GAME = full reset. Clear ALL game state. Player starts completely fresh.
+- Settings (text speed, frame style) could optionally persist (QoL).
+
+### Fix:
+`clearSave()` in GameSave.ts should also call:
+```typescript
+clearSteps();
+clearPickups();
+clearPokedexSeen();
+clearPCStore();
+clearTrainerStore();
+clearInteriorState();
+// Optionally keep settings
+```
+OR: use the same approach as OptionsMenu's `clearAllProgress()`:
+```typescript
+const keys = Object.keys(localStorage).filter(k => k.startsWith("gkos:explore:"));
+for (const k of keys) localStorage.removeItem(k);
+```
+
+---
+
+## ISSUE 24: Research Log Given Immediately on New Game
+
+### What the code does now:
+- `shouldAwardResearchLog()` checks `getTotalDiscoveries() >= 5`
+- `getTotalDiscoveries()` counts `pokedexSeen.length + papers + blogs + tms + keyItems`
+- `PartyDexRegistrar` auto-adds 6 party Pokemon to `pokedexSeen` on game init
+- So on a brand new game: `pokedexSeen.length = 6` → discoveries = 6 → threshold 5 is met
+- Result: player gets "Obtained RESEARCH LOG!" within seconds of starting, before doing ANYTHING
+
+### What we want:
+- Research Log is earned through ACTIVE exploration, not passive auto-registration
+- Party Pokemon should NOT count toward discovery total
+- OR: threshold should be higher (e.g., 10) so party alone doesn't trigger it
+
+### Best fix:
+Change `getTotalDiscoveries()` to count `pokedexCaught` (found by walking up to overworld Pokemon) instead of `pokedexSeen` (which includes auto-registered party):
+```typescript
+export function getTotalDiscoveries(): number {
+  const save = getSave();
+  return (
+    save.pokedexCaught.length +    // ← CAUGHT, not seen
+    save.papersCollected.length +
+    save.blogsCollected.length +
+    save.tmsCollected.length +
+    save.keyItemsCollected.length
+  );
+}
+```
+This way: party Pokemon = seen (auto) but NOT caught. Only overworld encounters count as discoveries.
+
+---
+
+## ISSUE 25: No Dedicated Pokemon Encounter Sound
+
+### What the code does now:
+- Pokemon encounter in NPCSystem line 213: `sfx.pickup()` — reuses the generic item pickup sound
+- SoundManager has no `encounter()`, `pokemonCry()`, or `discovery()` function
+
+### What we want:
+- A distinct encounter sound that plays during the white flash when you first meet a Pokemon
+- Different from the item pickup jingle — this is a DISCOVERY moment, not a loot moment
+- OG Pokemon has a unique "encounter" fanfare per species, but we can use a single generic one
+
+### What's needed:
+- A new SFX file: `se_encounter.ogg` or `se_pokemon_found.ogg`
+- Something that feels like discovery — short rising tone, 0.3-0.5 seconds
+- Add `sfx.encounter()` to SoundManager
+- Replace `sfx.pickup()` in NPCSystem Pokemon encounter with `sfx.encounter()`
+
+### Alternatives if we can't source/create a new sound:
+- Use `se_itemget.ogg` at a different pitch (if the Audio API supports it)
+- Use the badge jingle at low volume (feels too grand)
+- Keep `sfx.pickup()` but it's not ideal (sounds like finding a Pokeball, not meeting a Pokemon)
+
+---
+
+## ISSUE 26: Route 118 Music Mapping Wrong
+
+### What the code does now:
+- `BGMManager.ts` line 25: `route118: "mus_route110.ogg"`
+- Comment on line 9 says: `"route118" → mus_route111.ogg (Route 118 — reuses 111)`
+- The code contradicts the comment — plays Route 110 music, not 111
+
+### What we want:
+- Route 118 should have distinct music from Route 110 (variety)
+- `mus_route111.ogg` EXISTS in the bgm folder and is different from `mus_route110.ogg`
+- Change line 25 to: `route118: "mus_route111.ogg"`
+
+### Simple one-line fix.
+
+---
+
+## ISSUE 27: Door Enter/Exit Sounds Exist But Aren't Used Everywhere
+
+### What the code does now:
+- `sfx.door()` is called in OverworldScene warp transition ✓
+- `sfx.exit()` is called in InteriorScene exit ✓
+- Both sounds exist as files (`se_door_enter.ogg`, `se_door_exit.ogg`) ✓
+
+### Status: WORKING ✓ — no fix needed. Good job.
+
+---
+
+## ISSUE 28: Missing Sound Effects Inventory
+
+### Sounds that EXIST and are USED:
+| Sound | File | Used for |
+|---|---|---|
+| Menu select | se_select.ogg | ✓ Navigation |
+| Cancel/back | se_cancel.ogg | ✓ B button |
+| Menu open | se_win_open.ogg | ✓ Start menu |
+| Wall bonk | se_wall_hit.ogg | ✓ Walking into walls |
+| Ledge hop | se_dansa.ogg | ✓ Jumping ledges |
+| Item pickup | se_itemget.ogg | ✓ Collecting items |
+| Save | se_save.ogg | ✓ (unused — autosave, no save confirmation) |
+| Card flip | se_card.ogg | ✓ Trainer card flip |
+| Door enter | se_door_enter.ogg | ✓ Building warp |
+| Door exit | se_door_exit.ogg | ✓ Leaving building |
+| PC on | se_pc_on.ogg | ✓ PC activation |
+| PC off | se_pc_off.ogg | ✓ PC deactivation |
+| Badge get | se_badge_get.mp3 | ✓ Regular badge |
+| Badge gym | se_badge_final_gym.mp3 | ✓ Gym badge |
+| Badge champion | se_badge_champion.mp3 | ✓ Champion badge |
+| Blog get | se_blog_get.mp3 | ✓ Blog post collected |
+| TM get | se_tm_get.mp3 | ✓ TM received |
+
+### Sounds MISSING:
+| Sound | Needed for | Priority |
+|---|---|---|
+| Pokemon encounter | First-time Pokemon discovery flash | HIGH |
+| Research log unlock | Special moment (different from item pickup) | MEDIUM |
+| New content notification | OAK phone call on boot | LOW |
+| MEW cry | Easter egg encounter | LOW |
+| Step milestone ding | Could reuse tm_get | LOW (reuse existing) |
+
+### Music that EXISTS:
+| Track | File | Used for |
+|---|---|---|
+| Title/intro | mus_intro.ogg | ✓ Title screen |
+| Birch speech | mus_birch.ogg | ✓ Professor intro |
+| Mauville City | mus_mauville.ogg | ✓ City zone |
+| Route 110 | mus_route110.ogg | ✓ Routes 110, 117, (wrongly 118) |
+| Route 111 | mus_route111.ogg | ✗ Available but not used for 118 |
+| Pokemon Center | mus_pokecenter.ogg | ✓ Center interior |
+| Poke Mart | mus_mart.ogg | ✓ Mart interior |
+| Gym | mus_gym.ogg | ✓ Gym interior |
+
+### Music MISSING:
+- **None!** All areas have BGM. Just fix the Route 118 mapping (Issue 26).
+
+---
+
+## ISSUE 29: Opening Screen Flow vs Design Doc
+
+### What the code does now (working correctly):
+1. `ExploreApp` → mobile detection → shows message if mobile ✓
+2. `OpeningScreen` → shows `TitleScreenLayer` (Rayquaza + logo + animations) ✓
+3. Shines animate → banner slides → "PRESS START" blinks ✓
+4. Player presses key → fade to main menu ✓
+5. Main menu: CONTINUE / NEW GAME / OPTION (or just NEW GAME / OPTION if first visit) ✓
+6. CONTINUE → skips to game ✓
+7. NEW GAME → clears save → Birch speech → name/gender → game ✓
+8. Birch speech plays mus_birch.ogg ✓
+9. Title screen plays mus_intro.ogg ✓
+
+### What's different from our design doc:
+- Design said "Professor Oak IS the loading screen" — current implementation has a SEPARATE title screen (Rayquaza) + Birch intro scene. This is BETTER than the design doc — it matches OG Pokemon Emerald's flow.
+- Design said "Oak tutorial text during asset loading" — current implementation loads assets separately (Phaser boots after opening screen). The tutorial happens in the Birch speech, not during loading. This works fine.
+- Design said "Kostas as professor" — current implementation uses "Birch" naming. **This should use Kostas's identity**, not Birch. The professor IS Kostas (or represents him).
+
+### Only fix needed:
+- Birch speech dialog should reference KOSTAS, not be generic
+- The professor character is thematically "the builder of this world" = KOSTAS
+- Speech content needs to explain the game's purpose (see design doc §3)
+
+---
+
+## ISSUE 30: Story Implementation Gaps
+
+### Checking our plan against what's implemented:
+
+**KOSTAS state machine:** ✓ Partially implemented
+- `dialogFn` exists on gym_kostas in interiors.ts ✓
+- Checks for unclaimed badges and gives them ✓  
+- BUT: missing guidance priorities (close to badge, new content alert, Research Log)
+- Missing: emotional MEW/Champion dialog
+- Missing: specific hints per badge ("check Route 110 for more papers")
+- **This is MY content task** — engine support is there, I write the dialog tree
+
+**Gym trainers give papers:** ✗ NOT implemented
+- Current gym trainers are static InteriorNPCs with plain dialog
+- No `autoGive`, no stepping aside, no paper collection
+- **This is YOUR task** — Issue 18 (add autoGive to InteriorNPC)
+
+**Blog NPCs with conditional spawn:** ✗ NOT implemented
+- `spawnCondition` exists on NPCDefinition type ✓
+- But NO blog NPCs exist in npcs.ts or wild-pokemon.ts
+- **This is MY content task** — I'll add blog NPCs when engine is ready
+
+**Mart shop with step currency:** ✗ NOT implemented
+- **YOUR task** — Issue 1/9
+
+**Trainer Card back (objectives):** ✗ Shows Hoenn map/badges, NOT objectives
+- TrainerCard flip exists ✓
+- Back side doesn't show progress checklist
+- **YOUR task** — Issue 17 (back side content)
+
+**HELP screen:** ✓ Implemented
+- Shows badges, progress, controls, NEW GAME option ✓
+- Replaces SAVE in start menu ✓
+
+**Notification banner:** ✓ Implemented
+- Non-blocking slide-in from top ✓
+- Queue system ✓
+
+**Hidden items:** ✓ Implemented
+- HiddenItemSystem with coordinate lookup ✓
+- A-press priority in InteriorScene ✓
+
+**PC interface:** ✓ Implemented
+- Item withdraw from PC ✓
+- But defaults are wrong (contacts instead of TMs) — Issue 13
+
+---
+
+## REVISED COMPLETE TASK LIST FOR YOU
+
+### CRITICAL:
+1. Map analyzer tool + walkability graph (Issue 11 + 15)
+2. Step counter → mart shop (remove auto-award, add spendSteps, build MartShopInterface) (Issue 1 + 9)
+3. Dialog word-wrap + 2 lines per page pagination (Issue 3 + 7)
+4. NEW GAME full reset (clear ALL localStorage keys) (Issue 23)
+5. Research Log discovery count excludes party auto-seen (Issue 24)
+
+### HIGH:
+6. Add `pokemon` field to Snorlax/Slaking/Slakoth/Poochyena (Issue 2)
+7. Fix DEVOTED badge (two conflicting definitions) (Issue 5)
+8. Fix CHAMPION badge condition (MEW/contacts, not auto at 7) (Issue 6)
+9. Reconcile Pokedex total count (Issue 10)
+10. Add `autoGive` to InteriorNPC + wire in InteriorScene (Issue 18)
+11. Real play time tracking (Issue 17)
+
+### MEDIUM:
+12. Fix Slaking/Slakoth sprites (Issue 4)
+13. Fix questionnaire reward (Issue 12)
+14. Fix PC defaults to TMs (Issue 13)
+15. Fix Route 118 music mapping (Issue 26 — one line)
+16. Find/create Pokemon encounter SFX (Issue 25)
+17. Trainer Card back shows progress (Issue 17)
+
+### ENHANCEMENTS:
+18. Advanced NPC movement behaviors (Issue 16)
+19. Ephemeral Pokemon system (Issue 16)
+20. Analytics tracking (Issue 20)
