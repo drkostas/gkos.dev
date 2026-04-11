@@ -92,3 +92,24 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
   - Behavior: `getComputedStyle(documentElement).getPropertyValue("--pkmn-font")` returns
     `"'Pokemon DS', 'Pokemon GB', 'Courier New', monospace"` — Emerald Pro fully removed
 - Verified working at 2026-04-11T23:04 via Playwright reload + showDialog + console check
+
+
+**B4 — webglcontextlost handler** ✅
+- File: `src/components/game/PhaserGame.tsx`
+- Fix: attach `webglcontextlost` + `webglcontextrestored` listeners to the Phaser
+  canvas (once `game.events.once('ready', ...)` fires so the canvas exists). On
+  context loss the listener calls `preventDefault()` (so the browser keeps the
+  canvas around), logs a warning, and schedules `window.location.reload()` after
+  250ms. Phaser's WebGL renderer doesn't support graceful recovery, so reload is
+  the only sane UX. Listeners are cleaned up in the effect teardown so HMR
+  doesn't leak stale handlers against a destroyed game instance.
+- Verification (4-step):
+  - Desktop 1440x900: `b4-desktop-reload.png` — post-reload back at loading screen
+  - Mobile landscape 852x393: `b4-mobile-landscape-reload.png` — same, wider
+  - Mobile portrait 393x852: `b4-mobile-portrait-reload.png` — same, portrait
+  - Behavior test: from live OverworldScene, dispatched a synthetic
+    `webglcontextlost` Event (cancelable=true) on `game.canvas`. Result:
+    `defaultPrevented: true` (listener ran, called preventDefault), then the
+    scheduled reload fired (confirmed by vite reconnect in console log).
+  - Console: zero errors, zero warnings on the reloaded page
+- Verified working at 2026-04-11T23:08 via synthetic event + reload cycle + console check
