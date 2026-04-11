@@ -924,3 +924,211 @@ Call at:
 ### Files to modify:
 - New: `src/game/systems/Analytics.ts` — wrapper + event functions
 - Various files — add track() calls at relevant points
+
+---
+
+## TASK 23: Birch Speech Sound Effects [MEDIUM]
+
+### What the code does now:
+- `BirchSpeechLayer.tsx` has a typewriter engine (lines 154-176) that advances characters one by one
+- But it plays NO sound during typing — completely silent
+- In-game `DialogBox.tsx` plays `sfx.text()` on each new line starting (line 54)
+- Gender selection menu has no `sfx.select()` on cursor movement
+- Name confirmation has no `sfx.confirm()` on YES press
+- The Birch sequence feels dead and unresponsive compared to in-game dialog
+
+### Why this matters:
+The opening is the player's FIRST experience with the game. If the Birch speech feels
+cheap (silent typewriter, no feedback sounds), it sets a bad tone. Every other dialog
+in the game has sound — the intro should too. OG Pokemon Emerald's Birch speech has
+the same typewriter blips as in-game dialog.
+
+### What to fix:
+1. **Typewriter tick** — add `sfx.text()` in the tick function (line 166 area):
+   ```typescript
+   const tick = () => {
+     charIdx++;
+     setDisplayedChars(charIdx);
+     // Play text blip every few chars (not every single char — too noisy)
+     if (charIdx % 3 === 0) sfx.text();
+     ...
+   };
+   ```
+
+2. **Gender menu navigation** — add `sfx.select()` on ArrowUp/ArrowDown (line 436-442):
+   ```typescript
+   if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+     e.preventDefault();
+     sfx.select();  // ← ADD THIS
+     setGenderCursor(prev => { ... });
+   }
+   ```
+
+3. **Gender confirm** — add `sfx.confirm()` on A/Enter (line 443-446):
+   ```typescript
+   } else if (["a", "A", " ", "Enter"].includes(e.key)) {
+     e.preventDefault();
+     sfx.confirm();  // ← ADD THIS
+     setPhase("WHATS_YOUR_NAME");
+   }
+   ```
+
+4. **Name confirm YES/NO navigation** — add `sfx.select()` (line 470-472)
+5. **Name confirm YES press** — add `sfx.confirm()` (line 475-477)
+6. **Name input Enter press** — add `sfx.confirm()` (line 399-403)
+
+### Files to modify:
+- `src/components/game/BirchSpeechLayer.tsx` — add sfx calls at 6 locations
+- Import `sfx` from SoundManager (already importing `bgm`, just add `sfx`)
+
+---
+
+## TASK 24: Birch Text Box Scaling [MEDIUM]
+
+### What the code does now:
+- BirchSpeechLayer text box (line 721-744) uses HARDCODED pixel sizes:
+  ```
+  borderWidth: "24px"
+  padding: "10px 20px"
+  minHeight: "68px"
+  fontSize: "clamp(14px, 2.2vw, 26px)"
+  ```
+- In-game DialogBox.tsx uses SCALED sizes with CSS variables:
+  ```
+  borderWidth: `calc(24px * ${sX})`
+  padding: `calc(10px * ${sX}) calc(20px * ${sX})`
+  minHeight: `calc(68px * ${sX})`
+  fontSize: `calc(26px * ${sX})`
+  ```
+  where `sX = "var(--ui-scale-x, 1)"`
+
+### Why this matters:
+On small screens the Birch text box is oversized relative to the game container.
+On large screens it's undersized. The in-game dialog looks different from the Birch
+dialog — they should match exactly since they use the same 9-slice frame image.
+
+### What to fix:
+Replace hardcoded px values with `calc(Npx * var(--ui-scale-x, 1))` to match DialogBox:
+```typescript
+const sX = "var(--ui-scale-x, 1)";
+// ... in the style object:
+borderWidth: `calc(24px * ${sX})`,
+padding: `calc(10px * ${sX}) calc(20px * ${sX})`,
+minHeight: `calc(68px * ${sX})`,
+fontSize: `calc(26px * ${sX})`,
+```
+
+Also fix the speaker name pill (line 748-764) and the gender/confirm menus (lines 786-819, 884-919) to use the same scaling.
+
+### Also fix container size mismatch:
+- TitleScreenLayer: `width: "min(135vh, 90vw)"` / `height: "min(90vh, 60vw)"`
+- BirchSpeechLayer: `width: "min(150vh, 100vw)"` / `height: "min(100vh, 66.67vw)"`
+- Use the SAME dimensions in both (the Title dimensions are more conservative and safer)
+
+### Files to modify:
+- `src/components/game/BirchSpeechLayer.tsx` — replace hardcoded sizes with scaled calc() values, match container dimensions to TitleScreenLayer
+
+---
+
+## TASK 25: Title Screen Input Filtering + Menu Polish [LOW]
+
+### What the code does now:
+
+**Problem A — Any key skips title animations:**
+- TitleScreenLayer.tsx line 46-49: during "shines" and "banner" phases, ANY keydown calls `onPressStart()`
+- This includes Arrow keys, Escape, Shift, etc.
+- Player accidentally hits a key → skips the logo animation entirely
+
+**Problem B — No visual highlight on selected menu item:**
+- `menuCardSelStyle` (line 223) and `menuSimpleSelStyle` (line 265) are EMPTY objects `{}`
+- Only the ▶ cursor distinguishes selected from unselected
+- OG Emerald highlights the selected item with distinct background/border
+
+**Problem C — OPTION menu item is pointless:**
+- Line 90-94: selecting OPTION stops music and goes to game (same as CONTINUE)
+- Players expecting an options screen get nothing — confusing
+
+### What to fix:
+
+**A) Filter title skip to specific keys only:**
+```typescript
+if (phase === "shines" || phase === "banner") {
+  if (["Enter", " ", "a", "A"].includes(e.key)) onPressStart();
+}
+```
+
+**B) Add selection highlight:**
+```typescript
+const menuCardSelStyle: React.CSSProperties = {
+  borderColor: "#3868c0",
+  boxShadow: "0 0 0 3px #a0c0f0",
+};
+const menuSimpleSelStyle: React.CSSProperties = {
+  borderColor: "#3868c0",
+  boxShadow: "0 0 0 3px #a0c0f0",
+};
+```
+
+**C) Either remove OPTION from title menu or make it useful:**
+- Option 1: Remove "OPTION" → menu is just CONTINUE / NEW GAME (or just NEW GAME for first visit)
+- Option 2: Keep "OPTION" but make it open a text-speed/sound-volume overlay on the title screen
+- Recommendation: Remove it. Options are available in-game via the Start Menu.
+
+### Files to modify:
+- `src/components/game/TitleScreenLayer.tsx` — filter keys during animation phases
+- `src/components/game/OpeningScreen.tsx` — add selection styles, remove or fix OPTION item
+
+---
+
+## UPDATED TASK SUMMARY
+
+### CRITICAL (5):
+| # | Task | Merged issues |
+|---|---|---|
+| 1 | Map analyzer script | Issues 11, 15, 33 |
+| 2 | Step counter → mart shop | Issues 1, 9 |
+| 3 | Dialog word-wrap + 2 lines per page — **ALSO applies to Birch speech typewriter** | Issues 3, 7 + Birch dialog splitting |
+| 4 | NEW GAME full reset | Issue 23 |
+| 5 | Research Log discovery count (pokedexCaught not pokedexSeen) | Issue 24 |
+
+### HIGH (6):
+| # | Task |
+|---|---|
+| 6 | Boundary Pokemon Pokedex registration |
+| 7 | Fix DEVOTED badge conflict |
+| 8 | Fix CHAMPION badge condition |
+| 9 | Reconcile Pokedex total count |
+| 10 | Add autoGive to InteriorNPC |
+| 11 | Real play time tracking |
+
+### MEDIUM (10):
+| # | Task |
+|---|---|
+| 12 | Slaking/Slakoth sprites |
+| 13 | Questionnaire reward |
+| 14 | PC defaults (TMs not contacts) |
+| 15 | Route 118 music (one-line fix) |
+| 16 | Pokemon encounter SFX |
+| 17 | Trainer Card back = progress |
+| 18 | Hidden item priority order |
+| 19 | Return-to-portfolio link |
+| 23 | **Birch speech sound effects** |
+| 24 | **Birch text box scaling + container size match** |
+
+### LOW (1):
+| # | Task |
+|---|---|
+| 25 | **Title screen input filtering + menu polish** |
+
+### ENHANCEMENTS (3):
+| # | Task |
+|---|---|
+| 20 | Advanced NPC movement behaviors |
+| 21 | Ephemeral Pokemon system |
+| 22 | Analytics tracking |
+
+**Total: 25 tasks** (5 critical + 6 high + 10 medium + 1 low + 3 enhancements)
+
+Note on Task 3: The dialog word-wrap + pagination fix should be implemented as a SHARED utility
+that BOTH DialogBox.tsx (in-game) and BirchSpeechLayer.tsx (opening) use. Don't implement it
+twice — one function, two consumers.
