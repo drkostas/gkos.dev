@@ -385,6 +385,16 @@ body.modal-open {
 
 html {
   min-width: 360px;
+  /*
+   * M0/M1: prevent mobile browsers (iOS Safari, iOS Brave, Android
+   * Chrome in some configs) from auto-scaling text larger than authored.
+   * Without this, calc()-based pixel font sizes in the game UI get
+   * inflated 2-3x on iPhone, which makes the Pokemon dialog box eat
+   * half the viewport. We target the game `/explore` path specifically
+   * below, but it's also safe site-wide since we don't rely on autosize.
+   */
+  -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
 }
 
 @keyframes marquee {

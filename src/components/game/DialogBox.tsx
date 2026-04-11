@@ -133,10 +133,26 @@ export default function DialogBox() {
   // ---------------------------------------------------------------------------
   if (!visible) return null;
 
-  // All dimensions scale with the X-axis ratio (window.innerWidth / 1280)
-  // so the dialog grows on wider screens. Computed via CSS calc() so it
-  // updates live with --ui-scale-x.
-  const sX = "var(--ui-scale-x, 1)";
+  // M0/M2: vw-based sizing with hard floor + ceiling so the dialog is
+  // readable on iPhone 14 Pro portrait (393px) without eating the
+  // viewport, AND still matches the Emerald-reference chonkiness on
+  // 1280+ desktops. The previous math hardcoded calc(26px * sX) where
+  // sX = max(0.6, innerWidth/1280); on 393px portrait Brave this was
+  // 15.6px of the authored size that mobile browsers then auto-scaled
+  // 2-3x. Double fix: (1) text-size-adjust: 100% in global.css +
+  // inline; (2) vw-based math so each dimension is ~2% of viewport
+  // width and the clamp keeps it in a sensible range.
+  //
+  // Target sizes at key breakpoints:
+  //  - 393px portrait  → font 14, border 8,  minH 42, pad 6/12
+  //  - 852px landscape → font 18, border 14, minH 54, pad 9/16
+  //  - 1280px desktop  → font 26, border 24, minH 68, pad 10/20
+  //  - 1920px+         → capped at desktop values
+  const FONT_SIZE = "clamp(14px, 2.1vw, 26px)";
+  const FRAME_BORDER = "clamp(8px, 1.8vw, 24px)";
+  const MIN_HEIGHT = "clamp(42px, 5.3vw, 68px)";
+  const PAD_Y = "clamp(6px, 0.8vw, 10px)";
+  const PAD_X = "clamp(12px, 1.6vw, 20px)";
 
   return (
     <div
@@ -148,17 +164,20 @@ export default function DialogBox() {
         bottom: "calc(6% + var(--touch-bar-h, 0px))",
         left: "50%",
         transform: "translateX(-50%)",
-        width: `min(92%, calc(720px * ${sX}))`,
+        // M2: 90% of viewport up to 760px. On desktops the old math
+        // used min(92%, 720*sX) where sX=1.125 at 1440 → 810px. We cap
+        // at 760px to keep comfortable reading width on 1920+ screens.
+        width: "min(90vw, 760px)",
         // Original Pokemon Emerald 24×24 frame from
         // pret/pokeemerald/graphics/text_window/1.png as a 9-slice
         // background. Using `slice 8 fill` so the center white pixels
         // become the content background — no transparent gap, no outline.
         borderStyle: "solid",
-        borderWidth: `calc(24px * ${sX})`,
+        borderWidth: FRAME_BORDER,
         borderImageSource: "var(--ui-frame, url('/game/ui/text_window/1.png'))",
         borderImageSlice: "8 fill",
         borderImageRepeat: "stretch",
-        borderImageWidth: `calc(24px * ${sX})`,
+        borderImageWidth: FRAME_BORDER,
         // No background-color: the slice's center 8x8 (white) is already
         // painted into the content area by `slice 8 fill`. A solid bg
         // would leak through the now-transparent corner pixels of the
@@ -168,18 +187,23 @@ export default function DialogBox() {
         // (not including border + padding). This prevents the squeeze
         // where border+padding ate all of minHeight.
         boxSizing: "content-box",
-        minHeight: `calc(68px * ${sX})`,
-        padding: `calc(10px * ${sX}) calc(20px * ${sX})`,
+        minHeight: MIN_HEIGHT,
+        padding: `${PAD_Y} ${PAD_X}`,
         fontFamily: "var(--pkmn-font, 'Courier New', monospace)",
-        fontSize: `calc(26px * ${sX})`,
-        lineHeight: 1.5,
+        fontSize: FONT_SIZE,
+        lineHeight: 1.35,
         color: "#000",
         cursor: "pointer",
         userSelect: "none",
         outline: "none",
         zIndex: 100,
         imageRendering: "pixelated",
-      }}
+        // M1: double-safety — declare the textSizeAdjust inline too so
+        // even mobile browsers that ignore the html[text-size-adjust]
+        // declaration don't inflate this container.
+        WebkitTextSizeAdjust: "100%",
+        textSizeAdjust: "100%",
+      } as React.CSSProperties}
     >
       {speakerName && (
         <div
@@ -187,23 +211,25 @@ export default function DialogBox() {
             position: "absolute",
             // Sit just above the dialog's top edge with no overlap.
             // The negative top equals the pill's full height + a few px.
-            top: `calc(-50px * ${sX})`,
-            left: `calc(24px * ${sX})`,
+            top: "clamp(-44px, -3.2vw, -32px)",
+            left: "clamp(12px, 1.4vw, 24px)",
             // Simple pill: solid white bg + thin black border. The 9-slice
             // frame is too thick for a small label and its transparent
             // corner pixels would reveal whatever's behind, producing a
             // halo when the pill sits over the dialog box.
             background: "#fff",
             color: "#000",
-            padding: `calc(8px * ${sX}) calc(18px * ${sX})`,
-            fontSize: `calc(22px * ${sX})`,
+            padding: "clamp(4px, 0.55vw, 8px) clamp(10px, 1.2vw, 18px)",
+            fontSize: "clamp(12px, 1.65vw, 22px)",
             fontWeight: 700,
             letterSpacing: "0.5px",
-            border: `calc(2px * ${sX}) solid #000`,
-            borderRadius: `calc(4px * ${sX})`,
+            border: "2px solid #000",
+            borderRadius: "4px",
+            WebkitTextSizeAdjust: "100%",
+            textSizeAdjust: "100%",
             // No image-rendering: pixelated here — keeps the rounded
             // border anti-aliased rather than jaggy.
-          }}
+          } as React.CSSProperties}
         >
           {speakerName}
         </div>
