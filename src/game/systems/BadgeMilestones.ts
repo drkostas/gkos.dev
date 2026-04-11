@@ -16,7 +16,6 @@ import {
   type GameSave,
 } from "./GameSave";
 import {
-  getItemDef,
   getItemsByPocket,
   ITEM_DEFINITIONS,
 } from "@/game/data/itemDefinitions";
@@ -48,64 +47,72 @@ export interface BadgeDef {
 const TOTAL_PAPERS = getItemsByPocket("papers").length;
 const TOTAL_BLOGS = getItemsByPocket("blogs").length;
 const TOTAL_TMS = getItemsByPocket("tms").length;
+const TOTAL_KEY_ITEMS = getItemsByPocket("keyItems").length;
 const TOTAL_POKEDEX = POKEDEX.length;
+/**
+ * B7 — Badge IDs follow design doc `docs/plans/explore-mode-final.md`
+ * §2. The 8 canonical badges are:
+ *
+ *   1. gym           — complete the gym puzzle
+ *   2. publication   — collect all papers (6 gym + 4 route = 10 total)
+ *   3. connected     — find all 7 key items (5 visible + 2 hidden)
+ *   4. pokedex       — register all 30 Pokemon
+ *   5. blogger       — collect all blog posts
+ *   6. engineer      — collect all 20 TMs
+ *   7. completionist — open every URL (papers, blogs, projects, items)
+ *   8. champion      — find MEW beyond the eastern boundary
+ *
+ * Prior iteration used `phd / scholar / opensource / author / fullstack /
+ * explorer / devoted / champion`. `explorer` had no design-doc equivalent
+ * and is dropped; `connected` is the new badge in its slot. Old saves are
+ * migrated in GameSave.loadFromStorage (see LEGACY_BADGE_ID_MAP).
+ */
 export const BADGES: BadgeDef[] = [
   {
-    id: "phd",
-    name: "PhD",
+    id: "gym",
+    name: "GYM",
     hint: "Complete the GYM puzzle",
     condition: (s) => s.gymComplete,
   },
   {
-    id: "scholar",
-    name: "SCHOLAR",
-    hint: `Collect and read all ${TOTAL_PAPERS} papers`,
-    // Collecting a paper isn't enough — the player must also open
-    // every paper's URL from the Bag (USE action). Primes them for
-    // the COMPLETIONIST badge later and matches the "knowledge is
-    // consumed, not collected" beat in KOSTAS's gym dialog.
-    //
-    // BagMenu records URL opens as `${pocket}:${displayName}`
-    // (BagMenu.tsx:130), NOT by item id, so we look up each paper's
-    // display name via ITEM_DEFINITIONS rather than assuming a
-    // format. If ITEM_DEFINITIONS loses an entry the missing paper
-    // fails the check, which is the safe default.
-    condition: (s) => {
-      if (s.papersCollected.length < TOTAL_PAPERS) return false;
-      return s.papersCollected.every((itemId) => {
-        const def = getItemDef(itemId);
-        if (!def) return false;
-        return s.urlsOpened.includes(`papers:${def.name}`);
-      });
-    },
+    id: "publication",
+    name: "PUBLICATION",
+    hint: `Collect all ${TOTAL_PAPERS} papers`,
+    // Per design doc §2: the PUBLICATION badge is collecting the
+    // papers; the separate COMPLETIONIST badge handles "open every URL".
+    // This matches what the explore-mode-final.md §2 table specifies.
+    condition: (s) => s.papersCollected.length >= TOTAL_PAPERS,
   },
   {
-    id: "opensource",
-    name: "OPEN SOURCE",
-    hint: `Discover all ${TOTAL_POKEDEX} Pokemon`,
+    id: "connected",
+    name: "CONNECTED",
+    hint: `Find all ${TOTAL_KEY_ITEMS} key items`,
+    // Key items = GITHUB.URL, LINKEDIN.URL, SCHOLAR.URL, HUGGINGFACE.URL,
+    // RESUME.PDF, DISSERTATION.PDF, PHONE.NUMBER (5 visible + 2 hidden).
+    // The final count lives in itemDefinitions.ts under pocket "keyItems".
+    condition: (s) => s.keyItemsCollected.length >= TOTAL_KEY_ITEMS,
+  },
+  {
+    id: "pokedex",
+    name: "POKEDEX",
+    hint: `Register all ${TOTAL_POKEDEX} Pokemon`,
     condition: (s) => s.pokedexSeen.length >= TOTAL_POKEDEX,
   },
   {
-    id: "author",
-    name: "AUTHOR",
+    id: "blogger",
+    name: "BLOGGER",
     hint: `Collect all ${TOTAL_BLOGS} blog posts`,
     condition: (s) => s.blogsCollected.length >= TOTAL_BLOGS,
   },
   {
-    id: "fullstack",
-    name: "FULL STACK",
-    hint: `Earn all ${TOTAL_TMS} TMs`,
+    id: "engineer",
+    name: "ENGINEER",
+    hint: `Collect all ${TOTAL_TMS} TMs`,
     condition: (s) => s.tmsCollected.length >= TOTAL_TMS,
   },
   {
-    id: "explorer",
-    name: "EXPLORER",
-    hint: "Visit all 5 zones",
-    condition: (s) => s.zonesVisited.length >= 5,
-  },
-  {
-    id: "devoted",
-    name: "DEVOTED",
+    id: "completionist",
+    name: "COMPLETIONIST",
     hint: "Open every URL from your BAG and POKeDEX",
     // Auto-awarded the moment the last URL is opened — no KOSTAS
     // visit needed. See the `auto: true` flag below.
@@ -121,6 +128,26 @@ export const BADGES: BadgeDef[] = [
     auto: true,
   },
 ];
+
+/**
+ * Migration table for saves created under the prior badge ID scheme.
+ * Exported so GameSave's loader can rewrite any legacy `badges` array
+ * during hydration. Entries not in this map are assumed to already be
+ * new-style ids (or noise that should be dropped on load).
+ *
+ * The dropped `explorer` badge (visit 5 zones) has no new-scheme
+ * equivalent — it maps to `undefined` and is filtered out.
+ */
+export const LEGACY_BADGE_ID_MAP: Record<string, string | undefined> = {
+  phd: "gym",
+  scholar: "publication",
+  opensource: "pokedex",
+  author: "blogger",
+  fullstack: "engineer",
+  explorer: undefined, // dropped — no design-doc equivalent
+  devoted: "completionist",
+  champion: "champion",
+};
 
 // ── Pending notification ─────────────────────────────────
 

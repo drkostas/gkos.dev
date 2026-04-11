@@ -164,10 +164,56 @@ function loadFromStorage(): GameSave {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaults();
     const parsed = JSON.parse(raw) as Partial<GameSave>;
-    return { ...defaults(), ...parsed };
+    const merged: GameSave = { ...defaults(), ...parsed };
+
+    // B7 — migrate any legacy badge ids to the new design-doc names.
+    // Done here so every downstream reader sees the canonical set
+    // without having to know the migration table. `explorer` maps to
+    // undefined and is filtered out entirely.
+    if (merged.badges?.length) {
+      merged.badges = migrateLegacyBadges(merged.badges);
+    }
+    if (merged.badgesNotified?.length) {
+      merged.badgesNotified = migrateLegacyBadges(merged.badgesNotified);
+    }
+    return merged;
   } catch {
     return defaults();
   }
+}
+
+/**
+ * B7 legacy badge id migration. Maps old badge ids (phd, scholar,
+ * opensource, author, fullstack, explorer, devoted, champion) to the
+ * new design-doc ids (gym, publication, connected, pokedex, blogger,
+ * engineer, completionist, champion). Deduplicates the result in case
+ * a save somehow has both old and new ids. Inlined instead of importing
+ * from BadgeMilestones to avoid a circular dep (BadgeMilestones imports
+ * from this module).
+ */
+const LEGACY_BADGE_ID_MAP: Record<string, string | undefined> = {
+  phd: "gym",
+  scholar: "publication",
+  opensource: "pokedex",
+  author: "blogger",
+  fullstack: "engineer",
+  explorer: undefined,
+  devoted: "completionist",
+  champion: "champion",
+};
+
+function migrateLegacyBadges(arr: string[]): string[] {
+  const out: string[] = [];
+  for (const id of arr) {
+    if (id in LEGACY_BADGE_ID_MAP) {
+      const mapped = LEGACY_BADGE_ID_MAP[id];
+      if (mapped && !out.includes(mapped)) out.push(mapped);
+    } else if (!out.includes(id)) {
+      // Already a new-style id (or a stray string we leave as-is).
+      out.push(id);
+    }
+  }
+  return out;
 }
 
 function ensureCache(): GameSave {

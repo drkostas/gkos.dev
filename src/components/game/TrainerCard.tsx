@@ -182,7 +182,10 @@ function FrontSide({
         <div style={badgesLabelStyle}>BADGES</div>
         <div style={badgesRowStyle}>
           {SKILL_BADGES.map((b, i) => {
-            const earned = earnedBadgeIds.includes(b.badgeId);
+            // SKILL_BADGES always defines badgeId (B7 canonical ids).
+            // The `!` narrows the optional for this map; project badges
+            // in PROJECT_POKEMON live in a separate array below.
+            const earned = earnedBadgeIds.includes(b.badgeId!);
             return (
               <button
                 key={b.badgeId}
@@ -383,20 +386,30 @@ interface Badge {
   name: string;
   tagline: string;
   url: string;
-  /** Maps to GameSave.badges[] id. */
-  badgeId: string;
+  /**
+   * Maps to GameSave.badges[] id for SKILL_BADGES (the 8 canonical badges
+   * from explore-mode-final.md §2). Optional because PROJECT_POKEMON
+   * reuses this type for display-only project cards that aren't tied to
+   * a persisted badge id.
+   */
+  badgeId?: string;
 }
 
-/** Badge display order matches the 8 badge sprites (badge_0..badge_7). */
+/**
+ * Badge display order matches the 8 badge sprites (badge_0..badge_7)
+ * and the canonical slot order from `docs/plans/explore-mode-final.md` §2.
+ * IDs must match BadgeMilestones.BADGES so `badges.includes(badgeId)`
+ * works against the save's persisted badge array.
+ */
 const SKILL_BADGES: Badge[] = [
-  { badgeId: "phd",        name: "PhD",         tagline: "PhD ML — UTK Bredesen Center.",               url: "https://scholar.google.com/citations?user=drkostas" },
-  { badgeId: "scholar",    name: "SCHOLAR",     tagline: "Collected all research papers.",               url: "https://scholar.google.com/citations?user=drkostas" },
-  { badgeId: "opensource",  name: "OPEN SOURCE", tagline: "Discovered all Pokemon (projects).",           url: "https://github.com/drkostas" },
-  { badgeId: "author",     name: "AUTHOR",      tagline: "Collected all blog posts.",                    url: "https://gkos.dev/blog" },
-  { badgeId: "fullstack",  name: "FULL STACK",  tagline: "Earned all TMs (technologies).",               url: "https://github.com/drkostas" },
-  { badgeId: "explorer",   name: "EXPLORER",    tagline: "Visited all 5 zones.",                         url: "https://gkos.dev" },
-  { badgeId: "devoted",    name: "DEVOTED",     tagline: "Opened every project URL.",                     url: "https://github.com/drkostas" },
-  { badgeId: "champion",   name: "CHAMPION",    tagline: "Found MEW beyond the boundary.",               url: "https://gkos.dev" },
+  { badgeId: "gym",           name: "GYM",           tagline: "Completed the gym puzzle.",               url: "https://scholar.google.com/citations?user=drkostas" },
+  { badgeId: "publication",   name: "PUBLICATION",   tagline: "Collected all research papers.",          url: "https://scholar.google.com/citations?user=drkostas" },
+  { badgeId: "connected",     name: "CONNECTED",     tagline: "Found every way to reach me.",            url: "https://github.com/drkostas" },
+  { badgeId: "pokedex",       name: "POKEDEX",       tagline: "Registered all projects in the Pokedex.", url: "https://github.com/drkostas" },
+  { badgeId: "blogger",       name: "BLOGGER",       tagline: "Read every blog post.",                   url: "https://gkos.dev/blog" },
+  { badgeId: "engineer",      name: "ENGINEER",      tagline: "Earned all TMs (technologies).",          url: "https://github.com/drkostas" },
+  { badgeId: "completionist", name: "COMPLETIONIST", tagline: "Opened every project URL.",               url: "https://github.com/drkostas" },
+  { badgeId: "champion",      name: "CHAMPION",      tagline: "Found MEW beyond the boundary.",          url: "https://gkos.dev" },
 ];
 
 // ── Styles ─────────────────────────────────────────────────────
