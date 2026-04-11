@@ -52,17 +52,37 @@ export function wordWrap(text: string, maxWidth: number = 36): string[] {
 }
 
 /**
+ * Dynamically pick a word-wrap column count based on the current
+ * viewport width. Portrait phones (iPhone 14 Pro ~393px) need ~24
+ * columns; landscape phones (~852px) ~30; desktops and up stay at 36.
+ * Reads `window.innerWidth` once at pagination time so the page is
+ * re-paginated on each showDialog call. If `window` is undefined
+ * (SSR), fall back to 36.
+ */
+function viewportWrapWidth(): number {
+  if (typeof window === "undefined") return 36;
+  const w = window.innerWidth;
+  if (w < 450) return 24;
+  if (w < 700) return 28;
+  if (w < 900) return 30;
+  return 36;
+}
+
+/**
  * Paginate dialog lines into 2-line pages (OG Pokemon Emerald style).
  *
- * - Long lines are word-wrapped at 36 characters.
+ * - Long lines are word-wrapped at a viewport-appropriate width
+ *   (24 columns on portrait phones, 30 on landscape phones, 36 on
+ *   desktop). Previously hard-coded 36, which overflowed on 393px.
  * - Empty strings act as forced page breaks.
  * - Lines are grouped into pages of `linesPerPage` (default 2),
  *   joined with `\n` so DialogBox can render them with pre-wrap.
  */
 export function paginateDialog(rawLines: string[], linesPerPage: number = 2): string[] {
+  const wrapCols = viewportWrapWidth();
   const wrapped = rawLines.flatMap((line) => {
     if (line === "") return [""]; // preserve forced page breaks
-    return wordWrap(line, 36);
+    return wordWrap(line, wrapCols);
   });
 
   const pages: string[] = [];

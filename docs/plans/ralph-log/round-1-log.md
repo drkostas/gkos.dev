@@ -185,3 +185,35 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
     (CommunityWallBentoReact framer-motion Variants typing, PhotoGallery same,
     ScrapbookBento.astro missing prop) and are not caused by B7.
 - Verified working at 2026-04-11T23:26 via legacy-save migration run
+
+
+**M0 + M1 + M2 — Dialog box sizing on iPhone** ✅
+- User-reported bug (real iPhone 14 Pro running vercel production build in
+  Brave iOS): dialog box in landscape took top 50% of viewport; in portrait
+  the text "to the ▼" was as large as the player sprite. Root cause: mobile
+  text auto-scaling was inflating the authored 17px font to ~40-50px
+  effective size, and no `text-size-adjust` in CSS to prevent it.
+- Files:
+  - `src/styles/global.css` — added `text-size-adjust: 100%` to `html`
+  - `src/components/game/DialogBox.tsx` — replaced calc(*px * --ui-scale-x)
+    math with vw-based `clamp()` values (font 14-26px, border 8-24px,
+    minHeight 42-68px) plus inline `textSizeAdjust: 100%` as double-safety
+  - `src/game/systems/DialogSystem.ts` — `paginateDialog` now picks wrap
+    width by viewport (24 cols @ < 450px, 28 @ < 700, 30 @ < 900, else 36)
+- Verification (4-step):
+  - Desktop 1440x900: `m2-desktop-1440.png` — dialog ~760px wide, ~100px
+    tall, font ~26px, "Hello there! Welcome to the world of / POKeMON!"
+    renders with proper proportions and Pokemon Emerald frame
+  - Mobile landscape 852x393: `m2-mobile-landscape-852.png` — dialog
+    ~760px wide, ~75px tall (19% of viewport short axis vs. old ~50%+),
+    "Hello there! Welcome to the / world of POKeMON! ▼" in 2 lines
+  - Mobile portrait 393x852: `m2-mobile-portrait-393.png` — dialog
+    ~350px wide, ~90px tall (11% of viewport long axis vs. old ~22%),
+    "Hello there! Welcome to / the world of POKeMON! ▼" in 2 lines
+  - Behavior test: on each viewport, called
+    `scene.dialogSystem.showDialog({ lines: ["Hello there! Welcome to the world of POKeMON!"] })`
+    via browser_evaluate; DialogSystem.paginateDialog picked the correct
+    wrap width for each viewport; font-size computed values match
+    expected vw clamps.
+  - Console: zero errors across the full flow on all 3 viewports
+- Verified working at 2026-04-11T23:35 via live Playwright viewport sweep
