@@ -76,12 +76,12 @@ export default function PokedexList({ onClose }: PokedexListProps) {
     const key = `pokedex:${entry.number}`;
     const wasFirstOpen = markUrlOpened(key);
     if (wasFirstOpen) {
-      // checkBadges auto-awards DEVOTED when the last URL is opened.
+      // checkBadges auto-awards COMPLETIONIST when the last URL is opened.
       // Check before + after so we can show the earned notification.
-      const hadDevoted = hasBadge("devoted");
+      const hadCompletionist = hasBadge("completionist");
       checkBadges();
-      if (!hadDevoted && hasBadge("devoted")) {
-        showNotification("DEVOTED badge earned!", "★");
+      if (!hadCompletionist && hasBadge("completionist")) {
+        showNotification("COMPLETIONIST badge earned!", "★");
       }
     }
   }, []);

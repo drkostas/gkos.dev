@@ -147,3 +147,41 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
     module instance. The in-loop verification (delta=100, flush coalesced,
     localStorage matches in-memory immediately after microtask) is conclusive.
 - Verified working at 2026-04-11T23:13 via 100-update race test + microtask flush check
+
+
+**B7 — badge id rename to design doc names** ✅
+- Files: `src/game/systems/BadgeMilestones.ts`, `src/game/systems/GameSave.ts`,
+  `src/game/data/interiors.ts`, `src/components/game/TrainerCard.tsx`,
+  `src/components/game/BagMenu.tsx`, `src/components/game/PokedexList.tsx`
+- Mapping (per `docs/plans/explore-mode-final.md` §2):
+  - phd → gym (complete the gym puzzle)
+  - scholar → publication (collect all 10 papers; URL-open requirement dropped,
+    that's now COMPLETIONIST's job)
+  - opensource → pokedex (register all 30 Pokemon)
+  - author → blogger (collect all blog posts)
+  - fullstack → engineer (collect all 20 TMs)
+  - explorer → (dropped — no design doc equivalent)
+  - devoted → completionist (open every URL)
+  - champion → champion (unchanged)
+- Added: `connected` badge (find all 7 key items) which didn't exist before.
+- Save migration: `GameSave.loadFromStorage()` runs `migrateLegacyBadges()` on
+  `badges` and `badgesNotified`; entries not in the map are left alone so new
+  saves created under the new scheme are pass-through.
+- The 6 TypeScript errors in TrainerCard.tsx from the pre-existing 20-error list
+  are fixed as a byproduct (`badgeId` is now optional on the Badge type so the
+  project-pokemon cards can reuse it without a fake badgeId).
+- Verification (4-step):
+  - Desktop 1440x900 (CONTINUE menu after reload of legacy save):
+    `b7-continue-menu.png` — shows `PLAYER TESTER BADGES 4`. Legacy save had
+    5 badges [phd, scholar, opensource, explorer, devoted]; after migration
+    the save has 4 badges [gym, publication, pokedex, completionist] — explorer
+    was correctly dropped.
+  - Behavior test: seeded legacy `["phd", "scholar", "opensource", "explorer", "devoted"]`
+    in localStorage, reloaded page, confirmed the main menu reports 4 badges
+    (original 5 minus dropped explorer). Type check confirms `src/game` and
+    `src/components/game` compile clean.
+  - Console: zero errors on title/main-menu path
+  - Remaining 14 pre-existing TypeScript errors are all in non-game files
+    (CommunityWallBentoReact framer-motion Variants typing, PhotoGallery same,
+    ScrapbookBento.astro missing prop) and are not caused by B7.
+- Verified working at 2026-04-11T23:26 via legacy-save migration run

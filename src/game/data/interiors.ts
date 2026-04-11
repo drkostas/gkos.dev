@@ -234,15 +234,18 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "Welcome to my GYM!",
         ],
         dialogFn: (save: GameSave): DynamicDialogResult => {
+          // B7 — these ids match the new design-doc canonical names.
+          // Order below mirrors explore-mode-final.md §2 slot order
+          // so KOSTAS hands out GYM first, CHAMPION last.
           const BADGE_ORDER = [
-            { id: "phd",       name: "PhD" },
-            { id: "scholar",   name: "SCHOLAR" },
-            { id: "opensource", name: "OPEN SOURCE" },
-            { id: "author",    name: "AUTHOR" },
-            { id: "fullstack", name: "FULL STACK" },
-            { id: "explorer",  name: "EXPLORER" },
-            { id: "devoted",   name: "DEVOTED" },
-            { id: "champion",  name: "CHAMPION" },
+            { id: "gym",           name: "GYM" },
+            { id: "publication",   name: "PUBLICATION" },
+            { id: "connected",     name: "CONNECTED" },
+            { id: "pokedex",       name: "POKEDEX" },
+            { id: "blogger",       name: "BLOGGER" },
+            { id: "engineer",      name: "ENGINEER" },
+            { id: "completionist", name: "COMPLETIONIST" },
+            { id: "champion",      name: "CHAMPION" },
           ];
           // Find the first unearned badge
           const nextIndex = BADGE_ORDER.findIndex((b) => !save.badges.includes(b.id));
@@ -256,9 +259,9 @@ export const INTERIORS: Record<string, InteriorDef> = {
               ],
               afterDialog: async ({ dialogSystem }) => {
                 // Pick jingle + matching async variant by badge rank:
-                //  - CHAMPION (8th)  → battle-symbol fanfare
-                //  - DEVOTED  (7th)  → "Received BP!" variant
-                //  - otherwise       → standard badge jingle
+                //  - CHAMPION       (8th) → battle-symbol fanfare
+                //  - COMPLETIONIST  (7th) → "Received BP!" variant
+                //  - otherwise            → standard badge jingle
                 const jinglePromise =
                   next.id === "champion"
                     ? sfx.badgeChampionAsync()

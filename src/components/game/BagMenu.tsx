@@ -127,17 +127,17 @@ export default function BagMenu({ onClose }: BagMenuProps) {
               window.open(contextItem.url, "_blank", "noopener,noreferrer");
               trackUrlOpened(currentPocket.id, contextItem.name);
               // Track the open so the Bag can render a ✓ next time and
-              // so the DEVOTED badge check has a count to work against.
+              // so the COMPLETIONIST badge check has a count to work against.
               const urlKey = `${currentPocket.id}:${contextItem.name}`;
               const wasFirstOpen = markUrlOpened(urlKey);
               if (wasFirstOpen) {
-                // checkBadges auto-awards DEVOTED when the last URL
+                // checkBadges auto-awards COMPLETIONIST when the last URL
                 // is opened. Check before + after so we can show the
                 // earned notification.
-                const hadDevoted = hasBadge("devoted");
+                const hadCompletionist = hasBadge("completionist");
                 checkBadges();
-                if (!hadDevoted && hasBadge("devoted")) {
-                  showNotification("DEVOTED badge earned!", "★");
+                if (!hadCompletionist && hasBadge("completionist")) {
+                  showNotification("COMPLETIONIST badge earned!", "★");
                 }
               }
             }
