@@ -559,7 +559,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
       {
         id: "gym_jenna",
         spriteKey: "woman_4",
-        position: { x: 8, y: 13 },
+        position: { x: 8, y: 14 },  // was (8,13) on collision tile per map-analyzer
         facingDirection: "left",
         speakerName: "TRAINER JENNA",
         dialog: [
@@ -572,7 +572,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
         ],
         autoGive: {
           itemId: "paper_explore",
-          asidePosition: { x: 9, y: 13 },
+          asidePosition: { x: 9, y: 14 },  // match new position
           clearedDialog: [
             "Can't wait to see ExPLoRe",
             "at ECCV next summer!",
