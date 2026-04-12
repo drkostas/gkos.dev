@@ -154,13 +154,34 @@ export interface NPCDefinition {
   spawnCondition?: () => boolean;
   /**
    * If set, this NPC is a pickup item. After interaction, the sprite is removed
-   * and the item is added to the player's key items. Pickup state persists
-   * via localStorage.
+   * and the item is added to the player's bag. Pickup state persists via
+   * localStorage.
+   *
+   * Two shapes:
+   *
+   *   itemId: "key_resume"            // preferred — routes through
+   *                                   // giveItem() so the drop lands
+   *                                   // in save.keyItemsCollected (or
+   *                                   // papersCollected / tmsCollected
+   *                                   // etc.) and participates in
+   *                                   // badge checks.
+   *
+   *   itemName: "RESUME.PDF",         // legacy — stored in PickupStore
+   *   itemUrl: "/resume.pdf"          // only. The player never gets
+   *                                   // credit toward CONNECTED /
+   *                                   // CHAMPION because the bag
+   *                                   // count never changes.
    */
   pickup?: {
-    /** Item name shown in the Bag (e.g. "RESUME.PDF"). */
-    itemName: string;
-    /** URL opened when the item is "used" from the Bag. */
+    /**
+     * Preferred: reference an ITEM_DEFINITIONS entry by id so the
+     * pickup flows through `giveItem()` (see NPCSystem pickup
+     * branch). Sets displayName + url from the ItemDef.
+     */
+    itemId?: string;
+    /** LEGACY: Item name shown in the Bag (e.g. "RESUME.PDF"). */
+    itemName?: string;
+    /** LEGACY: URL opened when the item is "used" from the Bag. */
     itemUrl?: string;
   };
   /**

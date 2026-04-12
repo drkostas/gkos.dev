@@ -271,7 +271,9 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     animated: true,
   },
 
-  // NPC 7: Item Ball at (28,19) — easter egg resume pickup
+  // NPC 7: Item Ball at (28,19) — easter egg resume pickup.
+  // Uses the itemId path so the drop registers in GameSave's
+  // keyItemsCollected and contributes to the CONNECTED badge.
   {
     id: "npc_item_ball",
     spriteKey: "item_ball",
@@ -287,8 +289,7 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     ],
     animated: false,
     pickup: {
-      itemName: "RESUME.PDF",
-      itemUrl: "/resume.pdf",
+      itemId: "key_resume",
     },
   },
 ];
@@ -588,8 +589,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     animated: false,
     pickup: {
-      itemName: "GITHUB.URL",
-      itemUrl: "https://github.com/drkostas",
+      itemId: "key_github",
     },
   },
   // Route 118 item ball at a walkable tile -> LinkedIn
@@ -610,8 +610,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     animated: false,
     pickup: {
-      itemName: "LINKEDIN.URL",
-      itemUrl: "https://linkedin.com/in/drkostas",
+      itemId: "key_linkedin",
     },
   },
   // Route 110 item ball at (26,47) -> stitched (76, 117) — HuggingFace
@@ -631,8 +630,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     animated: false,
     pickup: {
-      itemName: "HUGGINGFACE.URL",
-      itemUrl: "https://huggingface.co/drkostas",
+      itemId: "key_huggingface",
     },
   },
   // Route 111 item ball at (19,118) -> stitched (69, 28) — Google Scholar
@@ -652,8 +650,35 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     animated: false,
     pickup: {
-      itemName: "SCHOLAR.URL",
-      itemUrl: "https://scholar.google.com/citations?user=drkostas",
+      itemId: "key_scholar",
+    },
+  },
+  // MEW / endgame phone-number pickup. The original design spec
+  // had MEW at (139, 59) — a water-boundary tile, unreachable
+  // without the water field move. With FIELD_MOVE_AWARDS still
+  // empty, we keep the ball on land for now at (130, 62) in the
+  // east route 118 area so the player can still complete the
+  // CHAMPION badge via normal play. Remove the `spawnCondition`
+  // guard once 6 KOSTAS badges is the only gate we trust.
+  {
+    id: "npc_r118_mew_phone",
+    spriteKey: "item_ball",
+    position: { x: 130, y: 62 },
+    facingDirection: Direction.DOWN,
+    movementBehavior: MovementBehavior.STATIONARY,
+    movementRangeX: 0,
+    movementRangeY: 0,
+    dialog: [
+      "A shimmering Pokeball sits here.",
+      "It feels like MEW is inside.",
+      "You received PHONE.NUMBER!",
+      "KOSTAS's personal line — use it",
+      "only when you're ready to be",
+      "in touch.",
+    ],
+    animated: false,
+    pickup: {
+      itemId: "key_phone_number",
     },
   },
 

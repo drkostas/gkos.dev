@@ -287,6 +287,18 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
     description: "KOSTAS's personal journal.\nUSE to read entries.",
     icon: "/game/ui/bag/old_amber.png",
   },
+  // PHONE.NUMBER — endgame reward from MEW beyond the water
+  // boundary. This is the key item whose presence triggers the
+  // CHAMPION badge auto-award (see BadgeMilestones.ts §champion).
+  "key_phone_number": {
+    id: "key_phone_number",
+    name: "PHONE.NUMBER",
+    pocket: "keyItems",
+    description:
+      "KOSTAS's personal line.\nUSE it only when you're\nready to be in touch.",
+    url: "https://gkos.dev/contact",
+    icon: "/game/ui/bag/heart_scale.png",
+  },
 
   // ── TMs pocket — foundational starters + MART purchases ─────
   // STARTER TMs pre-loaded in the PC at the POKeMON CENTER on a

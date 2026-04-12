@@ -452,12 +452,37 @@ export class NPCSystem {
           if (sprite) sprite.flipX = originalDir === Direction.RIGHT;
         }
 
-        // If this is a pickup item, remove it from the scene and record it
+        // If this is a pickup item, remove it from the scene and
+        // record it. Two shapes:
+        //   pickup.itemId  → route through giveItem() so the drop
+        //                    lands in GameSave's pocket array and
+        //                    participates in badge checks. ALSO
+        //                    record in PickupStore so the sprite
+        //                    stays despawned on reload.
+        //   legacy fields  → PickupStore only (no badge credit).
         if (npc.pickup) {
-          recordPickup(npc.id, {
-            name: npc.pickup.itemName,
-            url: npc.pickup.itemUrl,
-          });
+          if (npc.pickup.itemId) {
+            const def = getItemDef(npc.pickup.itemId);
+            if (def) {
+              giveItem(npc.pickup.itemId);
+              recordPickup(npc.id, {
+                name: def.name,
+                url: def.url,
+              });
+            } else {
+              // Unknown id — fall back to legacy record so the
+              // sprite still despawns and doesn't softlock.
+              recordPickup(npc.id, {
+                name: npc.pickup.itemName ?? "ITEM",
+                url: npc.pickup.itemUrl,
+              });
+            }
+          } else {
+            recordPickup(npc.id, {
+              name: npc.pickup.itemName ?? "ITEM",
+              url: npc.pickup.itemUrl,
+            });
+          }
           this.removeNPC(npc.id);
         }
 
