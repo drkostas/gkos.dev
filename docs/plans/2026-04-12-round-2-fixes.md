@@ -93,9 +93,34 @@ Plan spec'd `.github/workflows/test.yml` with Vitest + Playwright + tsc
 in a matrix. Not created. Once pushed, this would catch regressions on
 every PR.
 
+## Fresh-clone verification (iteration 16)
+
+Partial unlock protocol executed in `/tmp/portfolio-v2-verify`:
+
+```
+git clone <local repo> → npm install → npx astro sync → npx tsc --noEmit
+→ npx vitest run → npm run build
+```
+
+| Step | Result |
+|------|--------|
+| npm install | ✅ clean |
+| astro sync | ✅ types generated (warnings: no blog/changelog content dirs — expected) |
+| tsc --noEmit | ✅ exit 0 |
+| vitest run | ✅ 17 files, 173 tests, 0 failures |
+| npm run build | ✅ `[build] Complete!` |
+
+**Note:** `tsc` fails in fresh clones until `astro sync` generates
+`.astro/types.d.ts`. The unlock protocol must run `astro sync` before `tsc`.
+
+Remaining unlock steps (blocked on user):
+- `vercel deploy --prebuilt` or `git push` for Vercel auto-deploy
+- Play through title → CHAMPION on 3 viewports against deployed URL
+- `npx lighthouse <url>/explore?touch=1` for mobile score
+
 ## Summary
 
-Round 1 delivered 44 commits, 173 unit tests, 40 Playwright tests, and
+Round 1 delivered 45 commits, 173 unit tests, 40 Playwright tests, and
 closed every content gap in the 15-day plan. The three remaining
 completion criteria (#6, #11, #12) are blocked on user action (push +
 manual recording + Lighthouse measurement). P1 items above are the
