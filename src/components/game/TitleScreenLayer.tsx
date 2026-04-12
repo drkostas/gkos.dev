@@ -27,6 +27,23 @@ const keyframes = `
   0% { opacity: 0; transform: translateY(-20px); }
   100% { opacity: 1; transform: translateY(0); }
 }
+
+/* Respect prefers-reduced-motion: freeze the shines, stop the
+   cloud scroll, skip the banner drop-in, and ensure the PRESS
+   ENTER prompt stays static instead of blinking. Persona 4
+   (reduced-motion visitor) can still see the full title layout
+   — they just don't get the animation flourishes. */
+@media (prefers-reduced-motion: reduce) {
+  .ts-cloud-scroll,
+  .ts-shine,
+  .ts-banner-in,
+  .ts-press-blink {
+    animation: none !important;
+  }
+  .ts-shine {
+    opacity: 0 !important;
+  }
+}
 `;
 
 export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLayerProps) {
@@ -75,12 +92,15 @@ export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLay
 
         {/* Clouds — scroll upward */}
         <div style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 1, pointerEvents: "none" }}>
-          <div style={{
-            position: "absolute",
-            top: 0, left: 0,
-            width: "100%", height: "200%",
-            animation: "ts-cloud-scroll 25s linear infinite",
-          }}>
+          <div
+            className="ts-cloud-scroll"
+            style={{
+              position: "absolute",
+              top: 0, left: 0,
+              width: "100%", height: "200%",
+              animation: "ts-cloud-scroll 25s linear infinite",
+            }}
+          >
             <img src="/game/ui/opening/clouds_composed.png" alt="" style={cloudStyle} />
             <img src="/game/ui/opening/clouds_composed.png" alt="" style={cloudStyle} />
           </div>
@@ -108,16 +128,16 @@ export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLay
               }}
             />
             {/* Shine sweeps — start off-screen left, sweep right, then disappear */}
-            <img src="/game/ui/opening/logo_shine.png" alt="" style={{
+            <img className="ts-shine" src="/game/ui/opening/logo_shine.png" alt="" style={{
               ...shineStyle, animation: "ts-shine 1s linear 0.5s forwards",
             }} />
-            <img src="/game/ui/opening/logo_shine.png" alt="" style={{
+            <img className="ts-shine" src="/game/ui/opening/logo_shine.png" alt="" style={{
               ...shineStyle, animation: "ts-shine 0.7s linear 2s forwards", width: "12%",
             }} />
-            <img src="/game/ui/opening/logo_shine.png" alt="" style={{
+            <img className="ts-shine" src="/game/ui/opening/logo_shine.png" alt="" style={{
               ...shineStyle, animation: "ts-shine 0.7s linear 2.3s forwards", width: "10%",
             }} />
-            <img src="/game/ui/opening/logo_shine.png" alt="" style={{
+            <img className="ts-shine" src="/game/ui/opening/logo_shine.png" alt="" style={{
               ...shineStyle, animation: "ts-shine 1s linear 3.5s forwards",
             }} />
           </div>
@@ -125,7 +145,9 @@ export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLay
 
         {/* "EXPLORE MODE" — centered, below logo, OG style */}
         {showBanner && (
-          <div style={{
+          <div
+            className="ts-banner-in"
+            style={{
             position: "absolute",
             top: "42%",
             left: 0, right: 0,
@@ -148,7 +170,9 @@ export default function TitleScreenLayer({ phase, onPressStart }: TitleScreenLay
 
         {/* "PRESS ENTER" blink */}
         {showPress && (
-          <div style={{
+          <div
+            className="ts-press-blink"
+            style={{
             position: "absolute",
             bottom: "15%",
             left: 0, right: 0,
