@@ -1,8 +1,4 @@
 ---
-// Dev-only guard — 404 in production
-if (!import.meta.env.DEV) {
-  return new Response(null, { status: 404 });
-}
 import EditorApp from "@/components/editor/EditorApp";
 ---
 <!DOCTYPE html>
