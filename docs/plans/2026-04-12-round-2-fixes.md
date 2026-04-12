@@ -48,13 +48,10 @@ They're likely leftover reference assets from the sprite rip.
 commit -m "chore: remove unused audio assets"`) or restore them if they're
 needed for a future audio phase.
 
-### 4. HiddenItemSystem pickup tracking not reconciled with PickupStore
-Hidden items route through `ItemGift.give()` → `giveItem()` (good). But the
-despawn persistence uses `HiddenItemStore` (separate from `PickupStore`).
-If a player picks up a hidden item, reloads, and the `HiddenItemStore` is
-cleared but `GameSave.keyItemsCollected` is not, the item re-appears but
-can't be re-collected (duplicate guard in `giveItem()`). Low risk but
-worth auditing the consistency between the two stores.
+### 4. ~~HiddenItemSystem pickup tracking~~ — RESOLVED (false alarm)
+Audited in iteration 15: HiddenItemSystem uses `hasItem(tile.itemId)` from
+GameSave directly — no separate HiddenItemStore exists. Idempotent by
+design. No consistency issue.
 
 ## P2 — Polish / nice-to-have
 
