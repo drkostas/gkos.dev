@@ -58,7 +58,7 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     spriteKey: "boy_3",
     position: { x: 8, y: 14 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: SPOTIFY_FALLBACK_LINES,
@@ -82,7 +82,7 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     spriteKey: "school_kid_m",
     position: { x: 35, y: 6 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: STRAVA_FALLBACK_LINES,
@@ -159,7 +159,7 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     spriteKey: "maniac",
     position: { x: 14, y: 11 },
     facingDirection: Direction.RIGHT,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -221,7 +221,7 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     spriteKey: "school_kid_m",
     position: { x: 17, y: 14 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -250,7 +250,7 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     spriteKey: "fat_man",
     position: { x: 13, y: 7 },
     facingDirection: Direction.LEFT,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -316,7 +316,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "maniac",
     position: { x: 23, y: 58 },  // was (7,62) — npc-blocked; validated safe via --test
     facingDirection: Direction.UP,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -363,7 +363,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "lass",
     position: { x: 33, y: 56 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -395,7 +395,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "fisherman",
     position: { x: 97, y: 60 },  // was (118,58) — terrain-blocked; validated safe via --test
     facingDirection: Direction.LEFT,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -423,8 +423,8 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "woman_2",
     position: { x: 97, y: 62 },
     facingDirection: Direction.UP,
-    movementBehavior: MovementBehavior.STATIONARY,
-    movementRangeX: 0,
+    movementBehavior: MovementBehavior.WANDER_LEFT_RIGHT,
+    movementRangeX: 1,
     movementRangeY: 0,
     dialog: [
       "I read KOSTAS's essay on how",
@@ -490,7 +490,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "fisherman",
     position: { x: 60, y: 89 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -551,9 +551,9 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "man_1",
     position: { x: 63, y: 24 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.WANDER_UP_DOWN,
     movementRangeX: 0,
-    movementRangeY: 0,
+    movementRangeY: 1,
     dialog: [
       "KOSTAS did his PhD at UTK under",
       "Dr. Qi. Did you know his FIRST",
@@ -581,7 +581,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "fat_man",
     position: { x: 69, y: 11 },
     facingDirection: Direction.UP,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -609,7 +609,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "pokefan_f",
     position: { x: 60, y: 18 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
@@ -792,25 +792,25 @@ const ROUTE_NPCS: NPCDefinition[] = [
   { id: "npc_aqua_grunt_2", spriteKey: "aqua_member_f", position: { x: 14, y: 58 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["You can't stop us!", "The ocean will swallow everything!"], speakerName: "Aqua Grunt", animated: true },
   { id: "npc_aqua_pooch_2", spriteKey: "poochyena_ow", position: { x: 15, y: 58 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Bark bark!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_pooch_2", spriteKey: "poochyena_ow", position: { x: 16, y: 58 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Rrruff!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
-  { id: "npc_magma_grunt_2", spriteKey: "magma_member_f", position: { x: 17, y: 58 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["More land means more room", "for Pokemon to live!"], speakerName: "Magma Grunt", animated: true },
+  { id: "npc_magma_grunt_2", spriteKey: "magma_member_f", position: { x: 17, y: 58 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.LOOK_AROUND, movementRangeX: 0, movementRangeY: 0, dialog: ["More land means more room", "for Pokemon to live!"], speakerName: "Magma Grunt", animated: true },
 
   // Row 59
   { id: "npc_aqua_grunt_3", spriteKey: "aqua_member_m", position: { x: 14, y: 59 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Our leader ARCHIE will", "awaken KYOGRE!"], speakerName: "Aqua Grunt", animated: true },
   { id: "npc_aqua_pooch_3", spriteKey: "poochyena_ow", position: { x: 15, y: 59 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_pooch_3", spriteKey: "poochyena_ow", position: { x: 16, y: 59 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
-  { id: "npc_magma_grunt_3", spriteKey: "magma_member_m", position: { x: 17, y: 59 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["MAXIE will awaken GROUDON!", "Just you wait!"], speakerName: "Magma Grunt", animated: true },
+  { id: "npc_magma_grunt_3", spriteKey: "magma_member_m", position: { x: 17, y: 59 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.LOOK_AROUND, movementRangeX: 0, movementRangeY: 0, dialog: ["MAXIE will awaken GROUDON!", "Just you wait!"], speakerName: "Magma Grunt", animated: true },
 
   // Row 60
   { id: "npc_aqua_grunt_4", spriteKey: "aqua_member_f", position: { x: 14, y: 60 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Get out of our way, kid!", "This is Team Aqua territory!"], speakerName: "Aqua Grunt", animated: true },
   { id: "npc_aqua_pooch_4", spriteKey: "poochyena_ow", position: { x: 15, y: 60 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Bark bark!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_pooch_4", spriteKey: "poochyena_ow", position: { x: 16, y: 60 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Rrruff!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
-  { id: "npc_magma_grunt_4", spriteKey: "magma_member_f", position: { x: 17, y: 60 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Scram! This is a Magma", "operation!"], speakerName: "Magma Grunt", animated: true },
+  { id: "npc_magma_grunt_4", spriteKey: "magma_member_f", position: { x: 17, y: 60 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.LOOK_AROUND, movementRangeX: 0, movementRangeY: 0, dialog: ["Scram! This is a Magma", "operation!"], speakerName: "Magma Grunt", animated: true },
 
   // Row 61
   { id: "npc_aqua_grunt_5", spriteKey: "aqua_member_m", position: { x: 14, y: 61 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Heh... you think you can", "take on all of Team Aqua?"], speakerName: "Aqua Grunt", animated: true },
   { id: "npc_aqua_pooch_5", spriteKey: "poochyena_ow", position: { x: 15, y: 61 }, facingDirection: Direction.RIGHT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrr...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
   { id: "npc_magma_pooch_5", spriteKey: "poochyena_ow", position: { x: 16, y: 61 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["Grrrowl...!"], speakerName: "POOCHYENA", animated: true, pokemon: POOCHYENA_DEX },
-  { id: "npc_magma_grunt_5", spriteKey: "magma_member_m", position: { x: 17, y: 61 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.STATIONARY, movementRangeX: 0, movementRangeY: 0, dialog: ["We won't lose to you", "sea-loving fools!"], speakerName: "Magma Grunt", animated: true },
+  { id: "npc_magma_grunt_5", spriteKey: "magma_member_m", position: { x: 17, y: 61 }, facingDirection: Direction.LEFT, movementBehavior: MovementBehavior.LOOK_AROUND, movementRangeX: 0, movementRangeY: 0, dialog: ["We won't lose to you", "sea-loving fools!"], speakerName: "Magma Grunt", animated: true },
 
   // ── Sleepy Pokemon trio on Route 110 ─────────────────────────
   // Slakoth above, Slaking in the middle, Slakoth below — all sleeping.
@@ -914,7 +914,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     spriteKey: "old_man",
     position: { x: 37, y: 54 },
     facingDirection: Direction.DOWN,
-    movementBehavior: MovementBehavior.STATIONARY,
+    movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: GITHUB_FALLBACK_LINES,
