@@ -322,3 +322,36 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
   - Production build check deferred to M5 commit which already verified
 - Verified working at 2026-04-11T23:12 (UTC-5: local 20:12) via
   `npm run test:unit` in fresh shell
+
+
+**BadgeMilestones tests + checkBadges split-loop bug fix** ✅
+- File: `tests/unit/BadgeMilestones.test.ts` (23 tests) +
+  `src/game/systems/BadgeMilestones.ts` (split-loop fix)
+- Coverage:
+  - BADGES array shape (8 entries, design-doc order, canonical names,
+    only completionist + champion are `auto: true`)
+  - LEGACY_BADGE_ID_MAP completeness
+  - Every badge condition (gym/publication/connected/pokedex/blogger/
+    engineer/completionist/champion) — positive + negative cases
+  - checkBadges notification queue behaviour (queue one at a time,
+    mark notified so re-calls don't re-queue, both auto + KOSTAS
+    badges fire in the same call when conditions overlap)
+  - getBadgeStatuses returns 8 rows with earned + conditionMet flags
+- Bug found + fixed:
+  - `checkBadges()` was a single loop that `break`ed after queuing
+    the first KOSTAS notification. If the player simultaneously
+    triggered a KOSTAS badge (e.g. `gym`) AND an auto badge
+    (`completionist` or `champion`) in the same frame, the break
+    dropped the auto badge because it appeared LATER in the BADGES
+    array. Split into two passes: pass 1 awards all eligible auto
+    badges, pass 2 queues the first eligible KOSTAS notification.
+    The test `"queues exactly one notification per call (one badge
+    at a time)"` verifies both fire when gym + completionist
+    conditions are met simultaneously.
+- Verification (4-step):
+  - Command: `npm run test:unit` → 48/48 passing
+  - Log: `docs/plans/ralph-log/evidence/test-infra/vitest-48-tests.log`
+  - TypeScript: `npx astro check` → 0 errors, 0 warnings, 75 hints
+  - Re-eval: the full test suite re-ran clean post-fix
+- Verified working at 2026-04-11T23:16 via `npm run test:unit` in
+  fresh shell
