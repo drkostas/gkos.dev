@@ -1,16 +1,48 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { EditorProvider, useEditorState, useEditorDispatch } from "./state/EditorContext";
 import type { EditorEntity } from "./state/editorTypes";
+import EditorViewport from "./EditorViewport";
+import { emitEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE } from "../../game/editor/EditorEvents";
+
+/** Dropdown menu item */
+function MenuItem({ label, shortcut, onClick, disabled }: { label: string; shortcut?: string; onClick?: () => void; disabled?: boolean }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onClick={disabled ? undefined : onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        padding: "4px 24px 4px 8px", fontSize: 11, cursor: disabled ? "default" : "pointer",
+        color: disabled ? "#555" : hovered ? "#fff" : "#ccc",
+        background: hovered && !disabled ? "#3a3a5a" : "transparent",
+        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span>{label}</span>
+      {shortcut && <span style={{ color: "#666", fontSize: 9, fontFamily: "monospace" }}>{shortcut}</span>}
+    </div>
+  );
+}
+
+/** Menu separator */
+function MenuSep() {
+  return <div style={{ height: 1, background: "#3a3a50", margin: "3px 0" }} />;
+}
 
 /** Toolbar at the top */
 function Toolbar() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [hoveredTool, setHoveredTool] = useState<string | null>(null);
+
   const tools = [
-    { id: "select" as const, icon: "⊹", label: "Select" },
-    { id: "move" as const, icon: "✥", label: "Move" },
-    { id: "stamp" as const, icon: "⊞", label: "Stamp" },
-    { id: "eraser" as const, icon: "⌫", label: "Eraser" },
+    { id: "select" as const, icon: "⊹", label: "Select", desc: "Click to select entities" },
+    { id: "move" as const, icon: "✥", label: "Move", desc: "Drag entities to reposition" },
+    { id: "stamp" as const, icon: "⊞", label: "Stamp", desc: "Place new entities from library" },
+    { id: "eraser" as const, icon: "⌫", label: "Eraser", desc: "Remove entities from map" },
   ];
 
   const handleSave = async () => {
@@ -29,70 +61,188 @@ function Toolbar() {
   const handleUndo = () => dispatch({ type: "UNDO" });
   const handleRedo = () => dispatch({ type: "REDO" });
 
+  const toggleLayer = (layer: string) => {
+    const newVisible = !state.layers[layer as keyof typeof state.layers];
+    dispatch({ type: "TOGGLE_LAYER", layer: layer as any });
+    emitEditorEvent(TOGGLE_LAYER_EVENT, { layer, visible: newVisible });
+  };
+
+  const menus: Record<string, React.ReactNode> = {
+    File: (
+      <>
+        <MenuItem label="Save" shortcut="⌘S" onClick={handleSave} />
+        <MenuItem label="Export JSON..." onClick={() => {
+          const blob = new Blob([JSON.stringify(state.entities, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = "editor-entities.json"; a.click();
+          URL.revokeObjectURL(url);
+        }} />
+        <MenuSep />
+        <MenuItem label="Regenerate Data" onClick={async () => {
+          const r = await fetch("/api/editor/analyze", { method: "POST" });
+          const data = await r.json();
+          console.log("Analysis:", data);
+        }} />
+      </>
+    ),
+    Edit: (
+      <>
+        <MenuItem label="Undo" shortcut="⌘Z" onClick={handleUndo} disabled={state.undoStack.length === 0} />
+        <MenuItem label="Redo" shortcut="⌘Y" onClick={handleRedo} disabled={state.redoStack.length === 0} />
+        <MenuSep />
+        <MenuItem label="Deselect All" shortcut="Esc" onClick={() => dispatch({ type: "DESELECT" })} />
+        <MenuItem label="Delete Selected" shortcut="Del" disabled={!state.selectedEntityId} onClick={() => {
+          if (state.selectedEntityId) {
+            const e = state.entities.find((x) => x.id === state.selectedEntityId);
+            if (e) dispatch({ type: "DELETE_ENTITY", id: e.id, entity: e });
+          }
+        }} />
+      </>
+    ),
+    View: (
+      <>
+        <MenuItem label={`${state.layers.grid ? "✓ " : "  "}Grid`} onClick={() => toggleLayer("grid")} />
+        <MenuItem label={`${state.layers.collision ? "✓ " : "  "}Collision Overlay`} onClick={() => toggleLayer("collision")} />
+        <MenuItem label={`${state.layers.foreground ? "✓ " : "  "}Foreground`} onClick={() => toggleLayer("foreground")} />
+        <MenuItem label={`${state.layers.entities ? "✓ " : "  "}Entity Markers`} onClick={() => toggleLayer("entities")} />
+        <MenuItem label={`${state.layers.zones ? "✓ " : "  "}Zone Boundaries`} onClick={() => toggleLayer("zones")} />
+        <MenuSep />
+        <MenuItem label="Zoom In" shortcut="Scroll ↑" disabled />
+        <MenuItem label="Zoom Out" shortcut="Scroll ↓" disabled />
+        <MenuItem label="Reset View" onClick={() => {
+          emitEditorEvent(JUMP_TO_TILE, { x: 70, y: 60 });
+        }} />
+      </>
+    ),
+  };
+
   return (
-    <div style={{ height: 38, background: "#2d2d44", display: "flex", alignItems: "center", padding: "0 10px", gap: 8, borderBottom: "1px solid #3a3a50", flexShrink: 0 }}>
+    <div style={{ height: 38, background: "#2d2d44", display: "flex", alignItems: "center", padding: "0 10px", gap: 8, borderBottom: "1px solid #3a3a50", flexShrink: 0, position: "relative", zIndex: 100 }}>
       <span style={{ fontWeight: 700, fontSize: 13, color: "#8b5cf6", letterSpacing: 0.5, marginRight: 8 }}>⚡ WORLD DESIGNER</span>
-      {["File", "Edit", "View"].map((m) => (
-        <span key={m} style={{ color: "#888", fontSize: 11, cursor: "pointer", padding: "3px 6px", borderRadius: 3 }}>{m}</span>
+      {Object.keys(menus).map((m) => (
+        <div key={m} style={{ position: "relative" }}>
+          <span
+            onClick={() => setOpenMenu(openMenu === m ? null : m)}
+            onMouseEnter={() => openMenu && setOpenMenu(m)}
+            style={{
+              color: openMenu === m ? "#fff" : "#888", fontSize: 11, cursor: "pointer",
+              padding: "3px 6px", borderRadius: 3,
+              background: openMenu === m ? "#3a3a5a" : "transparent",
+            }}
+          >{m}</span>
+          {openMenu === m && (
+            <>
+              <div style={{ position: "fixed", inset: 0, zIndex: 9998 }} onClick={() => setOpenMenu(null)} />
+              <div style={{
+                position: "absolute", top: "100%", left: 0, marginTop: 2, zIndex: 9999,
+                background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 4,
+                padding: "4px 0", minWidth: 180, boxShadow: "0 4px 20px rgba(0,0,0,0.8)",
+              }}>
+                {menus[m]}
+              </div>
+            </>
+          )}
+        </div>
       ))}
       <div style={{ width: 1, height: 20, background: "#444", margin: "0 4px" }} />
       {tools.map((t) => (
         <div
           key={t.id}
           onClick={() => dispatch({ type: "SET_TOOL", tool: t.id })}
-          title={t.label}
+          onMouseEnter={() => setHoveredTool(t.id)}
+          onMouseLeave={() => setHoveredTool(null)}
+          title={`${t.label}: ${t.desc}`}
           style={{
             width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
-            borderRadius: 4, cursor: "pointer", fontSize: 14,
-            color: state.tool === t.id ? "#4a9eed" : "#888",
-            background: state.tool === t.id ? "#1e3a5f" : "transparent",
+            borderRadius: 4, cursor: "pointer", fontSize: 14, position: "relative",
+            color: state.tool === t.id ? "#4a9eed" : hoveredTool === t.id ? "#ccc" : "#888",
+            background: state.tool === t.id ? "#1e3a5f" : hoveredTool === t.id ? "#2a2a40" : "transparent",
           }}
         >
           {t.icon}
+          {hoveredTool === t.id && (
+            <div style={{
+              position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
+              marginTop: 6, background: "#1a1a2e", border: "1px solid #3a3a50", borderRadius: 4,
+              padding: "4px 8px", fontSize: 9, color: "#ccc", whiteSpace: "nowrap",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.4)", pointerEvents: "none", zIndex: 50,
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 1 }}>{t.label}</div>
+              <div style={{ color: "#888" }}>{t.desc}</div>
+            </div>
+          )}
         </div>
       ))}
       <div style={{ flex: 1 }} />
       <div style={{ display: "flex", gap: 4, fontSize: 9, color: "#555" }}>
-        <span onClick={handleUndo} style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Z</span>
-        <span onClick={handleRedo} style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Y</span>
-        <span onClick={handleSave} style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘S</span>
+        <span onClick={handleUndo} title="Undo (⌘Z)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Z</span>
+        <span onClick={handleRedo} title="Redo (⌘Y)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Y</span>
+        <span onClick={handleSave} title="Save (⌘S)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘S</span>
       </div>
     </div>
   );
 }
 
-/** Left panel — Asset Library placeholder */
+/** Left panel — Entity list with type filtering */
 function LeftPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
+  const [filterType, setFilterType] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const entityTypes = ["npc", "pokemon-npc", "pickup", "wild-pokemon", "sign", "hidden-item", "warp", "gate"] as const;
   const typeColors: Record<string, string> = {
-    npc: "#4a9eed", "pokemon-npc": "#4a9eed", pickup: "#ec4899",
+    npc: "#3b82f6", "pokemon-npc": "#06b6d4", pickup: "#f97316",
     "wild-pokemon": "#22c55e", sign: "#f59e0b", "hidden-item": "#ec4899",
-    warp: "#06b6d4", gate: "#ef4444",
+    warp: "#8b5cf6", gate: "#dc2626",
   };
 
+  const filtered = state.entities.filter((e) => {
+    if (filterType && e.type !== filterType) return false;
+    if (searchQuery && !e.id.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+
   return (
-    <div style={{ width: 200, background: "#1e1e30", borderRight: "1px solid #2a2a40", overflowY: "auto", flexShrink: 0, padding: "8px 0" }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, padding: "4px 8px", textTransform: "uppercase" }}>
-        Entities ({state.entities.length})
+    <div style={{ width: 200, background: "#1e1e30", borderRight: "1px solid #2a2a40", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div style={{ padding: "8px 8px 4px", flexShrink: 0 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6 }}>
+          Entities ({state.entities.length})
+        </div>
+        <input
+          type="text"
+          placeholder="Search entities..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: "100%", background: "#161628", border: "1px solid #2a2a40", borderRadius: 3,
+            color: "#ccc", fontSize: 10, padding: "3px 6px", outline: "none", marginBottom: 6, boxSizing: "border-box",
+          }}
+        />
+        {entityTypes.map((t) => {
+          const count = state.entities.filter((e) => e.type === t).length;
+          if (count === 0) return null;
+          const active = filterType === t;
+          return (
+            <div
+              key={t}
+              onClick={() => setFilterType(active ? null : t)}
+              style={{
+                padding: "2px 8px", fontSize: 10, cursor: "pointer",
+                background: active ? "#1e3a5f" : "transparent", borderRadius: 2,
+              }}
+            >
+              <span style={{ color: typeColors[t] || "#888", marginRight: 4 }}>●</span>
+              <span style={{ color: active ? "#fff" : "#aaa" }}>{t} ({count})</span>
+            </div>
+          );
+        })}
       </div>
-      {entityTypes.map((t) => {
-        const count = state.entities.filter((e) => e.type === t).length;
-        if (count === 0) return null;
-        return (
-          <div key={t} style={{ padding: "2px 8px", fontSize: 10 }}>
-            <span style={{ color: typeColors[t] || "#888", marginRight: 4 }}>●</span>
-            <span style={{ color: "#aaa" }}>{t} ({count})</span>
-          </div>
-        );
-      })}
-      <div style={{ height: 1, background: "#2a2a40", margin: "8px 8px" }} />
-      <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, padding: "4px 8px", textTransform: "uppercase" }}>
-        Entity List
+      <div style={{ height: 1, background: "#2a2a40", margin: "4px 8px", flexShrink: 0 }} />
+      <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, padding: "4px 8px", textTransform: "uppercase", flexShrink: 0 }}>
+        {filterType ? `${filterType} (${filtered.length})` : `All (${filtered.length})`}
       </div>
-      <div style={{ maxHeight: 400, overflowY: "auto" }}>
-        {state.entities.slice(0, 40).map((e) => (
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {filtered.map((e) => (
           <div
             key={e.id}
             onClick={() => dispatch({ type: "SELECT_ENTITY", id: e.id })}
@@ -107,61 +257,14 @@ function LeftPanel() {
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.id}</span>
           </div>
         ))}
-        {state.entities.length > 40 && (
-          <div style={{ padding: "4px 8px", fontSize: 9, color: "#555" }}>+ {state.entities.length - 40} more...</div>
-        )}
       </div>
     </div>
   );
 }
 
-/** Center viewport — Canvas placeholder (Phaser will replace this later) */
+/** Center viewport — Phaser tilemap */
 function Viewport() {
-  const state = useEditorState();
-  const dispatch = useEditorDispatch();
-  const typeColors: Record<string, string> = {
-    npc: "#4a9eed", "pokemon-npc": "#4a9eed", pickup: "#ec4899",
-    "wild-pokemon": "#22c55e", sign: "#f59e0b", "hidden-item": "#ec4899",
-    warp: "#06b6d4", gate: "#ef4444",
-  };
-
-  return (
-    <div style={{ flex: 1, background: "#1a2e1a", position: "relative", overflow: "hidden", margin: 2, borderRadius: 3, border: "1px solid #333" }}>
-      <div style={{ position: "absolute", top: 6, left: 10, fontSize: 10, fontWeight: 600, color: "#22c55e", background: "rgba(0,0,0,0.7)", padding: "2px 8px", borderRadius: 3, zIndex: 5 }}>
-        VIEWPORT — Mauville City ({state.entities.length} entities)
-      </div>
-      {/* Render entity dots on a 140x120 grid */}
-      {state.layers.entities && state.entities.map((e) => {
-        const left = (e.x / 140) * 100;
-        const top = (e.y / 120) * 100;
-        const size = state.selectedEntityId === e.id ? 10 : 7;
-        const selected = state.selectedEntityId === e.id;
-        return (
-          <div
-            key={e.id}
-            onClick={(ev) => { ev.stopPropagation(); dispatch({ type: "SELECT_ENTITY", id: e.id }); }}
-            title={`${e.id} (${e.x}, ${e.y})`}
-            style={{
-              position: "absolute",
-              left: `${left}%`, top: `${top}%`,
-              width: size, height: size,
-              borderRadius: "50%",
-              background: typeColors[e.type] || "#888",
-              cursor: "pointer",
-              boxShadow: selected ? "0 0 0 3px #fff" : "none",
-              zIndex: selected ? 10 : 3,
-              transform: "translate(-50%, -50%)",
-            }}
-          />
-        );
-      })}
-      {/* Click background to deselect */}
-      <div
-        style={{ position: "absolute", inset: 0, zIndex: 1 }}
-        onClick={() => dispatch({ type: "DESELECT" })}
-      />
-    </div>
-  );
+  return <EditorViewport />;
 }
 
 /** Right panel — Properties inspector */
