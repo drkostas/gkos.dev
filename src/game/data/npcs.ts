@@ -1,6 +1,7 @@
 import { Direction } from "grid-engine";
 import { MovementBehavior, type NPCDefinition, type SignDefinition } from "@/game/types/npc";
 import { WILD_POKEMON } from "@/game/data/wild-pokemon";
+import { isGateCleared } from "@/game/systems/GameSave";
 import { getGithubDialog, GITHUB_FALLBACK_LINES } from "@/game/npcs/live/github";
 import { getSpotifyDialog, SPOTIFY_FALLBACK_LINES } from "@/game/npcs/live/spotify";
 import { getStravaDialog, STRAVA_FALLBACK_LINES } from "@/game/npcs/live/strava";
@@ -742,6 +743,10 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementBehavior: MovementBehavior.STATIONARY,
     movementRangeX: 0,
     movementRangeY: 0,
+    // Gate binding: Snorlax disappears after FORCE PUSH clears the gate.
+    // On fresh saves, isGateCleared returns false → Snorlax spawns.
+    // After clearing, Snorlax is gone permanently.
+    spawnCondition: () => !isGateCleared("snorlax_gate"),
     dialog: [
       "A huge SNORLAX is blocking",
       "the path!",
