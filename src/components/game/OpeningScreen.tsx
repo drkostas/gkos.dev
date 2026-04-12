@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { getSave, updateSave, clearSave } from "@/game/systems/GameSave";
 import { bgm } from "@/game/systems/BGMManager";
 import { sfx } from "@/game/systems/SoundManager";
@@ -7,7 +7,14 @@ import { trackGameStart } from "@/game/systems/Analytics";
 import { useGameKeyboard } from "@/game/hooks/useGameKeyboard";
 import { useMenuNavigation } from "@/game/hooks/useMenuNavigation";
 import TitleScreenLayer from "./TitleScreenLayer";
-import BirchSpeechLayer from "./BirchSpeechLayer";
+
+/**
+ * BirchSpeechLayer is 22KB minified + pulls in useTypewriter +
+ * multiple sub-components. It's ONLY shown when the player clicks
+ * NEW GAME. For returning players (CONTINUE), it's never mounted.
+ * Lazy-import so the title screen loads faster on first visit.
+ */
+const BirchSpeechLayer = lazy(() => import("./BirchSpeechLayer"));
 
 const FONT = "var(--pkmn-font, 'Courier New', monospace)";
 const S = (px: number) => `calc(${px}px * var(--ui-scale-y, 1))`;
@@ -169,10 +176,12 @@ export default function OpeningScreen({ onComplete }: OpeningScreenProps) {
         </div>
       )}
 
-      {/* Birch speech */}
+      {/* Birch speech — lazy-loaded, shows a brief black fallback */}
       {phase === "birch" && (
         <div style={{ position: "absolute", inset: 0, zIndex: 500 }}>
-          <BirchSpeechLayer onComplete={handleBirchComplete} />
+          <Suspense fallback={<div style={{ position: "absolute", inset: 0, background: "#000" }} />}>
+            <BirchSpeechLayer onComplete={handleBirchComplete} />
+          </Suspense>
         </div>
       )}
 
