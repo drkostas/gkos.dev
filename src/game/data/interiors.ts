@@ -8,6 +8,76 @@ import { teachFieldMove } from "@/game/systems/PartySystem";
 import { FIELD_MOVE_AWARDS } from "@/game/data/fieldMoveAwards";
 import type { DynamicDialogResult } from "@/game/types/npc";
 import { sfx } from "@/game/systems/SoundManager";
+import { BADGES } from "@/game/systems/BadgeMilestones";
+
+/**
+ * KOSTAS state machine — 7 priority branches, each corresponding to a
+ * badge the player may be eligible to claim. Used by the `gym_kostas`
+ * NPC's `dialogFn` to decide what KOSTAS says and does on each
+ * interaction.
+ *
+ *   priority 1: GYM badge — `save.gymComplete === true`
+ *   priority 2: PUBLICATION — `save.papersCollected.length >= 10`
+ *   priority 3: CONNECTED — `save.keyItemsCollected.length >= 7`
+ *   priority 4: POKEDEX — `save.pokedexSeen.length >= 30`
+ *   priority 5: BLOGGER — `save.blogsCollected.length >= allBlogs`
+ *   priority 6: ENGINEER — `save.tmsCollected.length >= 20`
+ *   priority 7 (fallback): no badge eligible — show the hint for the
+ *     NEXT unearned badge ("keep working toward X!") so the player
+ *     knows what to do next.
+ *
+ * CHAMPION and COMPLETIONIST are auto-awarded — they don't go through
+ * KOSTAS. They're filtered out of the iteration order below.
+ */
+export type KostasPriority =
+  | { kind: "award"; badgeId: string; badgeName: string }
+  | { kind: "hint"; nextBadgeId: string; nextBadgeName: string; nextHint: string }
+  | { kind: "champion" };
+
+export function resolveKostasPriority(save: GameSave): KostasPriority {
+  // KOSTAS only awards non-auto badges.
+  const kostasBadges = BADGES.filter((b) => !b.auto);
+
+  // If all KOSTAS badges AND the champion badge are earned, play the
+  // final "you're a true champion" line.
+  const allKostasEarned = kostasBadges.every((b) =>
+    save.badges.includes(b.id),
+  );
+  if (allKostasEarned && save.badges.includes("champion")) {
+    return { kind: "champion" };
+  }
+
+  // Priority scan: first KOSTAS badge whose condition is met but not
+  // yet earned. Priorities 1..6 in the order above (same as BADGES
+  // array order, with auto badges filtered out).
+  for (const badge of kostasBadges) {
+    if (save.badges.includes(badge.id)) continue;
+    if (badge.condition(save)) {
+      return { kind: "award", badgeId: badge.id, badgeName: badge.name };
+    }
+  }
+
+  // Priority 7 — fallback hint. Find the first KOSTAS badge the
+  // player hasn't earned yet and use its `hint` copy.
+  const nextBadge = kostasBadges.find((b) => !save.badges.includes(b.id));
+  if (nextBadge) {
+    return {
+      kind: "hint",
+      nextBadgeId: nextBadge.id,
+      nextBadgeName: nextBadge.name,
+      nextHint: nextBadge.hint,
+    };
+  }
+
+  // All KOSTAS badges earned but champion not yet → treat as hint
+  // for CHAMPION.
+  return {
+    kind: "hint",
+    nextBadgeId: "champion",
+    nextBadgeName: "CHAMPION",
+    nextHint: "Find MEW beyond the water boundary",
+  };
+}
 
 export interface InteriorNPC {
   id: string;
@@ -37,7 +107,7 @@ export interface InteriorNPC {
    * (with a generic fallback if omitted).
    */
   autoGive?: {
-    /** Item id from ITEM_DEFINITIONS (e.g. "paper_igarss"). */
+    /** Item id from ITEM_DEFINITIONS (e.g. "paper_multiscale_igarss"). */
     itemId: string;
     /** Tile the NPC walks to after giving the item. */
     asidePosition: { x: number; y: number };
@@ -234,76 +304,76 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "Welcome to my GYM!",
         ],
         dialogFn: (save: GameSave): DynamicDialogResult => {
-          // B7 — these ids match the new design-doc canonical names.
-          // Order below mirrors explore-mode-final.md §2 slot order
-          // so KOSTAS hands out GYM first, CHAMPION last.
-          const BADGE_ORDER = [
-            { id: "gym",           name: "GYM" },
-            { id: "publication",   name: "PUBLICATION" },
-            { id: "connected",     name: "CONNECTED" },
-            { id: "pokedex",       name: "POKEDEX" },
-            { id: "blogger",       name: "BLOGGER" },
-            { id: "engineer",      name: "ENGINEER" },
-            { id: "completionist", name: "COMPLETIONIST" },
-            { id: "champion",      name: "CHAMPION" },
-          ];
-          // Find the first unearned badge
-          const nextIndex = BADGE_ORDER.findIndex((b) => !save.badges.includes(b.id));
-          const next = nextIndex >= 0 ? BADGE_ORDER[nextIndex] : undefined;
-          if (next) {
+          const priority = resolveKostasPriority(save);
+
+          if (priority.kind === "champion") {
+            // Priority 0 (endgame): all 8 badges earned
             return {
               lines: [
-                `You've been working hard!`,
-                `Take the ${next.name} BADGE`,
-                `as proof of your skills!`,
+                "Wahahahaha! You've collected",
+                "all 8 badges! You're a true",
+                "CHAMPION of ML Engineering!",
               ],
-              afterDialog: async ({ dialogSystem }) => {
-                // Pick jingle + matching async variant by badge rank:
-                //  - CHAMPION       (8th) → battle-symbol fanfare
-                //  - COMPLETIONIST  (7th) → "Received BP!" variant
-                //  - otherwise            → standard badge jingle
-                const jinglePromise =
-                  next.id === "champion"
-                    ? sfx.badgeChampionAsync()
-                    : nextIndex === BADGE_ORDER.length - 2
-                      ? sfx.badgeFinalGymAsync()
-                      : sfx.badgeGetAsync();
-                // Show the "Received" confirmation dialog in parallel
-                // with the jingle. Promise.all waits for BOTH the
-                // sound to finish AND the player to dismiss, so the
-                // conversation can't close until the jingle ends —
-                // matching OG Pokemon behavior.
-                await Promise.all([
-                  jinglePromise,
-                  dialogSystem.showDialog({
-                    lines: [
-                      `KOSTAS handed over`,
-                      `the ${next.name} BADGE!`,
-                    ],
-                  }),
-                ]);
-                awardBadge(next.id);
-                // Field-move side effect: if a FIELD_MOVE_AWARDS
-                // entry maps this badge to a party member, teach
-                // the move. Content phase surfaces `learnMessage`
-                // as a follow-up dialog line; the engine only
-                // mutates save state here.
-                const fieldAward = FIELD_MOVE_AWARDS.find(
-                  (f) => f.badgeId === next.id,
-                );
-                if (fieldAward) {
-                  teachFieldMove(fieldAward.pokemonId, fieldAward.moveName);
-                }
-              },
             };
           }
-          // All 8 badges earned
+
+          if (priority.kind === "hint") {
+            // Priority 7 (fallback): no badge condition met yet
+            return {
+              lines: [
+                `Not yet, TRAINER.`,
+                `Try to ${priority.nextHint}`,
+                `then come see me!`,
+              ],
+            };
+          }
+
+          // Priorities 1..6: award the eligible badge
+          const { badgeId, badgeName } = priority;
           return {
             lines: [
-              "Wahahahaha! You've collected",
-              "all 8 badges! You're a true",
-              "CHAMPION of ML Engineering!",
+              `You've been working hard!`,
+              `Take the ${badgeName} BADGE`,
+              `as proof of your skills!`,
             ],
+            afterDialog: async ({ dialogSystem }) => {
+              // Pick jingle by badge identity:
+              //  - CHAMPION       → battle-symbol fanfare
+              //  - ENGINEER (last KOSTAS badge) → final gym variant
+              //  - otherwise                    → standard badge jingle
+              const jinglePromise =
+                badgeId === "champion"
+                  ? sfx.badgeChampionAsync()
+                  : badgeId === "engineer"
+                    ? sfx.badgeFinalGymAsync()
+                    : sfx.badgeGetAsync();
+              // Show the "Received" confirmation dialog in parallel
+              // with the jingle. Promise.all waits for BOTH the
+              // sound to finish AND the player to dismiss, so the
+              // conversation can't close until the jingle ends —
+              // matching OG Pokemon behavior.
+              await Promise.all([
+                jinglePromise,
+                dialogSystem.showDialog({
+                  lines: [
+                    `KOSTAS handed over`,
+                    `the ${badgeName} BADGE!`,
+                  ],
+                }),
+              ]);
+              awardBadge(badgeId);
+              // Field-move side effect: if a FIELD_MOVE_AWARDS
+              // entry maps this badge to a party member, teach
+              // the move. Content phase surfaces `learnMessage`
+              // as a follow-up dialog line; the engine only
+              // mutates save state here.
+              const fieldAward = FIELD_MOVE_AWARDS.find(
+                (f) => f.badgeId === badgeId,
+              );
+              if (fieldAward) {
+                teachFieldMove(fieldAward.pokemonId, fieldAward.moveName);
+              }
+            },
           };
         },
       },
@@ -329,11 +399,11 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "I train in the ways of DevOps!",
           "Docker, Kubernetes, CI/CD pipelines...",
           "KOSTAS built the Cloud-DevOps toolkit!",
-          "Here, take this paper he wrote",
-          "on PyTorch distillation!",
+          "Here, take MEDiC — his CLIP",
+          "distillation paper for medical AI!",
         ],
         autoGive: {
-          itemId: "paper_maskdistill",
+          itemId: "paper_medic",
           asidePosition: { x: 8, y: 8 },
           clearedDialog: [
             "Good luck with the rest",
@@ -355,7 +425,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "IGARSS is a must-read!",
         ],
         autoGive: {
-          itemId: "paper_igarss",
+          itemId: "paper_multiscale_igarss",
           asidePosition: { x: 0, y: 16 },
           clearedDialog: [
             "Remote sensing is the future",
@@ -377,7 +447,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "Check out his WACV vision paper!",
         ],
         autoGive: {
-          itemId: "paper_wacv",
+          itemId: "paper_semseg_wacv",
           asidePosition: { x: 5, y: 11 },
           clearedDialog: [
             "Vision models are everywhere",
@@ -400,7 +470,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "to healthcare at scale.",
         ],
         autoGive: {
-          itemId: "paper_chase",
+          itemId: "paper_dementia_chase",
           asidePosition: { x: 0, y: 13 },
           clearedDialog: [
             "Cloud infrastructure powers",
