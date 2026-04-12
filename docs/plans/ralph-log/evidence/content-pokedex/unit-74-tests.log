@@ -1,0 +1,18 @@
+
+> portfolio-v2@0.0.1 test:unit
+> vitest run
+
+
+ RUN  v2.1.9 /Users/gkos/Insync/Gdrive/Projects/portfolio-v2
+
+ ✓ tests/unit/Pokedex.test.ts (14 tests) 11ms
+ ✓ tests/unit/GameSave.test.ts (11 tests) 6ms
+ ✓ tests/unit/BadgeMilestones.test.ts (23 tests) 6ms
+ ✓ tests/unit/DialogSystem.test.ts (14 tests) 5ms
+ ✓ tests/unit/ItemDefinitions.test.ts (12 tests) 5ms
+
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+   Start at  21:16:32
+   Duration  856ms (transform 299ms, setup 0ms, collect 468ms, tests 32ms, environment 1.23s, prepare 455ms)
+
