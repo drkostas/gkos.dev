@@ -5,21 +5,29 @@ import { projects } from "@/data/projects";
 export const prerender = false;
 
 export const GET: APIRoute = async () => {
-  const pypiUrls = projects
-    .map((p) => p.pypi)
-    .filter((url): url is string => Boolean(url));
+  try {
+    const pypiUrls = projects
+      .map((p) => p.pypi)
+      .filter((url): url is string => Boolean(url));
 
-  const stats = await getTotalPyPiDownloads(pypiUrls);
+    const stats = await getTotalPyPiDownloads(pypiUrls);
 
-  return new Response(JSON.stringify(stats), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      // Short edge cache (5 min) but very long stale-while-revalidate (24h).
-      // This means visitors always get an instant response (possibly stale),
-      // while Vercel refetches in the background. Each refetch accumulates
-      // more successfully fetched packages in the module-scoped cache.
-      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=86400",
-    },
-  });
+    return new Response(JSON.stringify(stats), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=86400",
+      },
+    });
+  } catch (error) {
+    // Never crash — return zeroed stats so the NPC shows fallback dialog.
+    console.warn("[api/stats/pypi] uncaught error:", error);
+    return new Response(
+      JSON.stringify({ totalLastMonth: 0, totalLastWeek: 0, totalLastDay: 0, packageCount: 0 }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
 };
