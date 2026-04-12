@@ -313,7 +313,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
   {
     id: "npc_r117_maniac",
     spriteKey: "maniac",
-    position: { x: 7, y: 62 },
+    position: { x: 23, y: 58 },  // was (7,62) — npc-blocked; validated safe via --test
     facingDirection: Direction.UP,
     movementBehavior: MovementBehavior.STATIONARY,
     movementRangeX: 0,
@@ -326,7 +326,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     autoGive: {
       itemId: "paper_teaching_asst",
-      asidePosition: { x: 8, y: 62 },
+      asidePosition: { x: 24, y: 58 },  // updated to match new position
       clearedDialog: [
         "Semi-supervised object detection",
         "is the future of labeling!",
@@ -340,7 +340,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
   {
     id: "npc_r117_little_boy",
     spriteKey: "rich_boy",
-    position: { x: 15, y: 55 },
+    position: { x: 24, y: 57 },  // was (15,55) — npc-blocked; validated safe via --test
     facingDirection: Direction.DOWN,
     movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
@@ -392,7 +392,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
   {
     id: "npc_r118_fisherman",
     spriteKey: "fisherman",
-    position: { x: 118, y: 58 },
+    position: { x: 97, y: 60 },  // was (118,58) — terrain-blocked; validated safe via --test
     facingDirection: Direction.LEFT,
     movementBehavior: MovementBehavior.STATIONARY,
     movementRangeX: 0,
@@ -405,7 +405,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
     ],
     autoGive: {
       itemId: "paper_koopman_igarss",
-      asidePosition: { x: 119, y: 58 },
+      asidePosition: { x: 98, y: 60 },  // updated to match new position
       clearedDialog: [
         "Koopman operators decompose",
         "dynamics from satellite video!",
@@ -625,7 +625,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
   {
     id: "npc_r117_item_ball",
     spriteKey: "item_ball",
-    position: { x: 6, y: 68 },
+    position: { x: 32, y: 56 },  // was (6,68) — terrain-blocked; validated safe via --test
     facingDirection: Direction.DOWN,
     movementBehavior: MovementBehavior.STATIONARY,
     movementRangeX: 0,
@@ -666,7 +666,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
   {
     id: "npc_r110_item_ball",
     spriteKey: "item_ball",
-    position: { x: 76, y: 117 },
+    position: { x: 54, y: 95 },  // was (76,117) — terrain-blocked; validated safe via --test
     facingDirection: Direction.DOWN,
     movementBehavior: MovementBehavior.STATIONARY,
     movementRangeX: 0,
@@ -712,7 +712,7 @@ const ROUTE_NPCS: NPCDefinition[] = [
   {
     id: "npc_r118_mew_phone",
     spriteKey: "item_ball",
-    position: { x: 130, y: 62 },
+    position: { x: 99, y: 58 },  // was (130,62) — terrain-blocked; validated safe via --test
     facingDirection: Direction.DOWN,
     movementBehavior: MovementBehavior.STATIONARY,
     movementRangeX: 0,
