@@ -255,3 +255,48 @@ describe("KOSTAS state machine — 7 priority branches", () => {
     });
   });
 });
+
+describe("KOSTAS dialog uses {NAME} interpolation", () => {
+  it("all three dialogFn branches emit lines with {NAME}", async () => {
+    // Pull the actual interior definition and exercise each branch
+    // of dialogFn to confirm that AWARD, HINT, and CHAMPION all use
+    // the {NAME} placeholder. DialogSystem's interpolateLines will
+    // replace this with save.playerName at render time.
+    const { INTERIORS } = await import("@/game/data/interiors");
+    const kostas = INTERIORS.gym.npcs.find((n) => n.id === "gym_kostas");
+    expect(kostas).toBeDefined();
+    expect(kostas!.dialogFn).toBeDefined();
+
+    // HINT branch — empty save hits the fallback.
+    clearSave();
+    const hintLines = (await kostas!.dialogFn!(getSave())).lines;
+    expect(hintLines.some((l: string) => l.includes("{NAME}"))).toBe(true);
+
+    // AWARD branch — seed a GYM condition so priority 1 fires.
+    // GYM requires beating all 4 gym trainers; easiest to force-
+    // fake by pre-clearing their TrainerStore ids.
+    clearSave();
+    updateSave({
+      trainersCleared: ["gym_shawn", "gym_vivian", "gym_ben", "gym_kirk"],
+    } as Parameters<typeof updateSave>[0]);
+    const awardLines = (await kostas!.dialogFn!(getSave())).lines;
+    expect(awardLines.some((l: string) => l.includes("{NAME}"))).toBe(true);
+
+    // CHAMPION branch — all 8 badges including champion.
+    clearSave();
+    updateSave({
+      badges: [
+        "gym",
+        "publication",
+        "connected",
+        "pokedex",
+        "blogger",
+        "engineer",
+        "completionist",
+        "champion",
+      ],
+    });
+    const champLines = (await kostas!.dialogFn!(getSave())).lines;
+    expect(champLines.some((l: string) => l.includes("{NAME}"))).toBe(true);
+  });
+});
