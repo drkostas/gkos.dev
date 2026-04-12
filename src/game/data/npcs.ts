@@ -147,6 +147,9 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
 
   // NPC 4: Woman at (18,8), looks around — moved from (18,6) which was inside building
   {
+    // BLOG GIVER #2 — hands the player KOSTAS's first blog post.
+    // Thematically the "tutorial about CLIP distillation" matches
+    // the launch "Hello World" post about getting started.
     id: "npc_woman_4",
     spriteKey: "woman_4",
     position: { x: 18, y: 8 },
@@ -155,15 +158,29 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "Soon I'll have an amazing tutorial",
-      "about CLIP distillation to tell",
-      "you about!",
+      "Did you read KOSTAS's first",
+      "Hello World post? It's a great",
+      "intro to his writing style.",
+      "Here, take a copy!",
     ],
+    autoGive: {
+      itemId: "blog_first_post",
+      asidePosition: { x: 17, y: 8 },
+      clearedDialog: [
+        "That blog post is a classic —",
+        "I read it every time I start",
+        "a new project.",
+      ],
+    },
     speakerName: "Woman",
     animated: true,
   },
 
-  // NPC 5: School Kid at (17,14), faces down
+  // NPC 5: School Kid at (17,14), faces down.
+  // BLOG GIVER #1 — hands the player KOSTAS's PhD journey post.
+  // Wired via autoGive so the first interaction plays the dialog,
+  // drops the blog into the BLOGS pocket, and the NPC then steps
+  // aside so subsequent talks show the `clearedDialog`.
   {
     id: "npc_school_kid_m",
     spriteKey: "school_kid_m",
@@ -173,9 +190,19 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "KOSTAS promised me a blog post about",
-      "his PhD journey. Can't wait!",
+      "KOSTAS just posted about his",
+      "PhD journey at UTK!",
+      "Here — share the blog post",
+      "with your friends!",
     ],
+    autoGive: {
+      itemId: "blog_phd_journey",
+      asidePosition: { x: 16, y: 14 },
+      clearedDialog: [
+        "That blog post really hits home.",
+        "Hope he keeps writing!",
+      ],
+    },
     speakerName: "School Kid",
     animated: true,
   },
