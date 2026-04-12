@@ -170,7 +170,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
         facingDirection: "down",
         speakerName: "NURSE JOY",
         dialog: [
-          "Welcome to the POKeMON CENTER!",
+          "Welcome to the POKeMON CENTER, {NAME}!",
           "Let me take a look at your projects...",
           "All 6 of your repos are looking healthy!",
           "Come back anytime you need a code review!",
@@ -254,7 +254,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
         speakerName: "CLERK",
         shopMenu: true,
         dialog: [
-          "Welcome to the POKeMART!",
+          "Welcome to the POKeMART, {NAME}!",
           "How may I help you?",
         ],
       },
@@ -318,12 +318,14 @@ export const INTERIORS: Record<string, InteriorDef> = {
           const priority = resolveKostasPriority(save);
 
           if (priority.kind === "champion") {
-            // Priority 0 (endgame): all 8 badges earned
+            // Priority 0 (endgame): all 8 badges earned.
+            // {NAME} is interpolated by DialogSystem using the
+            // player's save.playerName.
             return {
               lines: [
-                "Wahahahaha! You've collected",
-                "all 8 badges! You're a true",
-                "CHAMPION of ML Engineering!",
+                "Wahahahaha! {NAME}, you've",
+                "collected all 8 badges! You're",
+                "a true CHAMPION of ML Engineering!",
               ],
             };
           }
@@ -332,7 +334,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
             // Priority 7 (fallback): no badge condition met yet
             return {
               lines: [
-                `Not yet, TRAINER.`,
+                `Not yet, {NAME}.`,
                 `Try to ${priority.nextHint}`,
                 `then come see me!`,
               ],
@@ -343,7 +345,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
           const { badgeId, badgeName } = priority;
           return {
             lines: [
-              `You've been working hard!`,
+              `{NAME}, you've been working hard!`,
               `Take the ${badgeName} BADGE`,
               `as proof of your skills!`,
             ],
