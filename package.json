@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run",
-    "test:visual": "npx playwright test",
+    "test:e2e": "npx playwright test --project=e2e-desktop-1440 --project=e2e-mobile-landscape-852 --project=e2e-mobile-portrait-393",
+    "test:visual": "npx playwright test --project=visual-regression",
     "capture:baseline": "node tests/capture-baselines.mjs http://localhost:3000 tests/baselines",
     "capture:current": "node tests/capture-baselines.mjs http://localhost:4321 tests/current",
     "generate:assets": "node scripts/generate-tileset.mjs && node scripts/generate-map.mjs && node scripts/generate-player.mjs"
