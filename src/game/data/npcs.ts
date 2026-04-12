@@ -2,6 +2,8 @@ import { Direction } from "grid-engine";
 import { MovementBehavior, type NPCDefinition, type SignDefinition } from "@/game/types/npc";
 import { WILD_POKEMON } from "@/game/data/wild-pokemon";
 import { getGithubDialog, GITHUB_FALLBACK_LINES } from "@/game/npcs/live/github";
+import { getSpotifyDialog, SPOTIFY_FALLBACK_LINES } from "@/game/npcs/live/spotify";
+import { getStravaDialog, STRAVA_FALLBACK_LINES } from "@/game/npcs/live/strava";
 
 /**
  * Offset applied to all Mauville positions to account for the stitched
@@ -41,6 +43,56 @@ const POOCHYENA_DEX: NonNullable<NPCDefinition["pokemon"]> = {
  * Positions are in ORIGINAL Mauville coordinates; offsets are applied below.
  */
 const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
+  // LIVE NPC #2 — Spotify Guy, stationed in front of the Game
+  // Corner (Mauville Casino). Casino door is at (8, 13), NPC sits
+  // one tile below at (8, 14). Pulls current / most-recent track
+  // from /api/spotify/now-playing and reports it in a dialog like:
+  //   "KOSTAS is listening to..."
+  //   "Hakuna Matata"
+  //   "by Timon & Pumbaa"
+  // Casino theme → music → Spotify. Static fallback lines when the
+  // Spotify API is rate-limited / offline.
+  {
+    id: "npc_mauville_spotify",
+    spriteKey: "boy_3",
+    position: { x: 8, y: 14 },
+    facingDirection: Direction.DOWN,
+    movementBehavior: MovementBehavior.STATIONARY,
+    movementRangeX: 0,
+    movementRangeY: 0,
+    dialog: SPOTIFY_FALLBACK_LINES,
+    dialogFn: async () => {
+      const lines = await getSpotifyDialog();
+      return { lines };
+    },
+    speakerName: "MUSIC FAN",
+    animated: true,
+  },
+
+  // LIVE NPC #3 — Strava Nerd, stationed outside the Bike Shop.
+  // Bike Shop door is at (35, 5), NPC sits one tile below at
+  // (35, 6). Bike Shop → cycling / running → Strava. Pulls the
+  // most recent allowed activity from /api/strava/recent (filtered
+  // to Run/TrailRun/Snowboard/Kitesurf) and reports distance + pace.
+  // Falls back to a "KOSTAS runs marathons" static line on API
+  // failure.
+  {
+    id: "npc_mauville_strava",
+    spriteKey: "school_kid_m",
+    position: { x: 35, y: 6 },
+    facingDirection: Direction.DOWN,
+    movementBehavior: MovementBehavior.STATIONARY,
+    movementRangeX: 0,
+    movementRangeY: 0,
+    dialog: STRAVA_FALLBACK_LINES,
+    dialogFn: async () => {
+      const lines = await getStravaDialog();
+      return { lines };
+    },
+    speakerName: "STRAVA NERD",
+    animated: true,
+  },
+
   // NPC 1: Boy at (29,16), wanders left-right, range 1x1
   {
     id: "npc_boy_3",

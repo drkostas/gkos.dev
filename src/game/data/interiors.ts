@@ -9,6 +9,8 @@ import { FIELD_MOVE_AWARDS } from "@/game/data/fieldMoveAwards";
 import type { DynamicDialogResult } from "@/game/types/npc";
 import { sfx } from "@/game/systems/SoundManager";
 import { BADGES } from "@/game/systems/BadgeMilestones";
+import { getPypiDialog, PYPI_FALLBACK_LINES } from "@/game/npcs/live/pypi";
+import { getStepsDialog, STEPS_FALLBACK_LINES } from "@/game/npcs/live/steps";
 
 /**
  * KOSTAS state machine — 7 priority branches, each corresponding to a
@@ -256,29 +258,38 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "How may I help you?",
         ],
       },
+      // LIVE NPC #4 — PyPI Expert. Pulls total downloads + package
+      // count from /api/stats/pypi. Falls back to a static "KOSTAS
+      // wrote PyPI packages" line when the API is offline.
       {
         id: "mart_expert",
         spriteKey: "maniac",
         position: { x: 5, y: 4 },
         facingDirection: "right",
-        speakerName: "EXPERT",
-        dialog: [
-          "I always use YAML configs for my projects.",
-          "KOSTAS made a PyPI package that wraps it all up nicely.",
-          "Configuration management is an underrated skill!",
-        ],
+        speakerName: "PYPI EXPERT",
+        dialog: PYPI_FALLBACK_LINES,
+        dialogFn: async () => {
+          const lines = await getPypiDialog();
+          return { lines };
+        },
       },
+      // LIVE NPC #5 — Step Tracker. Pulls the current step count
+      // from StepStore (localStorage) and compares it against the
+      // cheapest unowned TM in the shop catalog so the dialog
+      // always gives the player a concrete next target. This one
+      // has NO fallback path since the data source is local and
+      // can't fail the same way an HTTP fetch can.
       {
         id: "mart_man",
         spriteKey: "boy_3",
         position: { x: 5, y: 5 },
         facingDirection: "right",
-        speakerName: "DEVELOPER",
-        dialog: [
-          "I just deployed my app to the cloud!",
-          "KOSTAS has a Cloud-DevOps toolkit that makes it easy.",
-          "High availability, auto-scaling... the works!",
-        ],
+        speakerName: "STEP TRACKER",
+        dialog: STEPS_FALLBACK_LINES,
+        dialogFn: () => {
+          const lines = getStepsDialog();
+          return { lines };
+        },
       },
     ],
   },
