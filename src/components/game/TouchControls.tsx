@@ -96,19 +96,26 @@ function fireKey(type: "keydown" | "keyup", key: string): void {
 export default function TouchControls({ visible }: TouchControlsProps) {
   if (!visible) return null;
   return (
-    <div style={controlsZoneStyle}>
+    <>
+      {/* Fullscreen button lives OUTSIDE the touch zone so its
+          `position: fixed` anchors to the viewport top-right instead
+          of being clipped/occluded by the A button in the bottom
+          touch bar. Keeping it mounted alongside TouchControls means
+          it only renders on touch devices. */}
       <FullscreenButton />
-      <div style={leftClusterStyle}>
-        <DPad />
-        <RunToggle />
+      <div style={controlsZoneStyle}>
+        <div style={leftClusterStyle}>
+          <DPad />
+          <RunToggle />
+        </div>
+        <div style={centerClusterStyle}>
+          <StartButton />
+        </div>
+        <div style={rightClusterStyle}>
+          <ActionButtons />
+        </div>
       </div>
-      <div style={centerClusterStyle}>
-        <StartButton />
-      </div>
-      <div style={rightClusterStyle}>
-        <ActionButtons />
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -314,33 +321,131 @@ function StartButton() {
 }
 
 // ── Fullscreen button ────────────────────────────────────────────
+//
+// M6/M7: iOS Safari + iOS Brave don't implement the HTML5 Fullscreen
+// API (`element.requestFullscreen()` is undefined on iPhone). The
+// button previously called `document.documentElement.requestFullscreen?.()`
+// which silently no-op'd on iPhone, so the user saw a button that
+// did nothing.
+//
+// Fix: two-pronged.
+//
+//   (a) Detect whether the real API is available. If yes, use it.
+//   (b) If not, toggle a `gkos-pseudo-fullscreen` class on <html>
+//       that makes the game fill 100svh, hides the Astro navbar, and
+//       prevents body scroll. The browser chrome will still be
+//       visible but the ENTIRE viewport below it becomes the game.
+//
+// M7: moved the button out of the TouchControls DOM tree into a
+// separate portal rendered by the parent, so its `position: fixed`
+// anchors to the viewport (not the bottom-anchored touch bar where
+// `top: 12` meant "12px from the top of the 180px touch bar, which
+// put it DIRECTLY above the A button").
+
+const PSEUDO_FULLSCREEN_CLASS = "gkos-pseudo-fullscreen";
+
+function supportsRealFullscreen(): boolean {
+  if (typeof document === "undefined") return false;
+  const de = document.documentElement as HTMLElement & {
+    webkitRequestFullscreen?: unknown;
+    msRequestFullscreen?: unknown;
+  };
+  return !!(
+    de.requestFullscreen ||
+    de.webkitRequestFullscreen ||
+    de.msRequestFullscreen
+  );
+}
+
+function enterPseudoFullscreen(): void {
+  document.documentElement.classList.add(PSEUDO_FULLSCREEN_CLASS);
+}
+
+function exitPseudoFullscreen(): void {
+  document.documentElement.classList.remove(PSEUDO_FULLSCREEN_CLASS);
+}
 
 function FullscreenButton() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const btnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    const handler = () => {
+      setIsFullscreen(
+        !!document.fullscreenElement ||
+          document.documentElement.classList.contains(PSEUDO_FULLSCREEN_CLASS),
+      );
+    };
     document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
+    // Also listen for the pseudo-fullscreen class changes so the
+    // button label updates when we toggle it manually.
+    const mo = new MutationObserver(handler);
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    handler();
+    return () => {
+      document.removeEventListener("fullscreenchange", handler);
+      mo.disconnect();
+    };
   }, []);
 
   useEffect(() => {
     const btn = btnRef.current;
     if (!btn) return;
     const toggle = () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen?.().catch(() => {});
-      } else {
-        document.exitFullscreen?.().catch(() => {});
+      const hasReal = supportsRealFullscreen();
+      const isCurrentlyFull =
+        !!document.fullscreenElement ||
+        document.documentElement.classList.contains(PSEUDO_FULLSCREEN_CLASS);
+
+      if (isCurrentlyFull) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.().catch(() => {});
+        }
+        exitPseudoFullscreen();
+        hapticTap();
+        return;
       }
+
+      // Try the real API first. requestFullscreen() can throw
+      // synchronously OR return a rejecting promise depending on
+      // browser + gesture context (non-gesture calls fail both ways).
+      // Wrap in try/catch + .then/.catch so both failure modes fall
+      // through to the CSS pseudo-fullscreen path.
+      let realFailed = !hasReal;
+      if (hasReal) {
+        try {
+          const de = document.documentElement as HTMLElement & {
+            webkitRequestFullscreen?: () => Promise<void> | void;
+          };
+          const req =
+            de.requestFullscreen?.bind(de) ||
+            de.webkitRequestFullscreen?.bind(de);
+          const result = req?.();
+          if (result && typeof (result as Promise<void>).then === "function") {
+            (result as Promise<void>).catch(() => {
+              enterPseudoFullscreen();
+            });
+          }
+        } catch {
+          realFailed = true;
+        }
+      }
+      if (realFailed) {
+        enterPseudoFullscreen();
+      }
+      hapticTap();
     };
     const onStart = (e: TouchEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       toggle();
     };
     const onClick = (e: MouseEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       toggle();
     };
     btn.addEventListener("touchstart", onStart, { passive: false });
@@ -355,10 +460,11 @@ function FullscreenButton() {
     <div
       ref={btnRef}
       style={fullscreenBtnStyle}
-      aria-label="Fullscreen toggle"
+      aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       role="button"
+      title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
     >
-      {isFullscreen ? "⛶" : "⛶"}
+      {isFullscreen ? "✕" : "⛶"}
     </div>
   );
 }
@@ -605,23 +711,35 @@ const runActiveStyle: React.CSSProperties = {
 };
 
 // ── Fullscreen button ─────────────────────────────────────────────
-// Anchored to the top-right corner of the game container. Escapes
-// the flex layout via absolute positioning so it can live outside
-// the d-pad / A-B / START layout without competing for space.
+// M7: Anchored to the VIEWPORT top-right via `position: fixed` so it
+// sits above the Astro navbar on touch devices. Previously used
+// `position: absolute` which resolved against the bottom-anchored
+// controlsZoneStyle — that put the button directly above the A
+// button, occluding the action controls.
+//
+// safe-area-inset-top pushes the button below the iPhone notch in
+// landscape / status bar in portrait. Z-index is above the navbar
+// (z-50) so the button is always tappable.
 
 const fullscreenBtnStyle: React.CSSProperties = {
-  position: "absolute",
-  top: 12,
-  right: 12,
-  width: 40,
-  height: 40,
+  position: "fixed",
+  // Positioned TOP-LEFT so it doesn't collide with the
+  // PortraitBanner's dismiss ✕ button (which sits top-right on
+  // portrait devices). The banner is 30px tall absolute under the
+  // navbar, so we drop the button below both: navbar (~60) + banner
+  // (30) + a bit of breathing room. Safe-area insets handle the
+  // iPhone notch in both portrait and landscape.
+  top: "calc(env(safe-area-inset-top, 0px) + 100px)",
+  left: "calc(env(safe-area-inset-left, 0px) + 10px)",
+  width: 44,
+  height: 44,
   borderRadius: 10,
-  background: "rgba(20, 20, 25, 0.55)",
-  backdropFilter: "blur(4px)",
-  WebkitBackdropFilter: "blur(4px)",
-  border: "1px solid rgba(255,255,255,0.15)",
-  color: "rgba(255,255,255,0.75)",
-  fontSize: 18,
+  background: "rgba(20, 20, 25, 0.82)",
+  backdropFilter: "blur(6px)",
+  WebkitBackdropFilter: "blur(6px)",
+  border: "1px solid rgba(255,255,255,0.2)",
+  color: "rgba(255,255,255,0.92)",
+  fontSize: 20,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -630,4 +748,8 @@ const fullscreenBtnStyle: React.CSSProperties = {
   WebkitTapHighlightColor: "transparent",
   userSelect: "none",
   pointerEvents: "auto",
+  // Above the PortraitBanner (9500) and the touch bar (9000) and
+  // everything else. 9600 gives a clean headroom.
+  zIndex: 9600,
+  boxShadow: "0 2px 10px rgba(0,0,0,0.5)",
 };

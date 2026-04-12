@@ -397,6 +397,30 @@ html {
           text-size-adjust: 100%;
 }
 
+/*
+ * M6/M7 — pseudo-fullscreen mode for iOS where the real HTML5
+ * Fullscreen API is unavailable. The FullscreenButton toggles this
+ * class on <html> when entering pseudo-fullscreen. Effects:
+ *   - Hides the site navbar so the game fills the full screen
+ *   - Body scroll locked so no accidental page pull
+ *   - The /explore page's game container stretches to 100svh
+ *   - Any fixed-position navbar links get hidden
+ */
+html.gkos-pseudo-fullscreen body > header,
+html.gkos-pseudo-fullscreen body > nav {
+  display: none !important;
+}
+html.gkos-pseudo-fullscreen,
+html.gkos-pseudo-fullscreen body {
+  overflow: hidden !important;
+  height: 100svh !important;
+  max-height: 100svh !important;
+}
+html.gkos-pseudo-fullscreen main {
+  height: 100svh !important;
+  max-height: 100svh !important;
+}
+
 @keyframes marquee {
   from {
     transform: translateX(0);
