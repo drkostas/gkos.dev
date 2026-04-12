@@ -491,6 +491,58 @@ export const INTERIORS: Record<string, InteriorDef> = {
           ],
         },
       },
+      // Trainer 5 — hands out Cross-Scale MAE (NeurIPS 2023, 54
+      // citations — KOSTAS's most-cited paper). Stands on the upper
+      // half of the gym as a Research Scientist persona.
+      {
+        id: "gym_amber",
+        spriteKey: "woman_1",
+        position: { x: 3, y: 5 },
+        facingDirection: "right",
+        speakerName: "TRAINER AMBER",
+        dialog: [
+          "NeurIPS is the top ML venue!",
+          "KOSTAS's Cross-Scale MAE paper",
+          "has 54 citations and counting.",
+          "Multiscale exploitation across",
+          "remote-sensing scales is tricky —",
+          "here, read it yourself.",
+        ],
+        autoGive: {
+          itemId: "paper_crossscale_mae",
+          asidePosition: { x: 2, y: 5 },
+          clearedDialog: [
+            "Cross-Scale MAE is required",
+            "reading for every RS researcher!",
+          ],
+        },
+      },
+      // Trainer 6 — hands out ExPLoRe (ECCV 2026 under review,
+      // Kostas's latest). Stands on the lower half as an Applied
+      // Scientist persona.
+      {
+        id: "gym_jenna",
+        spriteKey: "woman_4",
+        position: { x: 8, y: 13 },
+        facingDirection: "left",
+        speakerName: "TRAINER JENNA",
+        dialog: [
+          "I'm a pre-training specialist!",
+          "KOSTAS's newest paper ExPLoRe",
+          "is under review at ECCV 2026.",
+          "Exploration-driven pre-training",
+          "for long-range remote sensing.",
+          "Fingers crossed for acceptance!",
+        ],
+        autoGive: {
+          itemId: "paper_explore",
+          asidePosition: { x: 9, y: 13 },
+          clearedDialog: [
+            "Can't wait to see ExPLoRe",
+            "at ECCV next summer!",
+          ],
+        },
+      },
     ],
   },
 };
