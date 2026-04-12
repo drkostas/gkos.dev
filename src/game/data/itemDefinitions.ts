@@ -301,6 +301,59 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
     description: "Architecture at scale.\nWalked 8000 steps.",
     icon: "/game/ui/bag/leftovers.png",
   },
+  // ── Expansion to 20 TMs (7 additions) ──
+  // Research-adjacent tools to round out the ML engineer toolkit.
+  // NumPy/Pandas/Jupyter are cheap early wins; HuggingFace/Ray/
+  // LangChain/Vercel slot into the upper tier.
+  "tm_numpy": {
+    id: "tm_numpy",
+    name: "TM NUMPY",
+    pocket: "tms",
+    description: "Vectorized numerical\ncomputing. Walked 150 steps.",
+    icon: "/game/ui/bag/potion.png",
+  },
+  "tm_pandas": {
+    id: "tm_pandas",
+    name: "TM PANDAS",
+    pocket: "tms",
+    description: "DataFrames, the MLE's\nspreadsheet. Walked 200 steps.",
+    icon: "/game/ui/bag/super_potion.png",
+  },
+  "tm_jupyter": {
+    id: "tm_jupyter",
+    name: "TM JUPYTER",
+    pocket: "tms",
+    description: "Notebooks for research\niteration. Walked 300 steps.",
+    icon: "/game/ui/bag/hyper_potion.png",
+  },
+  "tm_huggingface": {
+    id: "tm_huggingface",
+    name: "TM HUGGINGFACE",
+    pocket: "tms",
+    description: "Pretrained models +\ndatasets. Walked 2500 steps.",
+    icon: "/game/ui/bag/max_potion.png",
+  },
+  "tm_ray": {
+    id: "tm_ray",
+    name: "TM RAY",
+    pocket: "tms",
+    description: "Distributed training\nat scale. Walked 5000 steps.",
+    icon: "/game/ui/bag/rare_candy.png",
+  },
+  "tm_langchain": {
+    id: "tm_langchain",
+    name: "TM LANGCHAIN",
+    pocket: "tms",
+    description: "LLM orchestration +\nagents. Walked 7000 steps.",
+    icon: "/game/ui/bag/max_elixir.png",
+  },
+  "tm_vercel": {
+    id: "tm_vercel",
+    name: "TM VERCEL",
+    pocket: "tms",
+    description: "Ship it, instantly.\nWalked 10000 steps.",
+    icon: "/game/ui/bag/sacred_ash.png",
+  },
 };
 
 /** Get a list of item definitions for a pocket. */

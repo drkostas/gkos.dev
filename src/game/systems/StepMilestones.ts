@@ -29,18 +29,29 @@ export interface StepMilestone {
 
 /**
  * TM catalog for the Pokemart. The `steps` field is the buy price.
- * Order here is the display order in the shop.
+ * Order here is the display order in the shop (cheap → expensive).
+ *
+ * The 16 entries here + 3 starter TMs (python/git/linux, granted
+ * for free at the start) + 1 questionnaire TM (tm_portfolio) = the
+ * 20 TMs the ENGINEER badge requires.
  */
 export const STEP_MILESTONES: StepMilestone[] = [
-  { steps: 250,  itemId: "tm_tailwind",      tm: "TAILWIND",      description: "Utility-first CSS" },
-  { steps: 500,  itemId: "tm_fastapi",       tm: "FASTAPI",       description: "Python web framework" },
-  { steps: 1000, itemId: "tm_nextjs",        tm: "NEXT.JS",       description: "React meta-framework" },
-  { steps: 1500, itemId: "tm_docker",        tm: "DOCKER",        description: "Containerization" },
-  { steps: 2000, itemId: "tm_pytorch",       tm: "PYTORCH",       description: "Deep learning framework" },
-  { steps: 3000, itemId: "tm_aws",           tm: "AWS",           description: "Cloud infrastructure" },
-  { steps: 4000, itemId: "tm_kubernetes",    tm: "KUBERNETES",    description: "Container orchestration" },
-  { steps: 6000, itemId: "tm_terraform",     tm: "TERRAFORM",     description: "Infrastructure as code" },
-  { steps: 8000, itemId: "tm_system_design", tm: "SYSTEM DESIGN", description: "Architecture at scale" },
+  { steps: 150,   itemId: "tm_numpy",         tm: "NUMPY",         description: "Vectorized numerics" },
+  { steps: 200,   itemId: "tm_pandas",        tm: "PANDAS",        description: "DataFrames everywhere" },
+  { steps: 250,   itemId: "tm_tailwind",      tm: "TAILWIND",      description: "Utility-first CSS" },
+  { steps: 300,   itemId: "tm_jupyter",       tm: "JUPYTER",       description: "Research notebooks" },
+  { steps: 500,   itemId: "tm_fastapi",       tm: "FASTAPI",       description: "Python web framework" },
+  { steps: 1000,  itemId: "tm_nextjs",        tm: "NEXT.JS",       description: "React meta-framework" },
+  { steps: 1500,  itemId: "tm_docker",        tm: "DOCKER",        description: "Containerization" },
+  { steps: 2000,  itemId: "tm_pytorch",       tm: "PYTORCH",       description: "Deep learning framework" },
+  { steps: 2500,  itemId: "tm_huggingface",   tm: "HUGGINGFACE",   description: "Pretrained models hub" },
+  { steps: 3000,  itemId: "tm_aws",           tm: "AWS",           description: "Cloud infrastructure" },
+  { steps: 4000,  itemId: "tm_kubernetes",    tm: "KUBERNETES",    description: "Container orchestration" },
+  { steps: 5000,  itemId: "tm_ray",           tm: "RAY",           description: "Distributed training" },
+  { steps: 6000,  itemId: "tm_terraform",     tm: "TERRAFORM",     description: "Infrastructure as code" },
+  { steps: 7000,  itemId: "tm_langchain",     tm: "LANGCHAIN",     description: "LLM orchestration" },
+  { steps: 8000,  itemId: "tm_system_design", tm: "SYSTEM DESIGN", description: "Architecture at scale" },
+  { steps: 10000, itemId: "tm_vercel",        tm: "VERCEL",        description: "Ship it instantly" },
 ];
 
 export function isTMCollected(itemId: string): boolean {

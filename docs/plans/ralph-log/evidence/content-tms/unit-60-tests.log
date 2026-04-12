@@ -1,0 +1,17 @@
+
+> portfolio-v2@0.0.1 test:unit
+> vitest run
+
+
+ RUN  v2.1.9 /Users/gkos/Insync/Gdrive/Projects/portfolio-v2
+
+ ✓ tests/unit/GameSave.test.ts (11 tests) 5ms
+ ✓ tests/unit/DialogSystem.test.ts (14 tests) 5ms
+ ✓ tests/unit/ItemDefinitions.test.ts (12 tests) 4ms
+ ✓ tests/unit/BadgeMilestones.test.ts (23 tests) 7ms
+
+ Test Files  4 passed (4)
+      Tests  60 passed (60)
+   Start at  21:13:23
+   Duration  802ms (transform 184ms, setup 0ms, collect 282ms, tests 21ms, environment 941ms, prepare 460ms)
+
