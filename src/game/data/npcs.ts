@@ -307,7 +307,9 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
  */
 const ROUTE_NPCS: NPCDefinition[] = [
   // ── Route 117 (west): 3 NPCs ──────────────────────────────
-  // Maniac at Route117 (17,12) -> stitched (7, 62)
+  // Maniac at Route117 (17,12) -> stitched (7, 62).
+  // PAPER GIVER — "Teach. Asst." (semi-supervised OD with better
+  // pseudo-labels). OBSESSED-with-research persona is a natural fit.
   {
     id: "npc_r117_maniac",
     spriteKey: "maniac",
@@ -317,11 +319,19 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "I'm OBSESSED with KOSTAS's",
-      "research on CLIP distillation!",
-      "MEDiC made medical VLMs way",
-      "smaller without losing accuracy!",
+      "I'm OBSESSED with KOSTAS's paper",
+      "on teaching assistants for better",
+      "pseudo-labels! Semi-supervised OD",
+      "is so underrated. Here — read it!",
     ],
+    autoGive: {
+      itemId: "paper_teaching_asst",
+      asidePosition: { x: 8, y: 62 },
+      clearedDialog: [
+        "Semi-supervised object detection",
+        "is the future of labeling!",
+      ],
+    },
     speakerName: "Route Maniac",
     animated: true,
   },
@@ -374,7 +384,11 @@ const ROUTE_NPCS: NPCDefinition[] = [
   },
 
   // ── Route 118 (east): 3 NPCs ──────────────────────────────
-  // Fisherman at Route118 (28,8) -> stitched (118, 58)
+  // Fisherman at Route118 (28,8) -> stitched (118, 58).
+  // PAPER GIVER — "Koopman KTD" (satellite imagery transition
+  // detection). The "cast a training run and wait" fishing
+  // metaphor maps beautifully to the paper's patient Koopman
+  // decomposition method.
   {
     id: "npc_r118_fisherman",
     spriteKey: "fisherman",
@@ -384,11 +398,19 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "Writing ML code is like fishing...",
-      "You cast a training run,",
-      "wait patiently, and hope the",
-      "loss curve is biting today!",
+      "I was reading KOSTAS's Koopman",
+      "paper — transition detection in",
+      "satellite imagery. Patient work,",
+      "like fishing. Here, take a copy!",
     ],
+    autoGive: {
+      itemId: "paper_koopman_igarss",
+      asidePosition: { x: 119, y: 58 },
+      clearedDialog: [
+        "Koopman operators decompose",
+        "dynamics from satellite video!",
+      ],
+    },
     speakerName: "Fisherman",
     animated: true,
   },
@@ -458,7 +480,10 @@ const ROUTE_NPCS: NPCDefinition[] = [
     speakerName: "Boy",
     animated: true,
   },
-  // Fisherman at Route110 (10,19) -> stitched (60, 89)
+  // Fisherman at Route110 (10,19) -> stitched (60, 89).
+  // PAPER GIVER — "LLM Security" (code-gen LLMs comparative
+  // analysis). The "I used to write my own ML code" line maps
+  // to the paper's point that LLMs auto-generate insecure code.
   {
     id: "npc_r110_fisherman",
     spriteKey: "fisherman",
@@ -468,10 +493,21 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "I used to write my own ML code...",
-      "Now I just subscribe to KOSTAS's",
-      "blog and learn his PyTorch tricks!",
+      "I used to write my own code...",
+      "Now I let LLMs do it. But did",
+      "you read KOSTAS's paper on how",
+      "code-gen LLMs are occasionally",
+      "secure at best? Scary stuff —",
+      "here, take a copy!",
     ],
+    autoGive: {
+      itemId: "paper_occasionally_secure",
+      asidePosition: { x: 61, y: 89 },
+      clearedDialog: [
+        "Always review LLM-generated code.",
+        "Trust but verify!",
+      ],
+    },
     speakerName: "Fisherman",
     animated: true,
   },
@@ -505,7 +541,10 @@ const ROUTE_NPCS: NPCDefinition[] = [
   },
 
   // ── Route 111 (north): 3 NPCs ─────────────────────────────
-  // Man_1 at Route111 (13,114) -> stitched (63, 24)
+  // Man_1 at Route111 (13,114) -> stitched (63, 24).
+  // PAPER GIVER — "Community" (distributed hybrid community
+  // detection). This NPC already name-drops Dr. Qi and UTK,
+  // which ties perfectly to KOSTAS's earliest publication.
   {
     id: "npc_r111_man_1",
     spriteKey: "man_1",
@@ -515,10 +554,20 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "KOSTAS did his PhD at UTK",
-      "Bredesen Center under Dr. Hairong Qi.",
-      "Defending in April 2026!",
+      "KOSTAS did his PhD at UTK under",
+      "Dr. Qi. Did you know his FIRST",
+      "paper was on community detection",
+      "in social networks? Here — his",
+      "earliest work!",
     ],
+    autoGive: {
+      itemId: "paper_community_detection",
+      asidePosition: { x: 62, y: 24 },
+      clearedDialog: [
+        "Distributed graph algorithms",
+        "are where KOSTAS started!",
+      ],
+    },
     speakerName: "Man",
     animated: true,
   },
