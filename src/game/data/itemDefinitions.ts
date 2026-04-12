@@ -30,46 +30,104 @@ export interface ItemDef {
 }
 
 export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
-  // ── PAPERS pocket — research papers collected at the GYM ────
+  // ── PAPERS pocket — the 10 real publications ────────────────
+  // 6 gym papers (handed out by gym trainers) + 4 route papers
+  // (given by route trainers). Data sourced from the old repo's
+  // pages/api/published-papers.json; each has its own per-paper
+  // venue URL instead of one shared scholar profile link.
+
+  // --- 6 GYM papers ---------------------------------------------
+  "paper_explore": {
+    id: "paper_explore",
+    name: "ExPLoRe",
+    pocket: "papers",
+    description:
+      "Exploration-driven pre-training\nfor long-range remote sensing.\nECCV 2026 (under review).",
+    url: "https://scholar.google.com/citations?user=b___QQ8AAAAJ",
+    icon: "/game/ui/bag/oran_berry.png",
+  },
   "paper_medic": {
     id: "paper_medic",
     name: "MEDiC",
     pocket: "papers",
-    description: "Medical CLIP distillation.\nNeurIPS 2024.",
-    url: "https://scholar.google.com/citations?user=drkostas",
-    icon: "/game/ui/bag/oran_berry.png",
-  },
-  "paper_maskdistill": {
-    id: "paper_maskdistill",
-    name: "MaskDistill",
-    pocket: "papers",
-    description: "PyTorch mask distillation\npaper.",
-    url: "https://scholar.google.com/citations?user=drkostas",
+    description:
+      "Multi-objective exploration\nof distillation from CLIP.\narXiv 2026.",
+    url: "https://arxiv.org/abs/2603.29009",
     icon: "/game/ui/bag/master_ball.png",
   },
-  "paper_wacv": {
-    id: "paper_wacv",
-    name: "WACV Paper",
+  "paper_dementia_chase": {
+    id: "paper_dementia_chase",
+    name: "Dementia Trust",
     pocket: "papers",
-    description: "Vision paper accepted\nat WACV.",
-    url: "https://scholar.google.com/citations?user=drkostas",
-    icon: "/game/ui/bag/star_piece.png",
+    description:
+      "Trustworthy AI for early\ndementia detection.\nIEEE/ACM CHASE 2025.",
+    url: "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&citation_for_view=b___QQ8AAAAJ:Tyk-4Ss8FVUC",
+    icon: "/game/ui/bag/stardust.png",
   },
-  "paper_igarss": {
-    id: "paper_igarss",
-    name: "IGARSS Paper",
+  "paper_multiscale_igarss": {
+    id: "paper_multiscale_igarss",
+    name: "Multi-scale MAE",
     pocket: "papers",
-    description: "Geoscience and remote\nsensing paper at IGARSS.",
-    url: "https://scholar.google.com/citations?user=drkostas",
+    description:
+      "Fine-tuning strategies for\nmulti-scale remote sensing.\nIEEE IGARSS 2024.",
+    url: "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&citation_for_view=b___QQ8AAAAJ:2osOgNQ5qMEC",
     icon: "/game/ui/bag/nugget.png",
   },
-  "paper_chase": {
-    id: "paper_chase",
-    name: "CHASE Paper",
+  "paper_crossscale_mae": {
+    id: "paper_crossscale_mae",
+    name: "Cross-Scale MAE",
     pocket: "papers",
-    description: "Healthcare ML paper\nat CHASE.",
-    url: "https://scholar.google.com/citations?user=drkostas",
-    icon: "/game/ui/bag/stardust.png",
+    description:
+      "Multiscale exploitation in\nremote sensing. 54 citations.\nNeurIPS 2023.",
+    url: "https://proceedings.neurips.cc/paper_files/paper/2023/hash/3fadcbd0437ef86ca1bba27a18ec7dff-Abstract-Conference.html",
+    icon: "/game/ui/bag/star_piece.png",
+  },
+  "paper_semseg_wacv": {
+    id: "paper_semseg_wacv",
+    name: "Semantic Seg",
+    pocket: "papers",
+    description:
+      "Multi-level contrastive learning\nfor aerial imagery.\nIEEE WACV 2023. 31 citations.",
+    url: "https://openaccess.thecvf.com/content/WACV2023/html/Tang_Semantic_Segmentation_in_Aerial_Imagery_Using_Multi-Level_Contrastive_Learning_With_WACV_2023_paper.html",
+    icon: "/game/ui/bag/revive.png",
+  },
+
+  // --- 4 ROUTE papers -------------------------------------------
+  "paper_teaching_asst": {
+    id: "paper_teaching_asst",
+    name: "Teach. Asst.",
+    pocket: "papers",
+    description:
+      "Teaching assistant for better\npseudo-labels in semi-sup OD.\nRev. Tec. en Marcha 2025.",
+    url: "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&citation_for_view=b___QQ8AAAAJ:UeHWp8X0CEIC",
+    icon: "/game/ui/bag/rare_candy.png",
+  },
+  "paper_koopman_igarss": {
+    id: "paper_koopman_igarss",
+    name: "Koopman KTD",
+    pocket: "papers",
+    description:
+      "Koopman-based transition\ndetection in satellite imagery.\nIEEE IGARSS 2024.",
+    url: "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&citation_for_view=b___QQ8AAAAJ:qjMakFHDy7sC",
+    icon: "/game/ui/bag/max_elixir.png",
+  },
+  "paper_occasionally_secure": {
+    id: "paper_occasionally_secure",
+    name: "LLM Security",
+    pocket: "papers",
+    description:
+      "Occasionally Secure —\na comparative analysis of\ncode-gen LLMs. arXiv 2024.",
+    url: "https://arxiv.org/abs/2402.00689",
+    icon: "/game/ui/bag/full_restore.png",
+  },
+  "paper_community_detection": {
+    id: "paper_community_detection",
+    name: "Community",
+    pocket: "papers",
+    description:
+      "Distributed hybrid community\ndetection for social networks.\nAlgorithms (MDPI) 2019.",
+    url: "https://www.mdpi.com/1999-4893/12/8/175",
+    icon: "/game/ui/bag/hp_up.png",
   },
 
   // ── BLOG POSTS pocket — stories shared by NPCs ───────────────
