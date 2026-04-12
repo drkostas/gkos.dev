@@ -286,3 +286,39 @@ Executing `docs/plans/2026-04-12-comprehensive-plan.md` with four-step verificat
   - Console: zero errors across viewport sweep
 - Verified working at 2026-04-11T23:58 via Playwright 3-viewport sweep on
   StartMenu + BagMenu after the scale change
+
+
+**Test infra — vitest + first 25 unit tests** ✅
+- New files: `vitest.config.ts`, `tests/unit/DialogSystem.test.ts`,
+  `tests/unit/GameSave.test.ts`
+- New deps: `vitest@^2`, `happy-dom@^15`, `@vitest/coverage-v8@^2`
+- New scripts in package.json: `test`, `test:watch`, `test:unit`
+- Coverage:
+  - DialogSystem.test.ts (14 tests): B3 race guard, active-flag
+    lifecycle, resolves-after-DIALOG_COMPLETE, interpolateText {NAME},
+    wordWrap, paginateDialog (pages, empty-string breaks, wordwrap)
+  - GameSave.test.ts (11 tests): defaults/read/write basics, deep-clone
+    (B1 invariant that mutations don't leak), 100-update coalesced
+    flush (B1), clearSave wipes cache + localStorage, legacy badge
+    migration (B7: phd→gym, scholar→publication, opensource→pokedex,
+    author→blogger, fullstack→engineer, devoted→completionist),
+    `explorer` dropped with no replacement, modern-id pass-through,
+    dedupe when both legacy and modern present
+- Bugs found + fixed while writing the tests:
+  - `clearSave()` used `Object.keys(localStorage)` which returns `[]`
+    on Storage objects — it never actually removed any gkos:explore:*
+    keys. Rewrote to iterate with `localStorage.length` + `.key(i)`.
+  - `getSave()` was a shallow clone so mutations on nested arrays
+    (`save.badges.push(...)`) leaked into the cache. Switched to a
+    deep clone via `structuredClone` (with JSON fallback).
+  - Added `reloadFromStorage()` export so tests can seed localStorage
+    directly and force the cache to re-parse, without having to rely
+    on `clearSave()` (which does the opposite: populates defaults).
+- Verification (4-step):
+  - Command: `npm run test:unit` → 25/25 passing
+  - Log: `docs/plans/ralph-log/evidence/test-infra/vitest-25-tests.log`
+  - TypeScript: `npx astro check` → 0 errors, 0 warnings, 75 hints
+    (unchanged from previous pass, confirming no type regressions)
+  - Production build check deferred to M5 commit which already verified
+- Verified working at 2026-04-11T23:12 (UTC-5: local 20:12) via
+  `npm run test:unit` in fresh shell

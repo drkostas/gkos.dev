@@ -251,9 +251,26 @@ export function flushSave(): void {
   }
 }
 
-/** Read the full save. Returns a shallow clone so callers can't mutate the cache. */
+/**
+ * Drop the in-memory cache so the next `getSave()` / `updateSave()`
+ * re-parses `localStorage`. Used by tests that seed localStorage
+ * directly and want the module to pick up the new state without a
+ * full page reload. Also useful when an external tool mutates the
+ * persisted save out-of-band (e.g. a migration script).
+ */
+export function reloadFromStorage(): void {
+  cache = null;
+  flushScheduled = false;
+}
+
+/**
+ * Read the full save. Returns a DEEP clone so callers can't mutate the
+ * cached arrays (pokedexSeen, badges, etc.) and accidentally persist
+ * the mutation via the next `updateSave`. Shallow clone was enough
+ * for top-level fields but leaked for nested arrays.
+ */
 export function getSave(): GameSave {
-  return { ...ensureCache() };
+  return cloneSave(ensureCache());
 }
 
 /** Merge a partial save and schedule a flush. Returns the new save. */
@@ -261,7 +278,21 @@ export function updateSave(partial: Partial<GameSave>): GameSave {
   const c = ensureCache();
   Object.assign(c, partial);
   scheduleFlush();
-  return { ...c };
+  return cloneSave(c);
+}
+
+/**
+ * Deep-clone a GameSave. Uses structuredClone when available (every
+ * modern browser + Node 17+) and falls back to JSON round-trip for
+ * older runtimes and happy-dom environments. Fields with plain
+ * structural values (arrays of strings/numbers, Record<string,string[]>,
+ * primitives) survive both paths cleanly.
+ */
+function cloneSave(save: GameSave): GameSave {
+  if (typeof structuredClone === "function") {
+    return structuredClone(save);
+  }
+  return JSON.parse(JSON.stringify(save)) as GameSave;
 }
 
 /** Wipe all game state (preserves settings like text speed / frame style). */
@@ -273,7 +304,14 @@ export function clearSave(): void {
   cache = defaults();
   flushScheduled = false;
   if (typeof localStorage === "undefined") return;
-  const keys = Object.keys(localStorage).filter(k => k.startsWith("gkos:explore:"));
+  // Storage objects aren't iterable with Object.keys — walk them with
+  // `.length` + `.key(i)`. Collect first because removeItem shifts the
+  // index of subsequent entries.
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("gkos:explore:")) keys.push(k);
+  }
   for (const k of keys) {
     if (k === "gkos:explore:settings") continue;
     localStorage.removeItem(k);
