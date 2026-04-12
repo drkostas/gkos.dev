@@ -1,0 +1,24 @@
+
+> portfolio-v2@0.0.1 test:unit
+> vitest run
+
+
+ RUN  v2.1.9 /Users/gkos/Insync/Gdrive/Projects/portfolio-v2
+
+ ✓ tests/unit/live-spotify.test.ts (9 tests) 4ms
+ ✓ tests/unit/live-github.test.ts (14 tests) 5ms
+ ✓ tests/unit/Pokedex.test.ts (14 tests) 9ms
+ ✓ tests/unit/GameSave.test.ts (11 tests) 5ms
+ ✓ tests/unit/BadgeMilestones.test.ts (23 tests) 6ms
+ ✓ tests/unit/DialogSystem.test.ts (14 tests) 5ms
+ ✓ tests/unit/ItemDefinitions.test.ts (12 tests) 6ms
+ ✓ tests/unit/live-steps.test.ts (7 tests) 20ms
+ ✓ tests/unit/KostasStateMachine.test.ts (12 tests) 4ms
+ ✓ tests/unit/live-pypi.test.ts (9 tests) 4ms
+ ✓ tests/unit/live-strava.test.ts (8 tests) 5ms
+
+ Test Files  11 passed (11)
+      Tests  133 passed (133)
+   Start at  21:37:32
+   Duration  1.37s (transform 504ms, setup 0ms, collect 919ms, tests 73ms, environment 2.90s, prepare 962ms)
+
