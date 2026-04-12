@@ -1,10 +1,20 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import OpeningScreen from "./OpeningScreen";
-import PhaserGame from "./PhaserGame";
 import TouchControls from "./TouchControls";
 import PortraitBanner from "./PortraitBanner";
 import { GameLoadingScreen } from "./GameLoadingScreen";
 import { isTouchDevice } from "@/game/systems/TouchInput";
+
+/**
+ * PhaserGame carries the full Phaser runtime (~2.8MB) plus
+ * OverworldScene / InteriorScene / NPCSystem / all game data. It's
+ * lazy-loaded so the /explore landing page and title screen can
+ * paint on a low-end mobile network without waiting for the engine.
+ * The import starts as soon as the user has selected CONTINUE or
+ * finished the Birch intro (gameStarted=true), which is the first
+ * moment we know they'll actually play.
+ */
+const PhaserGame = lazy(() => import("./PhaserGame"));
 
 /**
  * Top-level wrapper for the Explore Mode page.
@@ -80,7 +90,14 @@ export default function ExploreApp() {
       {loadingDone && !gameStarted && (
         <OpeningScreen onComplete={() => setGameStarted(true)} />
       )}
-      {gameStarted && <PhaserGame />}
+      {gameStarted && (
+        // Suspense fallback is null — the previous OpeningScreen frame
+        // stays on-screen during the 100-500ms Phaser-chunk fetch so
+        // the transition from title → game is visually clean.
+        <Suspense fallback={null}>
+          <PhaserGame />
+        </Suspense>
+      )}
       {loadingDone && <TouchControls visible={isTouch} />}
       {loadingDone && <PortraitBanner enabled={isTouch} />}
     </>
