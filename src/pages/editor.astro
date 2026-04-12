@@ -1,0 +1,22 @@
+---
+// Dev-only guard — 404 in production
+if (!import.meta.env.DEV) {
+  return new Response(null, { status: 404 });
+}
+import EditorApp from "@/components/editor/EditorApp";
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokemon World Designer IDE</title>
+  <style is:global>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f23; color: #e5e5e5; font-family: 'Inter', system-ui, -apple-system, sans-serif; overflow: hidden; height: 100vh; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <EditorApp client:only="react" />
+</body>
+</html>
