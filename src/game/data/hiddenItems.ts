@@ -64,8 +64,8 @@ export const HIDDEN_ITEMS: HiddenItemTile[] = [
   {
     id: "ow_flower_linkedin",
     map: "overworld",
-    x: 55,
-    y: 35,
+    x: 72,   // was (55,35) — terrain-blocked; (72,28) validated safe
+    y: 28,
     itemId: "key_linkedin",
     difficulty: "medium",
     placement: "flower",
@@ -73,8 +73,8 @@ export const HIDDEN_ITEMS: HiddenItemTile[] = [
   {
     id: "ow_flower_huggingface",
     map: "overworld",
-    x: 20,
-    y: 28,
+    x: 75,   // was (20,28) — terrain-blocked; (75,42) validated safe
+    y: 42,
     itemId: "key_huggingface",
     difficulty: "medium",
     placement: "flower",
