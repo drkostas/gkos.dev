@@ -341,14 +341,50 @@ export const INTERIORS: Record<string, InteriorDef> = {
             };
           }
 
-          // Priorities 1..6: award the eligible badge
+          // Priorities 1..6: award the eligible badge.
+          // Each KOSTAS badge has a unique monologue so the gym
+          // visits don't feel copy-pasted. Falls back to a generic
+          // line if a new badge id is ever added without copy.
           const { badgeId, badgeName } = priority;
-          return {
-            lines: [
-              `{NAME}, you've been working hard!`,
-              `Take the ${badgeName} BADGE`,
-              `as proof of your skills!`,
+          const perBadgeLines: Record<string, string[]> = {
+            gym: [
+              `{NAME}, you beat every trainer`,
+              `in this gym! Take the GYM`,
+              `BADGE — you've earned it.`,
             ],
+            publication: [
+              `Ten real publications, {NAME}!`,
+              `This PUBLICATION BADGE means`,
+              `you've read our research too.`,
+            ],
+            connected: [
+              `{NAME}, you followed every URL`,
+              `I left out there. The CONNECTED`,
+              `BADGE is yours — stay in touch!`,
+            ],
+            pokedex: [
+              `All 30 projects registered,`,
+              `{NAME}? Incredible. The POKeDEX`,
+              `BADGE goes to true completionists.`,
+            ],
+            blogger: [
+              `Ten blog posts read, {NAME}!`,
+              `The BLOGGER BADGE is my way of`,
+              `saying: writing matters, keep it up.`,
+            ],
+            engineer: [
+              `Twenty TMs. Twenty tools.`,
+              `{NAME}, the ENGINEER BADGE is`,
+              `the mark of a real shipper.`,
+            ],
+          };
+          const lines = perBadgeLines[badgeId] ?? [
+            `{NAME}, you've been working hard!`,
+            `Take the ${badgeName} BADGE`,
+            `as proof of your skills!`,
+          ];
+          return {
+            lines,
             afterDialog: async ({ dialogSystem }) => {
               // Pick jingle by badge identity:
               //  - CHAMPION       → battle-symbol fanfare
