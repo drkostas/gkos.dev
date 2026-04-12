@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import OpeningScreen from "./OpeningScreen";
 import TouchControls from "./TouchControls";
 import PortraitBanner from "./PortraitBanner";
+import GameErrorBoundary from "./GameErrorBoundary";
 import { GameLoadingScreen } from "./GameLoadingScreen";
 import { isTouchDevice } from "@/game/systems/TouchInput";
 
@@ -78,7 +79,7 @@ export default function ExploreApp() {
   }, [isTouch]);
 
   return (
-    <>
+    <GameErrorBoundary>
       {!loadingDone && (
         <GameLoadingScreen
           progress={loadingProgress}
@@ -100,6 +101,6 @@ export default function ExploreApp() {
       )}
       {loadingDone && <TouchControls visible={isTouch} />}
       {loadingDone && <PortraitBanner enabled={isTouch} />}
-    </>
+    </GameErrorBoundary>
   );
 }
