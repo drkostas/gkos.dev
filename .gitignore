@@ -29,3 +29,4 @@ tests/diff-*.png
 
 # Editor history
 .history/
+editor-data.json
