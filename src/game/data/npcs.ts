@@ -93,7 +93,9 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     animated: true,
   },
 
-  // NPC 1: Boy at (29,16), wanders left-right, range 1x1
+  // NPC 1: Boy at (29,16), wanders left-right, range 1x1.
+  // BLOG GIVER #3 — "Ray Tune Tips" post on HPO tricks (this NPC
+  // is literally the one "waiting for KOSTAS to share tricks").
   {
     id: "npc_boy_3",
     spriteKey: "boy_3",
@@ -103,14 +105,25 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementRangeX: 1,
     movementRangeY: 1,
     dialog: [
-      "I'm waiting for KOSTAS to share his",
-      "thoughts on ML training tricks!",
+      "KOSTAS just dropped a post full",
+      "of Ray Tune HPO tricks — game",
+      "changer for my training runs.",
+      "Here, share a copy!",
     ],
+    autoGive: {
+      itemId: "blog_ray_tune_tips",
+      asidePosition: { x: 29, y: 17 },
+      clearedDialog: [
+        "I'm rewriting all my sweeps",
+        "with those Ray Tune patterns.",
+      ],
+    },
     speakerName: "Boy",
     animated: true,
   },
 
-  // NPC 2: Rich Boy at (24,10), wanders left-right, range 1x0
+  // NPC 2: Rich Boy at (24,10), wanders left-right, range 1x0.
+  // BLOG GIVER #4 — "Amazon L5" post (Rich Boy + Amazon = fit).
   {
     id: "npc_rich_boy",
     spriteKey: "rich_boy",
@@ -120,15 +133,26 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementRangeX: 1,
     movementRangeY: 0,
     dialog: [
-      "Did you know KOSTAS has 8,300",
-      "followers on GitHub?",
-      "That's more than most trainers!",
+      "KOSTAS's Amazon L5 reflection post",
+      "finally answered my question about",
+      "year-one Applied Scientist ramp.",
+      "Take a copy — pass it along!",
     ],
+    autoGive: {
+      itemId: "blog_amazon_l5",
+      asidePosition: { x: 25, y: 10 },
+      clearedDialog: [
+        "Applied Scientist L5 is the",
+        "dream job for a lot of us.",
+      ],
+    },
     speakerName: "Rich Boy",
     animated: true,
   },
 
-  // NPC 3: Maniac at (14,11), faces right
+  // NPC 3: Maniac at (14,11), faces right.
+  // BLOG GIVER #5 — "MAE Across Scales" post (remote-sensing nerd
+  // matches the maniac vibe).
   {
     id: "npc_maniac",
     spriteKey: "maniac",
@@ -138,9 +162,19 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "KOSTAS came all the way from Greece",
-      "to study Machine Learning in America!",
+      "KOSTAS wrote about MAE training",
+      "across remote-sensing scales!",
+      "It unlocked how I think about",
+      "pre-training objectives. Here!",
     ],
+    autoGive: {
+      itemId: "blog_mae_scale",
+      asidePosition: { x: 15, y: 11 },
+      clearedDialog: [
+        "Multi-scale features are all",
+        "you need for RS backbones.",
+      ],
+    },
     speakerName: "Maniac",
     animated: true,
   },
@@ -207,7 +241,9 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     animated: true,
   },
 
-  // NPC 6: Fat Man / Rollout Tutor at (13,7), faces left
+  // NPC 6: Fat Man / Rollout Tutor at (13,7), faces left.
+  // BLOG GIVER #6 — "Jupyter → Prod" post (tutor vibe matches the
+  // "moving research to real systems" essay).
   {
     id: "npc_fat_man",
     spriteKey: "fat_man",
@@ -217,10 +253,20 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "I heard KOSTAS has published 10",
-      "papers. Even one at NeurIPS!",
-      "Wahaha!",
+      "Wahaha! KOSTAS just wrote an",
+      "essay on moving ML research",
+      "from Jupyter notebooks to real",
+      "production systems. Required",
+      "reading — take a copy!",
     ],
+    autoGive: {
+      itemId: "blog_jupyter_to_prod",
+      asidePosition: { x: 12, y: 7 },
+      clearedDialog: [
+        "Notebooks are a starting point,",
+        "not a destination. Wahaha!",
+      ],
+    },
     speakerName: "Tutor",
     animated: true,
   },
@@ -296,7 +342,10 @@ const ROUTE_NPCS: NPCDefinition[] = [
     speakerName: "Rich Boy",
     animated: true,
   },
-  // Lass at Route117 (43,6) -> stitched (33, 56)
+  // Lass at Route117 (43,6) -> stitched (33, 56).
+  // BLOG GIVER #7 — "CLIP Distill" post companion to the MEDiC
+  // paper at the gym. Her publication-heavy dialog maps naturally
+  // to a deep-dive explainer.
   {
     id: "npc_r117_lass",
     spriteKey: "lass",
@@ -306,10 +355,19 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "KOSTAS published his first paper",
-      "during his Master's! Now he has",
-      "TEN publications with 102+ citations!",
+      "KOSTAS's CLIP Distill explainer",
+      "finally made the MEDiC paper",
+      "click for me — here, take a",
+      "copy of the blog post!",
     ],
+    autoGive: {
+      itemId: "blog_clip_distill",
+      asidePosition: { x: 34, y: 56 },
+      clearedDialog: [
+        "Distilling vision-language models",
+        "is harder than it looks!",
+      ],
+    },
     speakerName: "Lass",
     animated: true,
   },
@@ -333,7 +391,9 @@ const ROUTE_NPCS: NPCDefinition[] = [
     speakerName: "Fisherman",
     animated: true,
   },
-  // Woman_2 at Route118 (7,12) -> stitched (97, 62)
+  // Woman_2 at Route118 (7,12) -> stitched (97, 62).
+  // BLOG GIVER #8 — "Maritime AI" post. Her existing FleetSmart.ai
+  // dialog is the perfect lead-in to the origin-story essay.
   {
     id: "npc_r118_woman_2",
     spriteKey: "woman_2",
@@ -343,11 +403,19 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "KOSTAS built FleetSmart.ai —",
-      "the AI maritime platform that",
-      "optimizes global shipping!",
-      "Over 40 enterprise vessels use it!",
+      "I read KOSTAS's essay on how",
+      "FleetSmart.ai grew from a dorm",
+      "room to 40+ enterprise vessels.",
+      "Here — take a copy!",
     ],
+    autoGive: {
+      itemId: "blog_maritime_ai",
+      asidePosition: { x: 98, y: 62 },
+      clearedDialog: [
+        "Building a startup during a PhD",
+        "is not for the faint of heart!",
+      ],
+    },
     speakerName: "Woman",
     animated: true,
   },
@@ -406,7 +474,9 @@ const ROUTE_NPCS: NPCDefinition[] = [
     speakerName: "Fisherman",
     animated: true,
   },
-  // Girl_2 — ShiftMD mention
+  // Girl_2 — BLOG GIVER #9 — "ShiftMD Story" post. Her nurse-mom
+  // dialog already references the shift scheduler; adding the
+  // origin-story blog makes the narrative complete.
   {
     id: "npc_r110_girl_2",
     spriteKey: "girl_2",
@@ -416,10 +486,19 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "My mom uses ShiftMD to schedule",
-      "her nurse shifts. KOSTAS built",
-      "it to automate tedious rostering!",
+      "My mom's nurse roster uses",
+      "ShiftMD! KOSTAS even wrote up",
+      "the whole constraint-programming",
+      "story — take a copy of the post!",
     ],
+    autoGive: {
+      itemId: "blog_shiftmd_story",
+      asidePosition: { x: 61, y: 78 },
+      clearedDialog: [
+        "Constraint programming sounds",
+        "scary but ShiftMD makes it easy.",
+      ],
+    },
     speakerName: "Girl",
     animated: true,
   },
@@ -442,7 +521,10 @@ const ROUTE_NPCS: NPCDefinition[] = [
     speakerName: "Man",
     animated: true,
   },
-  // Fat_man at Route111 (19,101) -> stitched (69, 11)
+  // Fat_man at Route111 (19,101) -> stitched (69, 11).
+  // BLOG GIVER #10 — "Why I Blog" meta essay. The scholar
+  // persona who geeks out over NeurIPS is the right fit for the
+  // "writing is how I figure out what I believe" post.
   {
     id: "npc_r111_fat_man",
     spriteKey: "fat_man",
@@ -452,11 +534,20 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeX: 0,
     movementRangeY: 0,
     dialog: [
-      "KOSTAS's paper on knowledge",
-      "distillation was accepted at",
-      "NeurIPS! That's like a gym",
-      "badge from Professor Oak!",
+      "KOSTAS just wrote a meta essay",
+      "on why he blogs at all. Writing",
+      "is how you figure out what you",
+      "actually believe. Pure fire —",
+      "here, take a copy!",
     ],
+    autoGive: {
+      itemId: "blog_why_i_blog",
+      asidePosition: { x: 68, y: 11 },
+      clearedDialog: [
+        "Writing in public changed how",
+        "I think about my own research.",
+      ],
+    },
     speakerName: "Scholar",
     animated: true,
   },
