@@ -31,9 +31,29 @@ describe("Content — ITEM_DEFINITIONS", () => {
       expect(keys.length).toBeGreaterThanOrEqual(7);
     });
 
-    it("at least 1 blog post seeded for BLOGGER badge baseline", () => {
+    it("10 blog posts (BLOGGER badge design target)", () => {
       const blogs = getItemsByPocket("blogs");
-      expect(blogs.length).toBeGreaterThanOrEqual(1);
+      expect(blogs.length).toBeGreaterThanOrEqual(10);
+    });
+
+    it("every blog post has a non-placeholder name + description", () => {
+      const blogs = getItemsByPocket("blogs");
+      for (const b of blogs) {
+        expect(b.name.length).toBeGreaterThan(3);
+        expect(b.description.length).toBeGreaterThan(10);
+        // Avoid the generic "coming soon" / "tbd" placeholder copy
+        const joined = (b.name + " " + b.description).toLowerCase();
+        expect(joined).not.toContain("placeholder");
+        expect(joined).not.toContain("tbd");
+        expect(joined).not.toContain("coming soon");
+        expect(joined).not.toContain("lorem");
+      }
+    });
+
+    it("every blog post has a unique id", () => {
+      const blogs = getItemsByPocket("blogs");
+      const ids = blogs.map((b) => b.id);
+      expect(new Set(ids).size).toBe(ids.length);
     });
   });
 

@@ -131,6 +131,11 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
   },
 
   // ── BLOG POSTS pocket — stories shared by NPCs ───────────────
+  // Each blog has a unique in-game drop point (see NPC autoGive
+  // wiring in npcs.ts / interiors.ts). The `url` will be replaced
+  // with the real post URL when gkos.dev/blog goes live — for
+  // now they share the landing URL and the description carries
+  // the "real content" regression tests require.
   "blog_first_post": {
     id: "blog_first_post",
     name: "Hello World",
@@ -146,6 +151,78 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
     description: "Reflections from the\nBredesen Center at UTK.",
     url: "https://gkos.dev/blog",
     icon: "/game/ui/bag/old_amber.png",
+  },
+  "blog_clip_distill": {
+    id: "blog_clip_distill",
+    name: "CLIP Distill",
+    pocket: "blogs",
+    description:
+      "How MEDiC shrinks CLIP\ninto a clinic-ready model.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/heart_scale.png",
+  },
+  "blog_mae_scale": {
+    id: "blog_mae_scale",
+    name: "MAE Across Scales",
+    pocket: "blogs",
+    description:
+      "Why a single scale is never\nenough for remote sensing.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/star_piece.png",
+  },
+  "blog_maritime_ai": {
+    id: "blog_maritime_ai",
+    name: "Maritime AI",
+    pocket: "blogs",
+    description:
+      "Building FleetSmart.ai from\na dorm room to production.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/aurora_ticket.png",
+  },
+  "blog_shiftmd_story": {
+    id: "blog_shiftmd_story",
+    name: "ShiftMD Story",
+    pocket: "blogs",
+    description:
+      "Constraint programming for\nmedical shift scheduling.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/rare_candy.png",
+  },
+  "blog_ray_tune_tips": {
+    id: "blog_ray_tune_tips",
+    name: "Ray Tune Tips",
+    pocket: "blogs",
+    description:
+      "HPO tricks I wish I knew\nbefore starting my PhD.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/full_restore.png",
+  },
+  "blog_amazon_l5": {
+    id: "blog_amazon_l5",
+    name: "Amazon L5",
+    pocket: "blogs",
+    description:
+      "Lessons from year one as an\nApplied Scientist at Amazon.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/nugget.png",
+  },
+  "blog_jupyter_to_prod": {
+    id: "blog_jupyter_to_prod",
+    name: "Jupyter → Prod",
+    pocket: "blogs",
+    description:
+      "Moving ML research from\nnotebooks to real systems.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/max_elixir.png",
+  },
+  "blog_why_i_blog": {
+    id: "blog_why_i_blog",
+    name: "Why I Blog",
+    pocket: "blogs",
+    description:
+      "Writing is how I find out\nwhat I actually believe.",
+    url: "https://gkos.dev/blog",
+    icon: "/game/ui/bag/stardust.png",
   },
 
   // ── KEY ITEMS pocket — world exploration rewards ────────────
