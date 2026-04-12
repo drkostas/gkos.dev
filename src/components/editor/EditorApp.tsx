@@ -267,10 +267,75 @@ function Viewport() {
   return <EditorViewport />;
 }
 
+/** Editable field row */
+function PropField({ label, value, onChange, type = "text", disabled, options }: {
+  label: string; value: string | number | undefined; onChange?: (v: string) => void;
+  type?: "text" | "number" | "select"; disabled?: boolean; options?: string[];
+}) {
+  const inputStyle: React.CSSProperties = {
+    background: disabled ? "transparent" : "#0d0d1a", border: disabled ? "none" : "1px solid #2a2a40",
+    borderRadius: 3, color: disabled ? "#888" : "#ccc", fontSize: 10, padding: "2px 5px",
+    outline: "none", width: "100%", boxSizing: "border-box" as const,
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+      <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>{label}</span>
+      {type === "select" && options ? (
+        <select
+          value={value ?? ""}
+          onChange={(e) => onChange?.(e.target.value)}
+          disabled={disabled}
+          style={{ ...inputStyle, cursor: disabled ? "default" : "pointer" }}
+        >
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input
+          type={type}
+          value={value ?? ""}
+          onChange={(e) => onChange?.(e.target.value)}
+          disabled={disabled}
+          style={inputStyle}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Section wrapper with header */
+function PropSection({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div style={{ background: "#161628", borderRadius: 5, overflow: "hidden" }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{ fontSize: 9, fontWeight: 700, color, padding: "6px 8px", cursor: "pointer", display: "flex", justifyContent: "space-between" }}
+      >
+        <span>{title}</span>
+        <span style={{ color: "#555" }}>{open ? "▾" : "▸"}</span>
+      </div>
+      {open && <div style={{ padding: "0 8px 6px" }}>{children}</div>}
+    </div>
+  );
+}
+
 /** Right panel — Properties inspector */
 function RightPanel() {
   const state = useEditorState();
+  const dispatch = useEditorDispatch();
   const selected = state.entities.find((e) => e.id === state.selectedEntityId);
+
+  const updateField = (field: string, value: any, oldValue: any) => {
+    if (selected) {
+      dispatch({ type: "UPDATE_FIELD", id: selected.id, field, value, oldValue });
+      // Sync position changes to Phaser
+      if (field === "x" || field === "y") {
+        const newX = field === "x" ? Number(value) : selected.x;
+        const newY = field === "y" ? Number(value) : selected.y;
+        emitEditorEvent("editor:update-pos", { entityId: selected.id, x: newX, y: newY });
+      }
+    }
+  };
 
   if (!selected) {
     return (
@@ -280,53 +345,154 @@ function RightPanel() {
     );
   }
 
+  const typeColors: Record<string, string> = {
+    npc: "#3b82f6", "pokemon-npc": "#06b6d4", pickup: "#f97316",
+    "wild-pokemon": "#22c55e", sign: "#f59e0b", "hidden-item": "#ec4899",
+    warp: "#8b5cf6", gate: "#dc2626",
+  };
+
   return (
     <div style={{ width: 300, background: "#1e1e30", borderLeft: "1px solid #2a2a40", overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, borderBottom: "1px solid #2a2a40", paddingBottom: 4 }}>{selected.id}</div>
-
-      <div style={{ background: "#161628", borderRadius: 5, padding: "6px 8px" }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: "#4a9eed", marginBottom: 4 }}>POSITION & MOVEMENT</div>
-        <div style={{ fontSize: 11, color: "#ccc", lineHeight: 1.8 }}>
-          <div>Type: <span style={{ color: "#8b5cf6" }}>{selected.type}</span></div>
-          <div>Position: <b>{selected.x}</b>, <b>{selected.y}</b></div>
-          {selected.facingDirection && <div>Facing: {selected.facingDirection}</div>}
-          {selected.movementBehavior && <div>Movement: <span style={{ color: "#22c55e" }}>{selected.movementBehavior}</span></div>}
-          {selected.spriteKey && <div>Sprite: {selected.spriteKey}</div>}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #2a2a40", paddingBottom: 4 }}>
+        <span style={{
+          background: typeColors[selected.type] || "#888", color: "#fff", fontSize: 8,
+          padding: "1px 5px", borderRadius: 8, fontWeight: 700, textTransform: "uppercase",
+        }}>{selected.type}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selected.id}</span>
       </div>
 
-      {selected.dialog && selected.dialog.length > 0 && (
-        <div style={{ background: "#161628", borderRadius: 5, padding: "6px 8px" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: "#4a9eed", marginBottom: 4 }}>DIALOG ({selected.dialog.length} lines)</div>
+      <PropSection title="POSITION & MOVEMENT" color="#4a9eed">
+        <PropField label="ID" value={selected.id} disabled />
+        <PropField label="X" value={selected.x} type="number"
+          onChange={(v) => updateField("x", Number(v), selected.x)} />
+        <PropField label="Y" value={selected.y} type="number"
+          onChange={(v) => updateField("y", Number(v), selected.y)} />
+        <PropField label="Facing" value={selected.facingDirection} type="select"
+          options={["up", "down", "left", "right"]}
+          onChange={(v) => updateField("facingDirection", v, selected.facingDirection)} />
+        {selected.movementBehavior !== undefined && (
+          <PropField label="Movement" value={selected.movementBehavior} type="select"
+            options={["STATIONARY", "WANDER", "FACE_RANDOM", "PATROL_H", "PATROL_V", "LOOK_AROUND"]}
+            onChange={(v) => updateField("movementBehavior", v, selected.movementBehavior)} />
+        )}
+        {selected.movementRangeX !== undefined && (
+          <PropField label="Range X" value={selected.movementRangeX} type="number"
+            onChange={(v) => updateField("movementRangeX", Number(v), selected.movementRangeX)} />
+        )}
+        {selected.movementRangeY !== undefined && (
+          <PropField label="Range Y" value={selected.movementRangeY} type="number"
+            onChange={(v) => updateField("movementRangeY", Number(v), selected.movementRangeY)} />
+        )}
+        {selected.spriteKey && (
+          <PropField label="Sprite" value={selected.spriteKey} disabled />
+        )}
+      </PropSection>
+
+      {(selected.dialog && selected.dialog.length > 0) && (
+        <PropSection title={`DIALOG (${selected.dialog.length} lines)`} color="#4a9eed">
           {selected.dialog.map((line, i) => (
-            <div key={i} style={{ fontSize: 10, color: "#bbb", padding: "1px 0", fontFamily: "monospace" }}>"{line}"</div>
+            <div key={i} style={{ marginBottom: 3 }}>
+              <textarea
+                value={line}
+                onChange={(e) => {
+                  const newDialog = [...selected.dialog!];
+                  newDialog[i] = e.target.value;
+                  updateField("dialog", newDialog, selected.dialog);
+                }}
+                style={{
+                  width: "100%", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3,
+                  color: "#ccc", fontSize: 10, padding: "3px 5px", outline: "none", resize: "vertical",
+                  fontFamily: "monospace", minHeight: 24, boxSizing: "border-box",
+                }}
+              />
+            </div>
           ))}
-        </div>
+          <div
+            onClick={() => {
+              const newDialog = [...(selected.dialog || []), ""];
+              updateField("dialog", newDialog, selected.dialog);
+            }}
+            style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer", marginTop: 2 }}
+          >+ Add line</div>
+        </PropSection>
       )}
 
-      {selected.text && selected.text.length > 0 && (
-        <div style={{ background: "#161628", borderRadius: 5, padding: "6px 8px" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>SIGN TEXT</div>
+      {(selected.text && selected.text.length > 0) && (
+        <PropSection title="SIGN TEXT" color="#f59e0b">
           {selected.text.map((line, i) => (
-            <div key={i} style={{ fontSize: 10, color: "#bbb", padding: "1px 0" }}>"{line}"</div>
+            <div key={i} style={{ marginBottom: 3 }}>
+              <textarea
+                value={line}
+                onChange={(e) => {
+                  const newText = [...selected.text!];
+                  newText[i] = e.target.value;
+                  updateField("text", newText, selected.text);
+                }}
+                style={{
+                  width: "100%", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3,
+                  color: "#ccc", fontSize: 10, padding: "3px 5px", outline: "none", resize: "vertical",
+                  fontFamily: "monospace", minHeight: 24, boxSizing: "border-box",
+                }}
+              />
+            </div>
           ))}
-        </div>
+        </PropSection>
       )}
 
       {selected.autoGive && (
-        <div style={{ background: "#161628", borderRadius: 5, padding: "6px 8px" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: "#4a9eed", marginBottom: 4 }}>AUTO-GIVE</div>
-          <div style={{ fontSize: 10, color: "#ccc" }}>Item: {selected.autoGive.itemId}</div>
-          {selected.autoGive.asideX != null && <div style={{ fontSize: 10, color: "#ccc" }}>Aside: ({selected.autoGive.asideX}, {selected.autoGive.asideY})</div>}
-        </div>
+        <PropSection title="AUTO-GIVE" color="#4a9eed">
+          <PropField label="Item" value={selected.autoGive.itemId}
+            onChange={(v) => updateField("autoGive", { ...selected.autoGive, itemId: v }, selected.autoGive)} />
+          {selected.autoGive.asideX != null && (
+            <>
+              <PropField label="Aside X" value={selected.autoGive.asideX} type="number"
+                onChange={(v) => updateField("autoGive", { ...selected.autoGive, asideX: Number(v) }, selected.autoGive)} />
+              <PropField label="Aside Y" value={selected.autoGive.asideY} type="number"
+                onChange={(v) => updateField("autoGive", { ...selected.autoGive, asideY: Number(v) }, selected.autoGive)} />
+            </>
+          )}
+        </PropSection>
       )}
 
       {selected.pokemon && (
-        <div style={{ background: "#161628", borderRadius: 5, padding: "6px 8px" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: "#22c55e", marginBottom: 4 }}>POKEMON</div>
-          <div style={{ fontSize: 10, color: "#ccc" }}>Dex #{selected.pokemon.pokedexNumber} — {selected.pokemon.speciesName}</div>
-          <div style={{ fontSize: 10, color: "#888" }}>{selected.pokemon.projectName}</div>
-        </div>
+        <PropSection title="POKEMON" color="#22c55e">
+          <PropField label="Dex #" value={selected.pokemon.pokedexNumber} type="number" disabled />
+          <PropField label="Species" value={selected.pokemon.speciesName} disabled />
+          <PropField label="Project" value={selected.pokemon.projectName} disabled />
+        </PropSection>
+      )}
+
+      {selected.type === "warp" && (
+        <PropSection title="WARP" color="#8b5cf6">
+          <PropField label="Target Map" value={selected.targetMap}
+            onChange={(v) => updateField("targetMap", v, selected.targetMap)} />
+          <PropField label="Spawn X" value={selected.spawnX} type="number"
+            onChange={(v) => updateField("spawnX", Number(v), selected.spawnX)} />
+          <PropField label="Spawn Y" value={selected.spawnY} type="number"
+            onChange={(v) => updateField("spawnY", Number(v), selected.spawnY)} />
+          <PropField label="Facing" value={selected.spawnFacing} type="select" options={["up", "down", "left", "right"]}
+            onChange={(v) => updateField("spawnFacing", v, selected.spawnFacing)} />
+        </PropSection>
+      )}
+
+      {selected.type === "hidden-item" && (
+        <PropSection title="HIDDEN ITEM" color="#ec4899">
+          <PropField label="Item" value={selected.itemId}
+            onChange={(v) => updateField("itemId", v, selected.itemId)} />
+          <PropField label="Map" value={selected.map} disabled />
+          <PropField label="Difficulty" value={selected.difficulty} type="select"
+            options={["easy", "medium", "hard"]}
+            onChange={(v) => updateField("difficulty", v, selected.difficulty)} />
+          <PropField label="Placement" value={selected.placement} disabled />
+        </PropSection>
+      )}
+
+      {selected.type === "gate" && (
+        <PropSection title="GATE" color="#dc2626">
+          <PropField label="Gate Type" value={selected.gateType} disabled />
+          <PropField label="NPC ID" value={selected.npcId} disabled />
+          {selected.requiredMove && <PropField label="Move" value={selected.requiredMove} disabled />}
+        </PropSection>
       )}
 
       {selected.hasDialogFn && (
@@ -334,6 +500,16 @@ function RightPanel() {
           ⚠ Has dynamic dialogFn — edit in source code
         </div>
       )}
+      {selected.hasSpawnCondition && (
+        <div style={{ background: "#2a1a1a", borderRadius: 5, padding: "4px 8px", fontSize: 9, color: "#f59e0b" }}>
+          ⚠ Has spawnCondition — edit in source code
+        </div>
+      )}
+
+      <PropSection title="SOURCE" color="#666">
+        <PropField label="File" value={selected.sourceFile} disabled />
+        {selected.sourceOffset && <div style={{ fontSize: 9, color: "#666", paddingLeft: 76 }}>Has +50 offset</div>}
+      </PropSection>
     </div>
   );
 }
