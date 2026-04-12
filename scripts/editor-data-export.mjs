@@ -65,31 +65,47 @@ function extractFullNpcs(body, applyOffset, sourceFile) {
     const twM = slice.match(/tileWidth:\s*(\d+)/);
     const thM = slice.match(/tileHeight:\s*(\d+)/);
 
-    // Dialog lines
-    const dialogM = slice.match(/dialog:\s*\[([\s\S]*?)\]/);
+    // Dialog lines — use a bracket-depth parser instead of greedy regex
     let dialog = [];
-    if (dialogM) {
-      dialog = [...dialogM[1].matchAll(/"([^"]*?)"/g)].map(m => m[1]);
+    const dlgStart = slice.indexOf("dialog:");
+    if (dlgStart !== -1) {
+      const bracketStart = slice.indexOf("[", dlgStart);
+      if (bracketStart !== -1) {
+        let depth = 1, j = bracketStart + 1;
+        while (j < slice.length && depth > 0) {
+          if (slice[j] === "[") depth++;
+          else if (slice[j] === "]") depth--;
+          j++;
+        }
+        const dlgBody = slice.slice(bracketStart + 1, j - 1);
+        const lineRe = /"([^"]*)"/g;
+        let lm;
+        while ((lm = lineRe.exec(dlgBody)) !== null) dialog.push(lm[1]);
+      }
     }
 
-    // AutoGive
+    // AutoGive — simple field extraction, no greedy regex
     let autoGive = null;
-    const agItemM = slice.match(/autoGive:\s*\{[^}]*?itemId:\s*"([^"]+)"/s);
-    const agAsideM = slice.match(/asidePosition:\s*\{\s*x:\s*(\d+),\s*y:\s*(\d+)\s*\}/);
-    if (agItemM) {
-      autoGive = { itemId: agItemM[1] };
-      if (agAsideM) {
-        let ax = parseInt(agAsideM[1], 10), ay = parseInt(agAsideM[2], 10);
-        if (applyOffset) { ax += 50; ay += 50; }
-        autoGive.asideX = ax;
-        autoGive.asideY = ay;
+    if (slice.includes("autoGive:")) {
+      const agItemM = slice.match(/itemId:\s*"([^"]+)"/);
+      const agAsideM = slice.match(/asidePosition:\s*\{\s*x:\s*(\d+),\s*y:\s*(\d+)\s*\}/);
+      if (agItemM) {
+        autoGive = { itemId: agItemM[1] };
+        if (agAsideM) {
+          let ax = parseInt(agAsideM[1], 10), ay = parseInt(agAsideM[2], 10);
+          if (applyOffset) { ax += 50; ay += 50; }
+          autoGive.asideX = ax;
+          autoGive.asideY = ay;
+        }
       }
     }
 
     // Pickup
     let pickup = null;
-    const pickupIdM = slice.match(/pickup:\s*\{[^}]*?itemId:\s*"([^"]+)"/s);
-    if (pickupIdM) pickup = { itemId: pickupIdM[1] };
+    if (slice.includes("pickup:")) {
+      const pickupIdM = slice.match(/itemId:\s*"([^"]+)"/);
+      if (pickupIdM && !autoGive) pickup = { itemId: pickupIdM[1] };
+    }
 
     // Pokemon
     let pokemon = null;
@@ -189,7 +205,8 @@ function extractWildPokemon(text) {
 
 // ── Extract hidden items ─────────────────────────────────────────
 function extractHiddenItems(text) {
-  const re = /\{\s*id:\s*"([^"]+)"[^}]*?map:\s*"([^"]+)"[^}]*?x:\s*(\d+),\s*y:\s*(\d+)[^}]*?itemId:\s*"([^"]+)"[^}]*?difficulty:\s*"([^"]+)"[^}]*?placement:\s*"([^"]+)"/gs;
+  // Use a simpler per-block approach instead of greedy cross-field regex
+  const re = /id:\s*"([^"]+)"[\s\S]{0,200}?map:\s*"([^"]+)"[\s\S]{0,100}?x:\s*(\d+)[\s\S]{0,20}?y:\s*(\d+)[\s\S]{0,100}?itemId:\s*"([^"]+)"[\s\S]{0,100}?difficulty:\s*"([^"]+)"[\s\S]{0,100}?placement:\s*"([^"]+)"/g;
   const out = [];
   let m;
   while ((m = re.exec(text)) !== null) {
@@ -233,21 +250,24 @@ function extractWarps(text) {
 function extractGates(text) {
   const body = sliceArrayBody(text, "GATES");
   if (!body) return [];
+  // Collect all id positions first, then slice between them
   const idRe = /id:\s*"([^"]+)"/g;
-  const out = [];
+  const idMatches = [];
   let m;
   while ((m = idRe.exec(body)) !== null) {
-    const start = m.index;
-    const nextM = idRe.exec(body);
-    const end = nextM ? nextM.index : body.length;
-    if (nextM) idRe.lastIndex = nextM.index; // reset
+    idMatches.push({ id: m[1], idx: m.index });
+  }
+  const out = [];
+  for (let i = 0; i < idMatches.length; i++) {
+    const start = idMatches[i].idx;
+    const end = i + 1 < idMatches.length ? idMatches[i + 1].idx : body.length;
     const slice = body.slice(start, end);
     const typeM = slice.match(/type:\s*"([^"]+)"/);
     const moveM = slice.match(/requiredMove:\s*"([^"]+)"/);
     const npcIdM = slice.match(/npcId:\s*"([^"]+)"/);
     out.push({
       type: "gate",
-      id: m[1],
+      id: idMatches[i].id,
       gateType: typeM?.[1] || "terrain",
       requiredMove: moveM?.[1] || "",
       npcId: npcIdM?.[1],
