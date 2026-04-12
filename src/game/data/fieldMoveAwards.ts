@@ -25,5 +25,30 @@ export interface FieldMoveAward {
   learnMessage: string;
 }
 
-/** Content phase populates this array. */
-export const FIELD_MOVE_AWARDS: FieldMoveAward[] = [];
+/**
+ * Content phase entries. Per the comprehensive plan's Decision
+ * Ledger §5: POKEDEX badge teaches FleetSmart (party member
+ * `fleetsmart`, species Kyogre) a custom field move "FORCE PUSH"
+ * that clears the Snorlax NPC gate; PUBLICATION badge teaches
+ * MaskDistill (party member `maskdistill`, species Absol) "CUT"
+ * which clears the tinted-tree terrain gate on Route 111.
+ *
+ * FIELD_MOVE_AWARDS entries trigger inside KOSTAS's `afterDialog`
+ * side effect — see `interiors.ts` → `gym_kostas.dialogFn` where
+ * `teachFieldMove(pokemonId, moveName)` mutates `save.fieldMoves`.
+ * Gate matching is exact: the same string appears in both places.
+ */
+export const FIELD_MOVE_AWARDS: FieldMoveAward[] = [
+  {
+    badgeId: "pokedex",
+    pokemonId: "fleetsmart",
+    moveName: "FORCE PUSH",
+    learnMessage: "FleetSmart learned FORCE PUSH!",
+  },
+  {
+    badgeId: "publication",
+    pokemonId: "maskdistill",
+    moveName: "CUT",
+    learnMessage: "MaskDistill learned CUT!",
+  },
+];
