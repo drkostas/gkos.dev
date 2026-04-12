@@ -1,14 +1,14 @@
 # Ralph Loop Round 1 — Session Summary
 
-Status as of commit `8497e0d` on `main` (33 commits ahead of `origin/main`).
+Status as of commit `b325702` on `main` (38 commits ahead of `origin/main`).
 
 ## Test totals
 
 | Suite | Count | Status |
 |------|-------|--------|
-| Vitest unit tests | 149 | ✅ all passing |
+| Vitest unit tests | 165 | ✅ all passing |
 | Playwright e2e tests (3 viewports) | 12 | ✅ all passing |
-| **Total** | **161** | ✅ |
+| **Total** | **177** | ✅ |
 
 TypeScript: 0 errors, 0 warnings. Production build: clean.
 
@@ -16,22 +16,22 @@ TypeScript: 0 errors, 0 warnings. Production build: clean.
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| 1 | Every task checkbox in the 15-day plan | 🟡 Major forward progress, many items still unchecked |
-| 2 | Playwright suite passes on all three viewport categories | 🟢 12 game-flow e2e tests passing + 149 unit tests |
+| 1 | Every task checkbox in the 15-day plan | 🟡 All engine + content gaps closed. Only aspirational items (gates/field moves) + a few decorative easter eggs remain. |
+| 2 | Playwright suite passes on all three viewport categories | 🟢 12 game-flow e2e tests passing + 165 unit tests |
 | 3 | Zero console errors on /explore across full user flow on 3 viewports | 🟢 Verified end-to-end |
 | 4 | TypeScript compiles clean | 🟢 0 errors, 0 warnings |
 | 5 | Production build succeeds | 🟢 `npm run build` → `[build] Complete!` |
-| 6 | Vercel deployment live + passes e2e | 🔴 **BLOCKED ON PUSH** — 33 commits local |
-| 7 | Every NPC dialog written, not stubbed | 🟢 Gym trainers rewired to real papers, 5 live API NPCs, all signs & research log entries real |
-| 8 | Every Pokemon / paper / TM / key item / blog / sign / research log entry has real content | 🟢 Papers 10, TMs 20, Pokemon 35, Key items 7, Blogs 2, Signs 10+, Research Log 6 — all locked with regression tests |
-| 9 | KOSTAS state machine handles all 7 priorities with save fixtures | 🟢 `resolveKostasPriority()` + 12 fixture tests in `KostasStateMachine.test.ts` |
+| 6 | Vercel deployment live + passes e2e | 🔴 **BLOCKED ON PUSH** — 38 commits local |
+| 7 | Every NPC dialog written, not stubbed | 🟢 6 gym trainers, 5 live API NPCs, 10 blog-giver NPCs, all signs & research log entries — all real content |
+| 8 | Every Pokemon / paper / TM / key item / blog / sign / research log entry has real content | 🟢 Papers 10, TMs 20, Pokemon 35, Key items 8 (incl. PHONE.NUMBER), Blogs 10, Signs 21, Research Log 8 — all locked with regression tests |
+| 9 | KOSTAS state machine handles all 7 priorities with save fixtures | 🟢 `resolveKostasPriority()` + 12 fixture tests + per-badge unique copy + {NAME} interpolation tests in `KostasStateMachine.test.ts` |
 | 10 | All 5 API NPCs fetch live data + graceful fallback | 🟢 GitHub (runtime verified, returned 4168 live contributions), Spotify, Strava, PyPI, Steps — 47 fetch+format unit tests |
 | 11 | Game screen-recorded from title → CHAMPION badge on 3 viewports | 🔴 Requires manual playthrough + recording |
 | 12 | Lighthouse mobile ≥85 on /explore | 🟡 Dev: 32→61 (+29 from Phaser lazy-load). Production expected higher (compression + minification). |
 
 ## Blocking actions (require user)
 
-1. **Push commits to origin/main** — Vercel auto-deploys on push. All Mobile Safari user-reported bugs (Birch oversized text, fullscreen button broken, BOY/GIRL flash) are fixed locally but NOT yet on `portfolio-v2-one-pied.vercel.app`.
+1. **Push commits to origin/main** — Vercel auto-deploys on push. All Mobile Safari user-reported bugs (Birch oversized text, fullscreen button broken, BOY/GIRL flash) are fixed locally but NOT yet on `portfolio-v2-one-pied.vercel.app`, and the newer content (8 more blog NPCs, 2 more gym trainers, badge-specific dialogs, MEW phone-number drop) ships along with them.
 
    ```bash
    git push origin main
@@ -41,9 +41,37 @@ TypeScript: 0 errors, 0 warnings. Production build: clean.
 
 3. **Measure production Lighthouse** — once pushed, run `npx lighthouse https://<preview-url>/explore?touch=1` on mobile preset. The 85 threshold is unreachable on dev (no compression/minification) but likely achievable on production given the lazy-load refactors.
 
-## Commit log (33 ahead of origin/main)
+## Content added in the current session (post 8497e0d)
+
+| Commit | Subject |
+|--------|---------|
+| `c5f97e7` | Wire 2 Mauville NPCs to give blog posts via `autoGive.itemId` |
+| `0db92aa` | Expand Research Log 6→8 + Mauville signs 17→21 |
+| `5ec898d` | Wire `{NAME}` interpolation into KOSTAS + PC + Mart dialog |
+| `aa3271f` | Expand Mauville Gym trainers 4 → 6 (design target) |
+| `8a971db` | Expand blog posts 2 → 10 (BLOGGER badge design target) |
+| `7b0c627` | Wire remaining 8 blog-giver NPCs (2→10, full coverage) |
+| `fe9262e` | Unique badge-award monologue per KOSTAS priority |
+| `8d0927b` | Add 4 hidden TMs scattered across the routes |
+| `b325702` | MEW phone-number drop + `pickup.itemId` plumbing for CHAMPION |
+
+Test count went from 149 → 165. Four new dedicated regression suites added: `BlogNPCCoverage.test.ts`, `HiddenItems.test.ts`, and expanded coverage in `KostasStateMachine.test.ts` + `ItemDefinitions.test.ts` + `BadgeMilestones.test.ts`.
+
+Latent bug fixed during the MEW wiring: the legacy pickup path (5 key-item balls for resume/github/linkedin/huggingface/scholar) persisted to PickupStore but never updated `save.keyItemsCollected`, which meant the CONNECTED and CHAMPION badge conditions could not fire from normal play. All 5 pickups migrated to `pickup.itemId` which routes through `giveItem()`.
+
+## Commit log (38 ahead of origin/main)
 
 ```
+b325702 feat: MEW phone-number drop + pickup.itemId plumbing for CHAMPION
+8d0927b content: add 4 hidden TMs scattered across the routes (criterion #1)
+fe9262e content: unique badge-award monologue per KOSTAS priority (criterion #1)
+7b0c627 content: wire remaining 8 blog-giver NPCs (2→10, full coverage)
+8a971db content: expand blog posts 2 → 10 (BLOGGER badge design target)
+aa3271f content: expand Mauville Gym trainers 4 → 6 (design target)
+5ec898d content: wire {NAME} interpolation into KOSTAS + PC + Mart dialog
+0db92aa content: expand Research Log 6→8 + Mauville signs 17→21
+c5f97e7 feat: wire 2 Mauville NPCs to give blog posts via autoGive.itemId
+fa5dc16 docs: session summary for round-1 ralph loop
 8497e0d perf: lazy-load BirchSpeechLayer via React.lazy()
 e5da325 test: Research Log + Signs content regression tests
 fce301e perf: lazy-load Phaser via React.lazy() — Lighthouse +29 points mobile
