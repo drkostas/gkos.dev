@@ -256,6 +256,68 @@ describe("KOSTAS state machine — 7 priority branches", () => {
   });
 });
 
+describe("Badge-specific dialogs (criterion #1 / plan §Badge dialogs)", () => {
+  it("all 6 KOSTAS badges emit unique award copy (no template)", async () => {
+    // Force-seed a save state that matches each badge's condition,
+    // then call KOSTAS's dialogFn and collect the emitted lines.
+    // Each badge should produce a unique line set — not the same
+    // templated string with only the badge name swapped.
+    const { INTERIORS } = await import("@/game/data/interiors");
+    const kostas = INTERIORS.gym.npcs.find((n) => n.id === "gym_kostas");
+    expect(kostas?.dialogFn).toBeDefined();
+
+    // Locally compute the openable-URL key universe (the outer
+    // describe's `allUrlKeys` is out of scope here).
+    const localTotalUrls =
+      Object.values(ITEM_DEFINITIONS).filter((i) => i.url).length +
+      POKEDEX.filter((p) => p.url).length;
+    const localAllUrlKeys = Array.from(
+      { length: localTotalUrls },
+      (_, i) => `dummy:${i}`,
+    );
+
+    // Seeds that satisfy the REAL BadgeMilestones conditions:
+    //  gym:         s.gymComplete === true
+    //  publication: s.papersCollected.length >= TOTAL_PAPERS (10)
+    //  connected:   s.keyItemsCollected.length >= TOTAL_KEY_ITEMS (7)
+    //  pokedex:     s.pokedexSeen.length >= TOTAL_POKEDEX (30)
+    //  blogger:     s.blogsCollected.length >= TOTAL_BLOGS (10)
+    //  engineer:    s.tmsCollected.length >= TOTAL_TMS (20)
+    // localAllUrlKeys is kept for symmetry but not needed here.
+    void localAllUrlKeys;
+    const seeds: Array<{ badgeId: string; save: Parameters<typeof updateSave>[0] }> = [
+      { badgeId: "gym", save: { gymComplete: true } as Parameters<typeof updateSave>[0] },
+      { badgeId: "publication", save: { papersCollected: Array.from({ length: 10 }, (_, i) => `paper_${i}`) } as Parameters<typeof updateSave>[0] },
+      { badgeId: "connected", save: { keyItemsCollected: Array.from({ length: 10 }, (_, i) => `key_${i}`) } as Parameters<typeof updateSave>[0] },
+      { badgeId: "pokedex", save: { pokedexSeen: Array.from({ length: 40 }, (_, i) => i + 1) } as Parameters<typeof updateSave>[0] },
+      { badgeId: "blogger", save: { blogsCollected: Array.from({ length: 10 }, (_, i) => `blog_${i}`) } as Parameters<typeof updateSave>[0] },
+      { badgeId: "engineer", save: { tmsCollected: Array.from({ length: 20 }, (_, i) => `tm_${i}`) } as Parameters<typeof updateSave>[0] },
+    ];
+
+    const lineSets: Record<string, string[]> = {};
+    for (const { badgeId, save } of seeds) {
+      clearSave();
+      updateSave(save);
+      const result = await kostas!.dialogFn!(getSave());
+      lineSets[badgeId] = result.lines;
+    }
+
+    // Every branch must produce non-empty lines.
+    for (const [badgeId, lines] of Object.entries(lineSets)) {
+      expect(lines.length).toBeGreaterThan(0);
+      expect(lines.join(" ").length).toBeGreaterThan(20);
+      expect(lines.some((l) => l.includes("{NAME}"))).toBe(true);
+      // Guard against the generic fallback copy leaking through.
+      expect(lines.join(" ")).not.toContain("working hard!\nTake the ");
+    }
+
+    // All 6 award line sets must be distinct. Join with \n so a
+    // single duplicated line alone does not trigger a false match.
+    const joined = Object.values(lineSets).map((ls) => ls.join("\n"));
+    expect(new Set(joined).size).toBe(joined.length);
+  });
+});
+
 describe("KOSTAS dialog uses {NAME} interpolation", () => {
   it("all three dialogFn branches emit lines with {NAME}", async () => {
     // Pull the actual interior definition and exercise each branch
