@@ -46,13 +46,40 @@ function Toolbar() {
   ];
 
   const handleSave = async () => {
+    // Collect changes from undo stack
+    const changes = state.undoStack
+      .filter((u) => u.action.type === "MOVE_ENTITY" || u.action.type === "UPDATE_FIELD")
+      .map((u) => {
+        const a = u.action;
+        if (a.type === "MOVE_ENTITY") {
+          return [
+            { entityId: a.id, field: "x", oldValue: a.oldX, newValue: a.x },
+            { entityId: a.id, field: "y", oldValue: a.oldY, newValue: a.y },
+          ];
+        }
+        if (a.type === "UPDATE_FIELD") {
+          return [{ entityId: a.id, field: a.field, oldValue: a.oldValue, newValue: a.value }];
+        }
+        return [];
+      })
+      .flat();
+
+    if (changes.length === 0) {
+      console.log("[save] No changes to save");
+      return;
+    }
+
     try {
-      await fetch("/api/editor/save", {
+      const r = await fetch("/api/editor/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ changes: [], dryRun: true }),
+        body: JSON.stringify({ changes, dryRun: false }),
       });
-      dispatch({ type: "MARK_CLEAN" });
+      const result = await r.json();
+      console.log("[save] Result:", result);
+      if (result.success) {
+        dispatch({ type: "MARK_CLEAN" });
+      }
     } catch (e) {
       console.error("Save failed:", e);
     }
