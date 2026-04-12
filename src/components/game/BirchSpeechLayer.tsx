@@ -315,17 +315,35 @@ export default function BirchSpeechLayer({ onComplete }: BirchSpeechLayerProps) 
     // On the last line — drive the phase transition. GENDER_SELECT
     // and NAME_CONFIRM deliberately don't auto-advance; they wait
     // for the dedicated menu sub-component to take over.
+    //
+    // M9: Reset textLines/textLineIndex BEFORE the phase change so
+    // `allTextShown` (derived from those values + displayedText)
+    // can't remain `true` on the very next render, which used to
+    // cause the BOY/GIRL menu to flash for one frame before the
+    // GENDER_SELECT phase's useEffect could kick off its own
+    // showText. The React render order is:
+    //   frame 1: setPhase → re-render with new phase but stale textLines
+    //   frame 2: useEffect fires showText → new textLines, isTyping=true
+    // Without the reset, frame 1 evaluated `allTextShown === true`
+    // because the prior phase's textLineIndex was at its last line
+    // and displayedText still matched that line.
     const currentPhase = phaseRef.current;
-    switch (currentPhase) {
-      case "WELCOME":        setPhase("WORLD_INTRO"); break;
-      case "WORLD_INTRO":    setPhase("MAIN_SPEECH"); break;
-      case "MAIN_SPEECH":    setPhase("AND_YOU_ARE"); break;
-      case "AND_YOU_ARE":    setPhase("GENDER_SELECT"); break;
-      case "WHATS_YOUR_NAME": setPhase("NAME_INPUT"); break;
-      case "ARE_YOU_READY":  setPhase("PLAYER_SHRINK"); break;
-      default: break;
+    const transitions: Partial<Record<Phase, Phase>> = {
+      WELCOME: "WORLD_INTRO",
+      WORLD_INTRO: "MAIN_SPEECH",
+      MAIN_SPEECH: "AND_YOU_ARE",
+      AND_YOU_ARE: "GENDER_SELECT",
+      WHATS_YOUR_NAME: "NAME_INPUT",
+      ARE_YOU_READY: "PLAYER_SHRINK",
+    };
+    const nextPhase = transitions[currentPhase];
+    if (nextPhase) {
+      setTextLines([]);
+      setTextLineIndex(0);
+      resetTypewriter();
+      setPhase(nextPhase);
     }
-  }, [skipToEnd, startTyping]);
+  }, [skipToEnd, startTyping, resetTypewriter]);
 
   // ── Gender swap animation ─────────────────────────────────
   const swapGender = useCallback((newGender: "boy" | "girl") => {
@@ -348,13 +366,24 @@ export default function BirchSpeechLayer({ onComplete }: BirchSpeechLayerProps) 
   );
 
   const handleGenderConfirm = useCallback(() => {
+    // M9: clear stale text state so the WHATS_YOUR_NAME phase's
+    // useEffect is the only source of text for the next render.
+    setTextLines([]);
+    setTextLineIndex(0);
+    resetTypewriter();
     setPhase("WHATS_YOUR_NAME");
-  }, []);
+  }, [resetTypewriter]);
 
   const handleNameSubmit = useCallback((name: string) => {
+    // M9: same — prevent stale NAME_INPUT / prior text from
+    // satisfying `allTextShown` on the first render of NAME_CONFIRM,
+    // which would flash the YES/NO menu with the wrong cursor state.
     setPlayerName(name);
+    setTextLines([]);
+    setTextLineIndex(0);
+    resetTypewriter();
     setPhase("NAME_CONFIRM");
-  }, []);
+  }, [resetTypewriter]);
 
   // ── Render helpers ────────────────────────────────────────
   const currentLine = textLines[textLineIndex] ?? "";
