@@ -295,8 +295,8 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
     name: "PHONE.NUMBER",
     pocket: "keyItems",
     description:
-      "KOSTAS's personal line.\nUSE it only when you're\nready to be in touch.",
-    url: "https://gkos.dev/contact",
+      "KOSTAS's personal line.\n+865 978 9244\nCall when you're ready.",
+    url: "tel:+8659789244",
     icon: "/game/ui/bag/heart_scale.png",
   },
 

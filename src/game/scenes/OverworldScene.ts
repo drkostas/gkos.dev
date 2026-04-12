@@ -1273,7 +1273,7 @@ export class OverworldScene extends Phaser.Scene {
         count++;
       }
     }
-    console.log(`Created ${count} foreground tile sprites`);
+    // Removed console.log spam — was firing on every scene create
   }
 
   // ── Warp / door transitions ──────────────────────────────────
