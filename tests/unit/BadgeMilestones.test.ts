@@ -210,20 +210,26 @@ describe("BadgeMilestones", () => {
   });
 
   describe("CHAMPION condition", () => {
-    it("needs PHONE.NUMBER in keyItemsCollected", () => {
+    it("needs key_phone_number id in keyItemsCollected", () => {
+      const champ = BADGES.find((b) => b.id === "champion")!;
+      updateSave({ keyItemsCollected: ["key_phone_number"] });
+      expect(champ.condition(getSave())).toBe(true);
+    });
+
+    it("accepts legacy PHONE.NUMBER display-name entries", () => {
       const champ = BADGES.find((b) => b.id === "champion")!;
       updateSave({ keyItemsCollected: ["PHONE.NUMBER"] });
       expect(champ.condition(getSave())).toBe(true);
     });
 
-    it("without PHONE.NUMBER the condition is false", () => {
+    it("without phone-number entry the condition is false", () => {
       const champ = BADGES.find((b) => b.id === "champion")!;
-      updateSave({ keyItemsCollected: ["GITHUB.URL"] });
+      updateSave({ keyItemsCollected: ["key_github"] });
       expect(champ.condition(getSave())).toBe(false);
     });
 
-    it("auto-awards when checkBadges fires with PHONE.NUMBER collected", () => {
-      updateSave({ keyItemsCollected: ["PHONE.NUMBER"] });
+    it("auto-awards when checkBadges fires with key_phone_number collected", () => {
+      updateSave({ keyItemsCollected: ["key_phone_number"] });
       checkBadges();
       expect(getSave().badges).toContain("champion");
     });

@@ -123,8 +123,14 @@ export const BADGES: BadgeDef[] = [
     id: "champion",
     name: "CHAMPION",
     hint: "Find MEW beyond the water boundary",
-    // Also auto-awarded by MEW's interaction code.
-    condition: (s) => s.keyItemsCollected.includes("PHONE.NUMBER"),
+    // Auto-awarded the moment MEW hands the player the PHONE.NUMBER
+    // (stored as the `key_phone_number` id in keyItemsCollected).
+    // The legacy check for the display name "PHONE.NUMBER" is kept
+    // as a second branch so any pre-migration save that stored the
+    // raw name still flips champion on load.
+    condition: (s) =>
+      s.keyItemsCollected.includes("key_phone_number") ||
+      s.keyItemsCollected.includes("PHONE.NUMBER"),
     auto: true,
   },
 ];

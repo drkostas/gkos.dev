@@ -26,9 +26,16 @@ describe("Content — ITEM_DEFINITIONS", () => {
       expect(tms.length).toBe(20);
     });
 
-    it("at least 7 key items (CONNECTED badge total)", () => {
+    it("at least 8 key items (CONNECTED + PHONE.NUMBER for CHAMPION)", () => {
       const keys = getItemsByPocket("keyItems");
-      expect(keys.length).toBeGreaterThanOrEqual(7);
+      expect(keys.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it("key_phone_number exists (CHAMPION badge trigger)", () => {
+      const def = getItemDef("key_phone_number");
+      expect(def).toBeDefined();
+      expect(def?.name).toBe("PHONE.NUMBER");
+      expect(def?.pocket).toBe("keyItems");
     });
 
     it("10 blog posts (BLOGGER badge design target)", () => {
