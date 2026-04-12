@@ -47,7 +47,11 @@ export interface BadgeDef {
 const TOTAL_PAPERS = getItemsByPocket("papers").length;
 const TOTAL_BLOGS = getItemsByPocket("blogs").length;
 const TOTAL_TMS = getItemsByPocket("tms").length;
-const TOTAL_KEY_ITEMS = getItemsByPocket("keyItems").length;
+// Exclude key_phone_number from the CONNECTED threshold — the phone
+// is the CHAMPION endgame reward and shouldn't gate an earlier badge.
+const TOTAL_KEY_ITEMS = getItemsByPocket("keyItems").filter(
+  (i) => i.id !== "key_phone_number",
+).length;
 const TOTAL_POKEDEX = POKEDEX.length;
 /**
  * B7 — Badge IDs follow design doc `docs/plans/explore-mode-final.md`
