@@ -45,6 +45,7 @@ async function fetchPyPi<T = any>(path: string): Promise<T | null> {
   try {
     const response = await fetch(`${PYPISTATS_BASE}${path}`, {
       headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
       console.warn(`[pypi] ${path} → ${response.status}`);
@@ -109,11 +110,11 @@ export async function getManyPackageStats(
     }
     const stats = await getPackageStats(pkg);
     result.set(pkg, stats);
-    // 3s delay between requests — pypistats.org rate-limits aggressively.
-    // With 7 packages this adds ~21s to the first uncached request, but the
-    // edge caches the result for 1 hour so subsequent visitors get it instantly.
+    // 1s delay between requests to avoid pypistats.org rate limits.
+    // Reduced from 3s → 1s (with per-request 5s timeout) so the
+    // total wall time is ~12s instead of ~24s for 7 packages.
     if (urls.indexOf(url) < urls.length - 1) {
-      await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
   return result;
