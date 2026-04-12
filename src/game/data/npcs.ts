@@ -819,10 +819,48 @@ const MAUVILLE_SIGNS_RAW: SignDefinition[] = [
       "Check back later!",
     ],
   },
-  // Game Corner sign at (11,15)
+  // Game Corner sign at (11,15). The OG had this as a generic
+  // "GAME CORNER" — replaced with a full blurb that points at the
+  // in-game Game Corner content (Spotify link NPC inside).
   {
     position: { x: 11, y: 15 },
-    text: ["GAME CORNER"],
+    text: [
+      "GAME CORNER",
+      "Slots, coins, and the best",
+      "Spotify playlist in town.",
+    ],
+  },
+
+  // Blog Tower sign at (8,18). The Blog Tower is an (imagined)
+  // building that hosts KOSTAS's writing — referenced by NPCs and
+  // the papers-Pokemon storyline.
+  {
+    position: { x: 8, y: 18 },
+    text: [
+      "BLOG TOWER",
+      "Where every draft eventually",
+      "becomes a published post.",
+    ],
+  },
+  // Observatory (north of Mauville) at (28,4) — ties into Research
+  // Log's "8,300 followers" and Cross-Scale MAE papers.
+  {
+    position: { x: 28, y: 4 },
+    text: [
+      "MAUVILLE OBSERVATORY",
+      "Home of the Cross-Scale MAE.",
+      "Telescope currently pointed at",
+      "GitHub commit graphs.",
+    ],
+  },
+  // Welcome arch at the south gate (17,26)
+  {
+    position: { x: 17, y: 26 },
+    text: [
+      "WELCOME TO MAUVILLE",
+      "Population: 8,300 followers",
+      "and counting.",
+    ],
   },
 
   // ── Locked door messages ──────────────────────────────
@@ -832,6 +870,16 @@ const MAUVILLE_SIGNS_RAW: SignDefinition[] = [
     text: [
       "The door is locked.",
       "Nobody seems to be home.",
+    ],
+  },
+  // Second locked-door easter egg — the west-edge researcher's
+  // house is "always in a meeting with Dr. Qi".
+  {
+    position: { x: 2, y: 20 },
+    text: [
+      "The door is locked.",
+      "Post-It: 'In a meeting with",
+      "Dr. Hairong Qi — back soon.'",
     ],
   },
 ];

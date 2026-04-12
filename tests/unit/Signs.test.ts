@@ -9,8 +9,8 @@ import { MAUVILLE_SIGNS } from "@/game/data/npcs";
  */
 
 describe("Content — Signs", () => {
-  it("has at least 10 sign definitions across Mauville + routes", () => {
-    expect(MAUVILLE_SIGNS.length).toBeGreaterThanOrEqual(10);
+  it("has at least 20 sign definitions across Mauville + routes (design target)", () => {
+    expect(MAUVILLE_SIGNS.length).toBeGreaterThanOrEqual(20);
   });
 
   it("every sign has a non-empty text array", () => {

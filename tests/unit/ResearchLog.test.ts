@@ -7,8 +7,8 @@ import { LOG_ENTRIES } from "@/game/data/researchLog";
  */
 
 describe("Content — Research Log", () => {
-  it("has at least 6 entries", () => {
-    expect(LOG_ENTRIES.length).toBeGreaterThanOrEqual(6);
+  it("has at least 8 entries (design target)", () => {
+    expect(LOG_ENTRIES.length).toBeGreaterThanOrEqual(8);
   });
 
   it("every entry has a unique number", () => {
