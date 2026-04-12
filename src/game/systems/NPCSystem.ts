@@ -13,7 +13,8 @@ import { sfx } from "@/game/systems/SoundManager";
 import { isPokedexSeen, markPokedexSeen } from "@/game/systems/PokedexStore";
 import { isTrainerCleared, markTrainerCleared } from "@/game/systems/TrainerStore";
 import { checkBadges } from "@/game/systems/BadgeMilestones";
-import { getSave, markPokedexSeenInSave } from "@/game/systems/GameSave";
+import { getSave, giveItem, markPokedexSeenInSave } from "@/game/systems/GameSave";
+import { getItemDef } from "@/game/data/itemDefinitions";
 import { addToParty } from "@/game/systems/PartySystem";
 import { trackPokedexRegister } from "@/game/systems/Analytics";
 import {
@@ -363,25 +364,43 @@ export class NPCSystem {
               speakerName: npc.speakerName,
             });
 
-            // Give item — pick the pocket-appropriate jingle so
-            // blog posts and TMs don't all play the generic
-            // item-get chime.
-            if (npc.autoGive.pocket === "blogs") {
+            // If itemId is set, route through giveItem() so the
+            // item lands in the correct GameSave pocket array and
+            // participates in badge checks. Otherwise fall back to
+            // the legacy PickupStore path (kept for old NPCs that
+            // haven't been migrated).
+            let displayName = npc.autoGive.itemName ?? "ITEM";
+            let pocketForSfx = npc.autoGive.pocket ?? "items";
+            if (npc.autoGive.itemId) {
+              const def = getItemDef(npc.autoGive.itemId);
+              if (def) {
+                displayName = def.name;
+                pocketForSfx = def.pocket;
+              }
+            }
+
+            // Pick the pocket-appropriate jingle.
+            if (pocketForSfx === "blogs") {
               sfx.blogGet();
-            } else if (npc.autoGive.pocket === "tms") {
+            } else if (pocketForSfx === "tms") {
               sfx.tmGet();
             } else {
               sfx.pickup();
             }
-            recordPickup(`trainer:${npc.id}`, {
-              name: npc.autoGive.itemName,
-              url: npc.autoGive.itemUrl,
-              pocket: npc.autoGive.pocket,
-              description: npc.autoGive.description,
-            });
+
+            if (npc.autoGive.itemId) {
+              giveItem(npc.autoGive.itemId);
+            } else {
+              recordPickup(`trainer:${npc.id}`, {
+                name: npc.autoGive.itemName ?? "ITEM",
+                url: npc.autoGive.itemUrl,
+                pocket: npc.autoGive.pocket,
+                description: npc.autoGive.description ?? "",
+              });
+            }
             await this.dialogSystem.showDialog({
               lines: [
-                `Received ${npc.autoGive.itemName}!`,
+                `Received ${displayName}!`,
                 `It was sent to your BAG.`,
               ],
             });

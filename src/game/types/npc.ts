@@ -169,14 +169,22 @@ export interface NPCDefinition {
    * different dialog. Used for gym trainers that give papers/items.
    */
   autoGive?: {
-    /** Item name shown in the Bag (e.g. "MEDiC Paper"). */
-    itemName: string;
-    /** URL opened when item is used from the Bag. */
+    /**
+     * Preferred: reference an ITEM_DEFINITIONS entry by id so the
+     * item flows through `giveItem()` and participates in badge
+     * checks (`checkBadges()` reads save.blogsCollected, etc.).
+     * When set, `itemName / itemUrl / pocket / description` are
+     * derived from the ItemDef and the legacy fields are ignored.
+     */
+    itemId?: string;
+    /** LEGACY: Item name shown in the Bag (e.g. "MEDiC Paper"). */
+    itemName?: string;
+    /** LEGACY: URL opened when item is used from the Bag. */
     itemUrl?: string;
-    /** Bag pocket the item goes to. */
-    pocket: string;
-    /** Flavor text shown in the Bag description. */
-    description: string;
+    /** LEGACY: Bag pocket the item goes to. */
+    pocket?: string;
+    /** LEGACY: Flavor text shown in the Bag description. */
+    description?: string;
     /** Where the NPC walks to after giving the item. */
     asidePosition: { x: number; y: number };
     /** Dialog shown after the NPC has been cleared. */
