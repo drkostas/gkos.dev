@@ -13,7 +13,7 @@ import {
 import { DialogSystem } from "@/game/systems/DialogSystem";
 import { HiddenItemSystem } from "@/game/systems/HiddenItemSystem";
 import { incrementStep } from "@/game/systems/StepStore";
-import { getSave, giveItem } from "@/game/systems/GameSave";
+import { getSave, giveItem, updateSave } from "@/game/systems/GameSave";
 import { getItemDef } from "@/game/data/itemDefinitions";
 import { isTrainerCleared, markTrainerCleared } from "@/game/systems/TrainerStore";
 import { checkBadges } from "@/game/systems/BadgeMilestones";
@@ -1110,8 +1110,9 @@ export class InteriorScene extends Phaser.Scene {
       });
     }
 
-    // 3. Persist cleared state and re-check badges.
+    // 3. Persist cleared state, check gym completion, re-check badges.
     markTrainerCleared(npc.id);
+    this.checkGymCompletion();
     checkBadges();
 
     // 4. Walk to aside position — grid-engine animates using the
@@ -1392,6 +1393,25 @@ export class InteriorScene extends Phaser.Scene {
     }
     if (!dirty && this.gymPressedSwitch === 0) return undefined;
     return { pressedSwitch: this.gymPressedSwitch, tiles };
+  }
+
+  /**
+   * Check if all 6 gym trainers have been cleared. If so, set
+   * gymComplete in the save — this is the trigger for the GYM badge.
+   * Called after every markTrainerCleared() so the flag flips the
+   * moment the last trainer is defeated.
+   */
+  private checkGymCompletion(): void {
+    if (this.interiorKey !== "gym") return;
+    const save = getSave();
+    if (save.gymComplete) return;
+    const gymDef = INTERIORS.gym;
+    if (!gymDef) return;
+    const trainers = gymDef.npcs.filter((n) => n.autoGive);
+    const allCleared = trainers.every((t) => isTrainerCleared(t.id));
+    if (allCleared) {
+      updateSave({ gymComplete: true });
+    }
   }
 
   private checkGymSwitch(pos: { x: number; y: number }): void {
