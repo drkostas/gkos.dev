@@ -514,14 +514,105 @@ function RightPanel() {
   );
 }
 
-/** Bottom panel — Problems */
+/** Bottom panel — Problems with validation */
 function BottomPanel() {
   const state = useEditorState();
+  const dispatch = useEditorDispatch();
+  const [problems, setProblems] = useState<{ severity: "error" | "warning" | "info"; message: string; entityId?: string }[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const runValidation = () => {
+    const results: typeof problems = [];
+
+    // Client-side validation rules
+    const ids = state.entities.map((e) => e.id);
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    for (const d of dupes) results.push({ severity: "error", message: `Duplicate ID: ${d}`, entityId: d });
+
+    for (const e of state.entities) {
+      if (e.x < 0 || e.x >= 140 || e.y < 0 || e.y >= 120) {
+        results.push({ severity: "error", message: `Out of bounds (${e.x}, ${e.y})`, entityId: e.id });
+      }
+      if (e.type === "sign" && (!e.text || e.text.length === 0)) {
+        results.push({ severity: "warning", message: "Sign has no text", entityId: e.id });
+      }
+      if (e.type === "npc" && !e.spriteKey) {
+        results.push({ severity: "warning", message: "NPC missing sprite", entityId: e.id });
+      }
+      if (e.type === "warp" && !e.targetMap) {
+        results.push({ severity: "warning", message: "Warp missing target map", entityId: e.id });
+      }
+      if (e.type === "gate" && (e.x === undefined || e.y === undefined)) {
+        results.push({ severity: "info", message: "Gate has no position", entityId: e.id });
+      }
+    }
+
+    if (results.length === 0) {
+      results.push({ severity: "info", message: `All ${state.entities.length} entities valid` });
+    }
+
+    setProblems(results);
+  };
+
+  const runAnalyzer = async () => {
+    setAnalyzing(true);
+    try {
+      const r = await fetch("/api/editor/analyze", { method: "POST" });
+      const data = await r.json();
+      if (data.analysis) {
+        const results: typeof problems = [];
+        if (data.analysis.unreachable?.length) {
+          for (const u of data.analysis.unreachable) {
+            results.push({ severity: "error", message: `Unreachable: ${u.id} at (${u.x}, ${u.y})`, entityId: u.id });
+          }
+        }
+        if (data.analysis.onCollision?.length) {
+          for (const c of data.analysis.onCollision) {
+            results.push({ severity: "error", message: `On collision tile: ${c.id}`, entityId: c.id });
+          }
+        }
+        setProblems((prev) => [...prev, ...results]);
+      }
+    } catch (e) {
+      console.error("Analyzer failed:", e);
+    }
+    setAnalyzing(false);
+  };
+
+  // Run validation on mount
+  useEffect(() => { runValidation(); }, [state.entities]);
+
+  const errors = problems.filter((p) => p.severity === "error").length;
+  const warnings = problems.filter((p) => p.severity === "warning").length;
+
   return (
-    <div style={{ height: 120, background: "#1e1e30", borderTop: "1px solid #2a2a40", flexShrink: 0, padding: "4px 10px", overflowY: "auto" }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: "#ef4444", marginBottom: 4 }}>PROBLEMS</div>
-      <div style={{ fontSize: 10, color: "#22c55e" }}>✓ Loaded {state.entities.length} entities from editor-data.json</div>
-      <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>Validation panel coming in Phase 1E...</div>
+    <div style={{ height: 140, background: "#1e1e30", borderTop: "1px solid #2a2a40", flexShrink: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 10px", flexShrink: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: "#ef4444" }}>PROBLEMS</div>
+        {errors > 0 && <span style={{ fontSize: 9, color: "#ef4444", background: "#2a1a1a", padding: "1px 5px", borderRadius: 8 }}>{errors} errors</span>}
+        {warnings > 0 && <span style={{ fontSize: 9, color: "#f59e0b", background: "#2a2a1a", padding: "1px 5px", borderRadius: 8 }}>{warnings} warnings</span>}
+        <div style={{ flex: 1 }} />
+        <span onClick={runValidation} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>Refresh</span>
+        <span onClick={runAnalyzer} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>
+          {analyzing ? "Analyzing..." : "Run Analyzer"}
+        </span>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 10px", minHeight: 0 }}>
+        {problems.map((p, i) => (
+          <div
+            key={i}
+            onClick={() => p.entityId && dispatch({ type: "SELECT_ENTITY", id: p.entityId })}
+            style={{
+              fontSize: 10, padding: "2px 0", cursor: p.entityId ? "pointer" : "default",
+              color: p.severity === "error" ? "#ef4444" : p.severity === "warning" ? "#f59e0b" : "#22c55e",
+              display: "flex", gap: 4,
+            }}
+          >
+            <span>{p.severity === "error" ? "✗" : p.severity === "warning" ? "⚠" : "✓"}</span>
+            <span>{p.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
