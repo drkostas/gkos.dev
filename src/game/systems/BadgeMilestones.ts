@@ -165,34 +165,42 @@ export function clearPendingBadgeNotification(): void {
  * Check all badge conditions against the current save.
  *
  * Two paths:
- *  - Auto badges (DEVOTED, CHAMPION): condition met → badge awarded
- *    immediately via `awardBadge()`. No KOSTAS visit required.
- *  - Normal badges: condition met → queue a "go see KOSTAS" notification
- *    exactly ONCE per badge per save (via `badgesNotified`).
+ *  - Auto badges (COMPLETIONIST, CHAMPION): condition met → badge
+ *    awarded immediately via `awardBadge()`. No KOSTAS visit required.
+ *  - KOSTAS badges: condition met → queue a "go see KOSTAS"
+ *    notification exactly ONCE per badge per save (via `badgesNotified`).
  *
  * Call this after any state mutation that could unlock a badge —
  * item pickup, Pokedex registration, TM award, zone visit, gym clear,
  * URL open, etc.
+ *
+ * We split the loop into two passes so that when a player
+ * simultaneously triggers a KOSTAS badge AND an auto badge in the same
+ * frame, BOTH happen: the KOSTAS badge is queued as a notification
+ * (only one queue slot at a time) AND the auto badge is still awarded.
+ * The previous single-loop-with-break was dropping the auto badge if
+ * a KOSTAS badge came earlier in the BADGES array.
  */
 export function checkBadges(): void {
-  const save = getSave();
-
+  // Pass 1 — auto badges first. These can never conflict with each
+  // other and don't consume the single notification slot.
+  let save = getSave();
   for (const badge of BADGES) {
-    // Skip already-awarded badges
+    if (!badge.auto) continue;
     if (save.badges.includes(badge.id)) continue;
-    // Skip if condition not met
     if (!badge.condition(save)) continue;
+    awardBadge(badge.id);
+  }
 
-    // Auto badges: grant the badge directly, no notification queue.
-    // A screen-level listener (TrainerCard / KOSTAS banner) picks it
-    // up on its next render and plays the appropriate fanfare.
-    if (badge.auto) {
-      awardBadge(badge.id);
-      continue;
-    }
+  // Re-read: awardBadge above mutated the save. Subsequent KOSTAS
+  // checks read the freshest state.
+  save = getSave();
 
-    // KOSTAS badges: skip if we've already announced the milestone,
-    // otherwise queue a notification (one at a time).
+  // Pass 2 — first eligible KOSTAS badge claims the notification slot.
+  for (const badge of BADGES) {
+    if (badge.auto) continue;
+    if (save.badges.includes(badge.id)) continue;
+    if (!badge.condition(save)) continue;
     if (save.badgesNotified.includes(badge.id)) continue;
     if (!pendingBadgeNotification) {
       pendingBadgeNotification = badge;
