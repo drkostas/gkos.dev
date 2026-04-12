@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 
-const lineVariants = {
+// framer-motion 12's `Variants` type requires `ease` to be a typed
+// easing function or one of the named easing tuples. Cast each literal
+// to satisfy the compiler — the values themselves are valid at runtime.
+const lineVariants: Variants = {
   initial: { opacity: 0.5 },
   hover: {
     opacity: [0.5, 0.8, 0.5],
@@ -9,12 +12,12 @@ const lineVariants = {
   },
 };
 
-const card1Variants = {
+const card1Variants: Variants = {
   initial: { rotate: -8, y: -15, transition: { duration: 0.3, ease: "easeOut" } },
   hover: { rotate: 0, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
 };
 
-const card2Variants = {
+const card2Variants: Variants = {
   initial: { rotate: 8, y: -5, transition: { duration: 0.3, ease: "easeOut" } },
   hover: { rotate: 0, y: 0, transition: { duration: 0.3, ease: "easeOut", delay: 0.15 } },
 };

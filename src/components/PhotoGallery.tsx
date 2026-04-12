@@ -1,4 +1,4 @@
-import { motion, useMotionValue } from "framer-motion";
+import { motion, useMotionValue, type Variants } from "framer-motion";
 import { useEffect, useState, type Ref, type ReactNode } from "react";
 
 type Direction = "left" | "right";
@@ -113,7 +113,7 @@ export function PhotoGallery({
     };
   }, [animationDelay]);
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 1 },
     visible: {
       opacity: 1,
@@ -124,7 +124,7 @@ export function PhotoGallery({
     },
   };
 
-  const photoVariants = {
+  const photoVariants: Variants = {
     hidden: () => ({
       x: 0,
       y: 0,

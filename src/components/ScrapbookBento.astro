@@ -17,7 +17,7 @@ const stickers = [
     <div class="-mt-8 grid h-full w-full grid-cols-4 items-center gap-4">
       {stickers.map((s) => (
         <div class="flex items-center justify-center" style={`transform: rotate(${s.rotation}deg) translateY(${s.yOffset}px);`}>
-          <img width={s.width} src={s.src} draggable={false} alt={s.name || "Tool"} />
+          <img width={s.width} src={s.src} draggable={false} alt="Scrapbook sticker" />
         </div>
       ))}
     </div>
