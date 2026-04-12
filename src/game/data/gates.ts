@@ -83,4 +83,29 @@ export interface GateDefinition {
  * All gate definitions on every map. Empty by default — specific
  * gates are added during the content phase.
  */
-export const GATES: GateDefinition[] = [];
+export const GATES: GateDefinition[] = [
+  // Snorlax blocks the northern corridor on Route 111. Cleared by
+  // FleetSmart (Kyogre) using FORCE PUSH, taught on POKEDEX badge.
+  {
+    id: "snorlax_gate",
+    description: "Snorlax blocking the Route 111 northern path",
+    type: "npc",
+    map: "overworld",
+    npcId: "npc_snorlax",
+    requiredMove: "FORCE PUSH",
+    clearMessage: "{POKEMON} used FORCE PUSH!\nSNORLAX woke up and lumbered away!",
+  },
+  // Tinted tree on Route 111 upper area. Cleared by MaskDistill
+  // (Absol) using CUT, taught on PUBLICATION badge.
+  {
+    id: "tree_gate",
+    description: "Tinted tree blocking Route 111 upper passage",
+    type: "terrain",
+    map: "overworld",
+    tiles: [{ x: 66, y: 20 }],
+    spriteKey: "placeholder_gate",
+    requiredMove: "CUT",
+    clearMessage: "{POKEMON} used CUT!\nThe tree was cut down!",
+    lockedMessage: "This tree looks like it can be\ncut down. You need a Pokemon\nthat knows CUT.",
+  },
+];
