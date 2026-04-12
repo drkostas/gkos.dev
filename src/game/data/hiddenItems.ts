@@ -101,6 +101,55 @@ export const HIDDEN_ITEMS: HiddenItemTile[] = [
     difficulty: "medium",
     placement: "flower",
   },
+
+  // ── HIDDEN TMs — 4 ML tools buried in scenery (plan §Hidden
+  //   items "2 hidden key + 4 hidden TMs = 6"). Spread across the
+  //   routes so the player has a reason to explore beyond
+  //   Mauville proper. Each TM is thematically matched to the
+  //   route's vibe (northern research hill → NumPy, south cycling
+  //   road → Ray Tune, etc.). Placements use the existing scenic
+  //   features so the tiles are approachable without requiring
+  //   new art.
+  {
+    // Route 111 north research hill — NumPy hides under a rock
+    id: "r111_rock_numpy",
+    map: "overworld",
+    x: 67,
+    y: 27,
+    itemId: "tm_numpy",
+    difficulty: "medium",
+    placement: "rock",
+  },
+  {
+    // Route 110 south cycling road — Ray Tune in the grass
+    id: "r110_grass_ray",
+    map: "overworld",
+    x: 62,
+    y: 84,
+    itemId: "tm_ray",
+    difficulty: "hard",
+    placement: "grass",
+  },
+  {
+    // Route 117 west near day-care — HuggingFace flower
+    id: "r117_flower_hf",
+    map: "overworld",
+    x: 38,
+    y: 58,
+    itemId: "tm_huggingface",
+    difficulty: "medium",
+    placement: "flower",
+  },
+  {
+    // Route 118 east near fisherman — Pandas under a rock
+    id: "r118_rock_pandas",
+    map: "overworld",
+    x: 100,
+    y: 60,
+    itemId: "tm_pandas",
+    difficulty: "easy",
+    placement: "rock",
+  },
 ];
 
 /** Look up a hidden item by map + tile coordinate. */
