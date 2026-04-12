@@ -105,6 +105,32 @@ export const LOG_ENTRIES: LogEntry[] = [
       "Dr. Kostas Georgiou. Finally.",
     ],
   },
+  {
+    number: 7,
+    title: "The first PyPi upload",
+    threshold: 35,
+    text: [
+      "MaskDistill was my first PyPi package.",
+      "I'd written the same distillation loop",
+      "across 4 different PhD side projects.",
+      "One night I finally packaged it up,",
+      "ran `twine upload`, refreshed pypi.org.",
+      "7 packages later — still addictive.",
+    ],
+  },
+  {
+    number: 8,
+    title: "Mentoring the next one",
+    threshold: 40,
+    text: [
+      "A first-year PhD asked me how I",
+      "survived the program. I told her",
+      "the truth: I didn't, alone. Every",
+      "line of MEDiC was argued over with",
+      "my lab mates. If this game helps",
+      "one junior ship faster — dayenu.",
+    ],
+  },
 ];
 
 /**
