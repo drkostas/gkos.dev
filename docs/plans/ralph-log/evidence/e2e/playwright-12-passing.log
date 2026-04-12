@@ -1,0 +1,121 @@
+
+Running 12 tests using 5 workers
+
+  ✓   4 [e2e-desktop-1440] › tests/e2e/birch-flow.spec.ts:226:3 › Birch intro › fullscreen button is tappable + not occluded (5.0s)
+Dialog diagnostic: {
+  "totalEls": 146,
+  "tagSample": [
+    "HTML",
+    "HEAD",
+    "META",
+    "META",
+    "META",
+    "LINK",
+    "TITLE",
+    "META",
+    "META",
+    "META",
+    "SCRIPT",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "SCRIPT",
+    "SCRIPT"
+  ],
+  "bodyText": " Home About Projects Publications Blog Inspirations Workbench Twitter LinkedIn GitHub Home About Projects Publications Blog Inspirations Workbench astro-island,astro-slot,astro-static-slot{display:con",
+  "byTextWindowCount": 0,
+  "byBorderImageCount": 0,
+  "byBorderImageHeights": [],
+  "containsKOSTAS": false,
+  "containsHello": false,
+  "hasBirchSprite": true
+}
+  ✓   3 [e2e-mobile-landscape-852] › tests/e2e/birch-flow.spec.ts:32:3 › Birch intro › full flow: loading → title → menu → Birch welcome (7.0s)
+Dialog diagnostic: {
+  "totalEls": 146,
+  "tagSample": [
+    "HTML",
+    "HEAD",
+    "META",
+    "META",
+    "META",
+    "LINK",
+    "TITLE",
+    "META",
+    "META",
+    "META",
+    "SCRIPT",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "SCRIPT",
+    "SCRIPT"
+  ],
+  "bodyText": " Home About Projects Publications Blog Inspirations Workbench Twitter LinkedIn GitHub Home About Projects Publications Blog Inspirations Workbench astro-island,astro-slot,astro-static-slot{display:con",
+  "byTextWindowCount": 0,
+  "byBorderImageCount": 0,
+  "byBorderImageHeights": [],
+  "containsKOSTAS": false,
+  "containsHello": false,
+  "hasBirchSprite": true
+}
+  ✓   1 [e2e-desktop-1440] › tests/e2e/birch-flow.spec.ts:32:3 › Birch intro › full flow: loading → title → menu → Birch welcome (7.2s)
+Dialog height=103px viewport=900px ratio=11.4%
+  ✓   5 [e2e-desktop-1440] › tests/e2e/birch-flow.spec.ts:94:3 › Birch intro › dialog box height is < 40% of viewport short axis (10.4s)
+  ✓   8 [e2e-mobile-landscape-852] › tests/e2e/birch-flow.spec.ts:226:3 › Birch intro › fullscreen button is tappable + not occluded (4.2s)
+Dialog height=68px viewport=393px ratio=17.3%
+  ✓   6 [e2e-mobile-landscape-852] › tests/e2e/birch-flow.spec.ts:94:3 › Birch intro › dialog box height is < 40% of viewport short axis (10.0s)
+Dialog diagnostic: {
+  "totalEls": 149,
+  "tagSample": [
+    "HTML",
+    "HEAD",
+    "META",
+    "META",
+    "META",
+    "LINK",
+    "TITLE",
+    "META",
+    "META",
+    "META",
+    "SCRIPT",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "STYLE",
+    "SCRIPT",
+    "SCRIPT"
+  ],
+  "bodyText": " Home About Projects Publications Blog Inspirations Workbench Twitter LinkedIn GitHub Home About Projects Publications Blog Inspirations Workbench astro-island,astro-slot,astro-static-slot{display:con",
+  "byTextWindowCount": 0,
+  "byBorderImageCount": 1,
+  "byBorderImageHeights": [
+    20
+  ],
+  "containsKOSTAS": false,
+  "containsHello": false,
+  "hasBirchSprite": true
+}
+  ✓   9 [e2e-mobile-portrait-393] › tests/e2e/birch-flow.spec.ts:32:3 › Birch intro › full flow: loading → title → menu → Birch welcome (6.5s)
+First BOY/GIRL render at t=16221.2ms
+  ✓   2 [e2e-desktop-1440] › tests/e2e/birch-flow.spec.ts:133:3 › Birch intro › M9: no BOY/GIRL menu flash during AND_YOU_ARE → GENDER_SELECT transition (19.4s)
+  ✓  12 [e2e-mobile-portrait-393] › tests/e2e/birch-flow.spec.ts:226:3 › Birch intro › fullscreen button is tappable + not occluded (4.2s)
+Dialog height=47px viewport=393px ratio=12.0%
+  ✓  10 [e2e-mobile-portrait-393] › tests/e2e/birch-flow.spec.ts:94:3 › Birch intro › dialog box height is < 40% of viewport short axis (10.0s)
+First BOY/GIRL render at t=16052.9ms
+  ✓   7 [e2e-mobile-landscape-852] › tests/e2e/birch-flow.spec.ts:133:3 › Birch intro › M9: no BOY/GIRL menu flash during AND_YOU_ARE → GENDER_SELECT transition (18.9s)
+First BOY/GIRL render at t=16012.1ms
+  ✓  11 [e2e-mobile-portrait-393] › tests/e2e/birch-flow.spec.ts:133:3 › Birch intro › M9: no BOY/GIRL menu flash during AND_YOU_ARE → GENDER_SELECT transition (18.9s)
+
+  12 passed (36.5s)
