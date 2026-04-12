@@ -1,6 +1,7 @@
 import { Direction } from "grid-engine";
 import { MovementBehavior, type NPCDefinition, type SignDefinition } from "@/game/types/npc";
 import { WILD_POKEMON } from "@/game/data/wild-pokemon";
+import { getGithubDialog, GITHUB_FALLBACK_LINES } from "@/game/npcs/live/github";
 
 /**
  * Offset applied to all Mauville positions to account for the stitched
@@ -653,6 +654,12 @@ const ROUTE_NPCS: NPCDefinition[] = [
   // Uses old_man sprite which is 48x32 (3 frames of 16x32). BootScene
   // loads him as a 3-frame spritesheet specifically to avoid the row
   // duplication bug that broke little_boy.
+  //
+  // LIVE NPC #1 — pulls GitHub follower / star count from the in-site
+  // `/api/stats/github` endpoint each time the player talks to him.
+  // `dialog` here is the static fallback in case the fetch fails or
+  // returns malformed JSON; `dialogFn` is the live path. NPCSystem
+  // awaits dialogFn so the fetch doesn't block the game loop.
   {
     id: "npc_r117_daycare",
     spriteKey: "old_man",
@@ -661,14 +668,11 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementBehavior: MovementBehavior.STATIONARY,
     movementRangeX: 0,
     movementRangeY: 0,
-    dialog: [
-      "Welcome to the ML MODEL DAY CARE!",
-      "We train your models while you",
-      "work on other projects.",
-      "KOSTAS is our top trainer!",
-      "8300+ GitHub followers trust his",
-      "training pipelines.",
-    ],
+    dialog: GITHUB_FALLBACK_LINES,
+    dialogFn: async () => {
+      const lines = await getGithubDialog();
+      return { lines };
+    },
     speakerName: "Day Care Man",
     animated: false,  // 3-frame sprite, Grid Engine can't use walkingAnimationMapping
   },
