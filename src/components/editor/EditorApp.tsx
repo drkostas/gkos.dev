@@ -552,7 +552,7 @@ function LeftPanel() {
                   display: "flex", alignItems: "center", gap: 4,
                 }}
               >
-                {e.spriteKey && <SpritePreview spriteKey={e.spriteKey} size={18} />}
+                {e.spriteKey && <SpritePreview spriteKey={e.spriteKey} size={24} />}
                 {!e.spriteKey && <span style={{ color: typeColors[e.type] || "#888", width: 18, textAlign: "center" }}>●</span>}
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.id}</span>
               </div>
@@ -1268,43 +1268,56 @@ function PropSection({ title, color, children }: { title: string; color: string;
 function SpritePicker({ value, onChange, sprites }: { value: string; onChange: (v: string) => void; sprites: string[] }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [dropPos, setDropPos] = useState({ top: 0, right: 0 });
+  const triggerRef = useRef<HTMLDivElement>(null);
   const filtered = sprites.filter((s) => !search || s.toLowerCase().includes(search.toLowerCase()));
 
+  const handleOpen = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + 2, right: window.innerWidth - rect.right });
+    }
+    setOpen(!open);
+  };
+
   return (
-    <div style={{ position: "relative" }}>
+    <div>
       {/* Current selection — clickable to open */}
-      <div onClick={() => setOpen(!open)}
-        style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 6px", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 4, cursor: "pointer" }}>
-        <SpritePreview spriteKey={value} size={32} />
-        <span style={{ fontSize: 10, color: "#ccc", flex: 1 }}>{value}</span>
-        <span style={{ fontSize: 8, color: "#666" }}>{open ? "▲" : "▼"}</span>
+      <div ref={triggerRef} onClick={handleOpen}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 4, cursor: "pointer" }}>
+        <SpritePreview spriteKey={value} size={48} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 11, color: "#e5e5e5", fontWeight: 500 }}>{value}</span>
+        </div>
+        <span style={{ fontSize: 10, color: "#666" }}>{open ? "▲" : "▼"}</span>
       </div>
-      {/* Dropdown */}
+      {/* Dropdown — fixed position to escape overflow:hidden ancestors */}
       {open && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 998 }} onClick={() => setOpen(false)} />
           <div style={{
-            position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
+            position: "fixed", top: dropPos.top, right: dropPos.right, zIndex: 999, width: 360,
             background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 6,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.6)", maxHeight: 300, display: "flex", flexDirection: "column",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.6)", maxHeight: 400, display: "flex", flexDirection: "column",
           }}>
             <input type="text" placeholder="Search sprites..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
-              style={{ margin: 6, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "4px 8px", outline: "none" }} />
-            <div style={{ flex: 1, overflowY: "auto", padding: "0 4px 4px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3 }}>
+              style={{ margin: 6, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 11, padding: "5px 10px", outline: "none" }} />
+            <div style={{ fontSize: 9, color: "#666", padding: "0 8px 4px" }}>{filtered.length} sprites</div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "0 6px 6px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
                 {filtered.map((s) => (
                   <div key={s} onClick={() => { onChange(s); setOpen(false); setSearch(""); }}
                     style={{
-                      display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                      padding: 4, borderRadius: 4, cursor: "pointer",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      padding: 5, borderRadius: 4, cursor: "pointer", minWidth: 0, overflow: "hidden",
                       background: s === value ? "#1e3a5f" : "transparent",
                       border: s === value ? "1px solid #4a9eed" : "1px solid transparent",
                     }}
                     onMouseEnter={(e) => { if (s !== value) (e.currentTarget as HTMLElement).style.background = "#2a2a40"; }}
                     onMouseLeave={(e) => { if (s !== value) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
-                    <SpritePreview spriteKey={s} size={32} />
-                    <span style={{ fontSize: 7, color: s === value ? "#fff" : "#888", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{s}</span>
+                    <SpritePreview spriteKey={s} size={40} />
+                    <span style={{ fontSize: 8, color: s === value ? "#fff" : "#999", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{s}</span>
                   </div>
                 ))}
               </div>
