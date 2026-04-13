@@ -386,14 +386,24 @@ export class EditorScene extends Phaser.Scene {
   }
 
   update(): void {
-    // Update coordinate display
+    // Update coordinate display with tile GID info
     const pointer = this.input.activePointer;
     if (pointer) {
       const tileX = Math.floor(pointer.worldX / TILE_SIZE);
       const tileY = Math.floor(pointer.worldY / TILE_SIZE);
       const clampedX = Math.max(0, Math.min(MAP_WIDTH - 1, tileX));
       const clampedY = Math.max(0, Math.min(MAP_HEIGHT - 1, tileY));
-      this.coordText.setText(`Tile: (${clampedX}, ${clampedY})`);
+
+      // Get tile GID from tilemap
+      let gidInfo = "";
+      if (this.tilemap) {
+        const groundTile = this.tilemap.getTileAt(clampedX, clampedY, false, "Ground");
+        if (groundTile) gidInfo = ` GID:${groundTile.index}`;
+        const isCollision = this.collisionLayerData[clampedY * MAP_WIDTH + clampedX] > 0;
+        if (isCollision) gidInfo += " [BLOCKED]";
+      }
+
+      this.coordText.setText(`Tile: (${clampedX}, ${clampedY})${gidInfo}`);
     }
   }
 
