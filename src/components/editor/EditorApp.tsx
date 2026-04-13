@@ -141,6 +141,21 @@ function Toolbar() {
         <MenuItem label={`${state.layers.entities ? "✓ " : "  "}Entity Markers`} onClick={() => toggleLayer("entities")} />
         <MenuItem label={`${state.layers.zones ? "✓ " : "  "}Zone Boundaries`} onClick={() => toggleLayer("zones")} />
         <MenuItem label={`${state.layers.movement ? "✓ " : "  "}Movement Ranges`} onClick={() => toggleLayer("movement")} />
+        <MenuItem label={`${state.layers.heatmap ? "✓ " : "  "}Reachability Heatmap`} onClick={async () => {
+          if (!state.layers.heatmap) {
+            // Fetch reachability data from analyzer
+            try {
+              const r = await fetch("/api/editor/analyze", { method: "POST" });
+              const data = await r.json();
+              if (data.reachability) {
+                emitEditorEvent("editor:show-heatmap", { data: data.reachability });
+              }
+            } catch (e) { console.error("Heatmap failed:", e); }
+          } else {
+            emitEditorEvent("editor:hide-heatmap", {});
+          }
+          toggleLayer("heatmap");
+        }} />
         <MenuSep />
         <MenuItem label="Zoom In" shortcut="Scroll ↑" disabled />
         <MenuItem label="Zoom Out" shortcut="Scroll ↓" disabled />
