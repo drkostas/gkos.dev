@@ -150,6 +150,17 @@ function Toolbar() {
             if (e) dispatch({ type: "ADD_ENTITY", entity: { ...e, id: e.id + "_copy", x: e.x + 1 } });
           }
         }} />
+        {state.selectedEntityIds.length > 1 && (
+          <>
+            <MenuSep />
+            <MenuItem label={`Batch Delete (${state.selectedEntityIds.length})`} onClick={() => {
+              for (const id of state.selectedEntityIds) {
+                const e = state.entities.find((x) => x.id === id);
+                if (e) dispatch({ type: "DELETE_ENTITY", id: e.id, entity: e });
+              }
+            }} />
+          </>
+        )}
       </>
     ),
     View: (
@@ -740,6 +751,31 @@ function DialogTextarea({ value, onChange, placeholder }: {
   );
 }
 
+/** Template preview — shows resolved values for {{ }} tokens */
+function TemplatePreview({ line }: { line: string }) {
+  const [resolved, setResolved] = useState<string | null>(null);
+  useEffect(() => {
+    const tokens = line.match(/\{\{[^}]+\}\}/g);
+    if (!tokens) return;
+    // Lazy import to avoid circular deps
+    import("../../game/systems/TemplateResolver").then(({ resolveTemplates }) => {
+      resolveTemplates([line]).then((result) => {
+        if (result[0] !== line) setResolved(result[0]);
+      }).catch(() => {});
+    });
+  }, [line]);
+
+  const tokens = line.match(/\{\{[^}]+\}\}/g);
+  return (
+    <div style={{ padding: "2px 6px 3px", fontSize: 8, background: "#0d1a2a" }}>
+      <span style={{ color: "#06b6d4" }}>Template: {tokens?.join(", ")}</span>
+      {resolved && (
+        <div style={{ color: "#888", marginTop: 1 }}>Preview: {resolved}</div>
+      )}
+    </div>
+  );
+}
+
 /** Editable field row */
 function PropField({ label, value, onChange, type = "text", disabled, options }: {
   label: string; value: string | number | undefined; onChange?: (v: string) => void;
@@ -907,9 +943,7 @@ function RightPanel() {
                   placeholder="Enter dialog text... Type {{ for templates"
                 />
                 {line.includes("{{") && (
-                  <div style={{ padding: "2px 6px 3px", fontSize: 8, color: "#06b6d4", background: "#0d1a2a" }}>
-                    Template: {line.match(/\{\{[^}]+\}\}/g)?.join(", ")}
-                  </div>
+                  <TemplatePreview line={line} />
                 )}
               </div>
             );
@@ -1101,6 +1135,17 @@ function CheckpointsTab() {
             <span style={{ color: "#555" }}>{cp.time}</span>
             <span style={{ color: "#666" }}>({cp.count})</span>
             <span onClick={() => restoreCheckpoint(i)} style={{ color: "#22c55e", cursor: "pointer" }}>Restore</span>
+            <span onClick={() => {
+              const cpEntities = new Set(cp.data.map((e: any) => e.id));
+              const curEntities = new Set(state.entities.map(e => e.id));
+              const added = state.entities.filter(e => !cpEntities.has(e.id)).length;
+              const removed = cp.data.filter((e: any) => !curEntities.has(e.id)).length;
+              const moved = cp.data.filter((e: any) => {
+                const cur = state.entities.find(c => c.id === e.id);
+                return cur && (cur.x !== e.x || cur.y !== e.y);
+              }).length;
+              alert(`Diff since ${cp.name}:\n+${added} added\n-${removed} removed\n~${moved} moved`);
+            }} style={{ color: "#4a9eed", cursor: "pointer" }}>Diff</span>
             <span onClick={() => deleteCheckpoint(i)} style={{ color: "#ef4444", cursor: "pointer" }}>×</span>
           </div>
         ))}
