@@ -1005,6 +1005,11 @@ function RightPanel() {
             }}
             style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer", marginTop: 2, padding: "2px 0" }}
           >+ Add slide</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center" }}>
+            <span onClick={() => {
+              window.dispatchEvent(new CustomEvent("editor:preview-dialog", { detail: { lines: selected.dialog, speaker: selected.speakerName } }));
+            }} style={{ fontSize: 9, color: "#8b5cf6", cursor: "pointer" }}>Preview Dialog</span>
+          </div>
           {selected.speakerName && (
             <PropField label="Speaker" value={selected.speakerName}
               onChange={(v) => updateField("speakerName", v, selected.speakerName)} />
@@ -1143,6 +1148,7 @@ function RightPanel() {
 function CheckpointsTab() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
+  const [diffView, setDiffView] = useState<{ cpName: string; added: any[]; removed: any[]; moved: any[] } | null>(null);
   const [checkpoints, setCheckpoints] = useState<{ name: string; time: string; count: number; data: any[] }[]>(() => {
     try {
       const saved = localStorage.getItem("editor_checkpoints");
@@ -1177,6 +1183,30 @@ function CheckpointsTab() {
         }}>Save Checkpoint</button>
         <div style={{ fontSize: 8, color: "#666" }}>{state.entities.length} entities, {state.undoStack.length} changes</div>
       </div>
+      {diffView && (
+        <div style={{ background: "#161628", borderRadius: 4, padding: 6, margin: "0 0 4px", maxHeight: 60, overflowY: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color: "#4a9eed" }}>Diff: {diffView.cpName}</span>
+            <span onClick={() => setDiffView(null)} style={{ fontSize: 8, color: "#666", cursor: "pointer" }}>close</span>
+          </div>
+          {diffView.added.map((e: any) => <div key={e.id} style={{ fontSize: 8, color: "#22c55e" }}>+ {e.id}</div>)}
+          {diffView.removed.map((e: any) => (
+            <div key={e.id} style={{ fontSize: 8, color: "#ef4444", display: "flex", gap: 4 }}>
+              <span>- {e.id}</span>
+              <span onClick={() => dispatch({ type: "ADD_ENTITY", entity: e })} style={{ color: "#4a9eed", cursor: "pointer" }}>restore</span>
+            </div>
+          ))}
+          {diffView.moved.map((e: any) => (
+            <div key={e.id} style={{ fontSize: 8, color: "#f59e0b", display: "flex", gap: 4 }}>
+              <span>~ {e.id} moved</span>
+              <span onClick={() => {
+                dispatch({ type: "MOVE_ENTITY", id: e.id, x: e.x, y: e.y, oldX: state.entities.find(c => c.id === e.id)?.x || 0, oldY: state.entities.find(c => c.id === e.id)?.y || 0 });
+              }} style={{ color: "#4a9eed", cursor: "pointer" }}>revert</span>
+            </div>
+          ))}
+          {diffView.added.length + diffView.removed.length + diffView.moved.length === 0 && <div style={{ fontSize: 8, color: "#22c55e" }}>No changes</div>}
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {checkpoints.length === 0 && <div style={{ fontSize: 9, color: "#555" }}>No checkpoints saved</div>}
         {checkpoints.map((cp, i) => (
@@ -1188,13 +1218,13 @@ function CheckpointsTab() {
             <span onClick={() => {
               const cpEntities = new Set(cp.data.map((e: any) => e.id));
               const curEntities = new Set(state.entities.map(e => e.id));
-              const added = state.entities.filter(e => !cpEntities.has(e.id)).length;
-              const removed = cp.data.filter((e: any) => !curEntities.has(e.id)).length;
+              const added = state.entities.filter(e => !cpEntities.has(e.id));
+              const removed = cp.data.filter((e: any) => !curEntities.has(e.id));
               const moved = cp.data.filter((e: any) => {
                 const cur = state.entities.find(c => c.id === e.id);
                 return cur && (cur.x !== e.x || cur.y !== e.y);
-              }).length;
-              alert(`Diff since ${cp.name}:\n+${added} added\n-${removed} removed\n~${moved} moved`);
+              });
+              setDiffView({ cpName: cp.name, added, removed, moved });
             }} style={{ color: "#4a9eed", cursor: "pointer" }}>Diff</span>
             <span onClick={() => deleteCheckpoint(i)} style={{ color: "#ef4444", cursor: "pointer" }}>×</span>
           </div>
@@ -1503,6 +1533,7 @@ function EditorInner() {
   const [showHistory, setShowHistory] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showRelationships, setShowRelationships] = useState(false);
+  const [dialogPreview, setDialogPreview] = useState<{ lines: string[]; speaker?: string; page: number } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     if (typeof localStorage === "undefined") return false;
     return !localStorage.getItem("editor_onboarding_done");
@@ -1522,15 +1553,21 @@ function EditorInner() {
       .catch((e) => dispatch({ type: "SET_ERROR", error: e.message }));
   }, []);
 
-  // Listen for show-history and show-relationships events
+  // Listen for show-history, show-relationships, and preview-dialog events
   useEffect(() => {
     const histHandler = () => setShowHistory(true);
     const relHandler = () => setShowRelationships(true);
+    const dialogHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.lines) setDialogPreview({ lines: detail.lines, speaker: detail.speaker, page: 0 });
+    };
     window.addEventListener("editor:show-history", histHandler);
     window.addEventListener("editor:show-relationships", relHandler);
+    window.addEventListener("editor:preview-dialog", dialogHandler);
     return () => {
       window.removeEventListener("editor:show-history", histHandler);
       window.removeEventListener("editor:show-relationships", relHandler);
+      window.removeEventListener("editor:preview-dialog", dialogHandler);
     };
   }, []);
 
@@ -1627,6 +1664,43 @@ function EditorInner() {
           entityId={contextMenu.entityId}
           onClose={() => setContextMenu(null)}
         />
+      )}
+      {dialogPreview && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9998 }} onClick={() => setDialogPreview(null)} />
+          <div style={{
+            position: "fixed", bottom: "15%", left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+            background: "#1a1a30", border: "2px solid #4a4a6a", borderRadius: 8, padding: 0,
+            width: 480, boxShadow: "0 8px 32px rgba(0,0,0,0.6)", overflow: "hidden",
+          }}>
+            {dialogPreview.speaker && (
+              <div style={{ background: "#2a2a50", padding: "4px 12px", fontSize: 10, fontWeight: 700, color: "#fff" }}>
+                {dialogPreview.speaker}
+              </div>
+            )}
+            <div style={{ padding: "12px 16px", fontSize: 12, color: "#fff", minHeight: 48, fontFamily: "'Press Start 2P', monospace", lineHeight: 1.8 }}>
+              {dialogPreview.lines[dialogPreview.page] || "..."}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", borderTop: "1px solid #2a2a40" }}>
+              <span style={{ fontSize: 9, color: "#666" }}>
+                {dialogPreview.page + 1} / {dialogPreview.lines.length}
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <span onClick={() => setDialogPreview({ ...dialogPreview, page: Math.max(0, dialogPreview.page - 1) })}
+                  style={{ fontSize: 9, color: dialogPreview.page > 0 ? "#4a9eed" : "#444", cursor: "pointer" }}>Prev</span>
+                <span onClick={() => {
+                  if (dialogPreview.page < dialogPreview.lines.length - 1) {
+                    setDialogPreview({ ...dialogPreview, page: dialogPreview.page + 1 });
+                  } else {
+                    setDialogPreview(null);
+                  }
+                }} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>
+                  {dialogPreview.page < dialogPreview.lines.length - 1 ? "Next" : "Close"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </>
       )}
       {showRelationships && (
         <>
