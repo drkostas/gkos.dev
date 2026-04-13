@@ -350,8 +350,10 @@ export class OverworldScene extends Phaser.Scene {
     this.shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
     // A button: A key, Space, Enter
+    // enableCapture=false so the browser keydown event still reaches the
+    // React DialogBox overlay (which also listens for A/Space to advance).
     for (const code of [Phaser.Input.Keyboard.KeyCodes.A, Phaser.Input.Keyboard.KeyCodes.SPACE, Phaser.Input.Keyboard.KeyCodes.ENTER]) {
-      this.input.keyboard!.addKey(code).on("down", () => this.handleInteraction());
+      this.input.keyboard!.addKey(code, /* enableCapture */ false).on("down", () => this.handleInteraction());
     }
 
     // Start button: Escape or M — opens menu if closed, closes if open

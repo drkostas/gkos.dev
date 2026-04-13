@@ -14,6 +14,7 @@ import {
   type DialogPayload,
 } from "@/game/EventBridge";
 import { getSave } from "@/game/systems/GameSave";
+import { resolveTemplates } from "@/game/systems/TemplateResolver";
 
 /**
  * Replace `{NAME}` placeholders in a string with the player's name
@@ -137,7 +138,7 @@ export class DialogSystem {
    * second call with a typed error so the caller sees the race
    * instead of the hung await.
    */
-  showDialog(payload: DialogPayload): Promise<void> {
+  async showDialog(payload: DialogPayload): Promise<void> {
     if (this.isActive && this.resolveDialog) {
       return Promise.reject(
         new Error(
@@ -147,10 +148,12 @@ export class DialogSystem {
       );
     }
     this.isActive = true;
+    // 0. Resolve {{ namespace.key }} templates (only runs if tokens present)
+    const templateResolved = await resolveTemplates(payload.lines);
     // 1. Interpolate {NAME} placeholders using the current save
     // 2. Word-wrap + group into 2-line pages
     // Interpolation runs BEFORE pagination so wrap sees the final length.
-    const interpolated = interpolateLines(payload.lines);
+    const interpolated = interpolateLines(templateResolved);
     const paginated = paginateDialog(interpolated);
     const speakerName = payload.speakerName
       ? interpolateText(payload.speakerName)

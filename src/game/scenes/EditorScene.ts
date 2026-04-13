@@ -31,6 +31,7 @@ interface MapConfig {
   mapJson: string;
   tilesetName: string;
   tilesetImage: string;
+  tilesetTop?: string;
   foreground?: string;
   width: number;
   height: number;
@@ -38,9 +39,9 @@ interface MapConfig {
 
 const MAP_CONFIGS: Record<string, MapConfig> = {
   mauville: { key: "mauville-map", mapJson: "/game/maps/mauville.json", tilesetName: "mauville_bottom", tilesetImage: "/game/tilesets/mauville_bottom.png", foreground: "/game/maps/mauville_foreground.png", width: 140, height: 120 },
-  pokecenter: { key: "pokecenter-map", mapJson: "/game/maps/pokecenter.json", tilesetName: "pokecenter_bottom", tilesetImage: "/game/tilesets/pokecenter_bottom.png", width: 14, height: 9 },
-  mart: { key: "mart-map", mapJson: "/game/maps/mart.json", tilesetName: "mart_bottom", tilesetImage: "/game/tilesets/mart_bottom.png", width: 11, height: 8 },
-  gym: { key: "gym-map", mapJson: "/game/maps/gym.json", tilesetName: "gym_bottom", tilesetImage: "/game/tilesets/gym_bottom.png", width: 10, height: 21 },
+  pokecenter: { key: "pokecenter-map", mapJson: "/game/maps/pokecenter.json", tilesetName: "pokecenter_bottom", tilesetImage: "/game/tilesets/pokecenter_bottom.png", tilesetTop: "/game/tilesets/pokecenter_top.png", width: 14, height: 9 },
+  mart: { key: "mart-map", mapJson: "/game/maps/mart.json", tilesetName: "mart_bottom", tilesetImage: "/game/tilesets/mart_bottom.png", tilesetTop: "/game/tilesets/mart_top.png", width: 11, height: 8 },
+  gym: { key: "gym-map", mapJson: "/game/maps/gym.json", tilesetName: "gym_bottom", tilesetImage: "/game/tilesets/gym_bottom.png", tilesetTop: "/game/tilesets/gym_top.png", width: 10, height: 21 },
 };
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 6;
@@ -84,7 +85,7 @@ export class EditorScene extends Phaser.Scene {
   private isDragging: boolean = false;
   private dragEntityId: string | null = null;
   private dragGhost: Phaser.GameObjects.Graphics | null = null;
-  private dragTimer: ReturnType<typeof setTimeout> | null = null;
+  // dragTimer removed — drag starts instantly on selected entities
   private coordText!: Phaser.GameObjects.Text;
   private gridGraphics: Phaser.GameObjects.Graphics | null = null;
   private collisionOverlay: Phaser.GameObjects.Graphics | null = null;
@@ -96,6 +97,7 @@ export class EditorScene extends Phaser.Scene {
   private groundLayer: Phaser.Tilemaps.TilemapLayer | null = null;
   private collisionLayerData: number[] = [];
   private foregroundImage: Phaser.GameObjects.Image | null = null;
+  private topSprites: Phaser.GameObjects.Sprite[] = [];
   private foregroundVisible: boolean = true;
   private hoverTooltip: Phaser.GameObjects.Container | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -119,21 +121,52 @@ export class EditorScene extends Phaser.Scene {
       this.load.tilemapTiledJSON(cfg.key, cfg.mapJson);
       this.load.image(cfg.tilesetName, cfg.tilesetImage);
       if (cfg.foreground) this.load.image(cfg.tilesetName + "_fg", cfg.foreground);
+      if (cfg.tilesetTop) this.load.image(cfg.tilesetName.replace("_bottom", "_top"), cfg.tilesetTop);
     }
 
-    // NPC spritesheets (144x32, 9 frames of 16x32)
-    const npcSprites = [
-      "boy_3", "school_kid_m", "rich_boy", "maniac", "woman_4", "fat_man",
-      "item_ball", "lass", "fisherman", "woman_2", "youngster", "girl_2",
-      "man_1", "pokefan_f", "snorlax", "aqua_member_m", "poochyena_ow",
-      "magma_member_m", "aqua_member_f", "magma_member_f", "slakoth",
-      "slaking", "old_man",
+    // NPC spritesheets — load ALL sprites from /game/sprites/emerald/
+    // Fetch the sprite list from editor-data.json, fall back to a core set.
+    // Sprites are loaded on-demand when markers are created, but we preload
+    // the ones used by existing entities plus a core set for the palette.
+    const SPECIAL_SIZES: Record<string, { w: number; h: number }> = {
+      slakoth: { w: 48, h: 48 },
+      slaking: { w: 48, h: 48 },
+      item_ball: { w: 16, h: 16 },
+      tall_grass: { w: 16, h: 16 },
+      little_boy: { w: 16, h: 16 },
+      little_girl: { w: 16, h: 16 },
+      scott: { w: 48, h: 128 },
+      wally: { w: 48, h: 128 },
+    };
+    // Core sprites used by existing game entities (always preload)
+    const CORE_SPRITES = [
+      "aqua_member_f", "aqua_member_m", "beauty", "black_belt",
+      "boy_1", "boy_2", "boy_3", "brendan", "bug_catcher",
+      "camerupt", "carvanha", "fat_man", "fisherman", "gentleman",
+      "girl_1", "girl_2", "girl_3", "golbat", "hiker",
+      "item_ball", "lass", "little_boy", "little_girl",
+      "magma_member_f", "magma_member_m", "man_1", "maniac",
+      "may", "mightyena", "numel", "nurse",
+      "old_man", "old_woman", "pokefan_f", "pokefan_m",
+      "poochyena_ow", "rich_boy", "school_kid_m", "scientist_1",
+      "sharpedo", "slaking", "slakoth", "snorlax",
+      "wailmer", "woman_1", "woman_2", "woman_4", "youngster",
     ];
-    for (const key of npcSprites) {
-      this.load.spritesheet(`npc_${key}`, `/game/sprites/emerald/${key}.png`, {
-        frameWidth: 16,
-        frameHeight: 32,
-      });
+    for (const key of CORE_SPRITES) {
+      const special = SPECIAL_SIZES[key];
+      if (special) {
+        if (special.w <= 16 && special.h <= 16) {
+          this.load.image(`npc_${key}`, `/game/sprites/emerald/${key}.png`);
+        } else {
+          this.load.spritesheet(`npc_${key}`, `/game/sprites/emerald/${key}.png`, {
+            frameWidth: special.w, frameHeight: special.h,
+          });
+        }
+      } else {
+        this.load.spritesheet(`npc_${key}`, `/game/sprites/emerald/${key}.png`, {
+          frameWidth: 16, frameHeight: 32,
+        });
+      }
     }
 
     // Pokemon icon sprites (from /game/sprites/pokemon/icons/)
@@ -145,13 +178,17 @@ export class EditorScene extends Phaser.Scene {
       "solrock", "swellow", "torkoal", "trapinch", "vibrava", "volbeat", "wailord",
     ];
     for (const name of pokemonIcons) {
-      this.load.image(`pkmn_icon_${name}`, `/game/sprites/pokemon/icons/${name}.png`);
+      this.load.spritesheet(`pkmn_icon_${name}`, `/game/sprites/pokemon/icons/${name}.png`, {
+        frameWidth: 32,
+        frameHeight: 32,
+      });
     }
   }
 
   create(): void {
     // Create tilemap
     this.tilemap = this.make.tilemap({ key: "mauville-map" });
+    // Phaser reads margin/spacing from the Tiled JSON automatically
     const tileset = this.tilemap.addTilesetImage("mauville_bottom", "mauville_bottom");
     if (tileset) {
       this.groundLayer = this.tilemap.createLayer("Ground", tileset, 0, 0);
@@ -163,8 +200,9 @@ export class EditorScene extends Phaser.Scene {
     }
 
     // Foreground image (semi-transparent overlay)
-    if (this.textures.exists("mauville_foreground")) {
-      this.foregroundImage = this.add.image(0, 0, "mauville_foreground");
+    const fgKey = "mauville_bottom_fg";
+    if (this.textures.exists(fgKey)) {
+      this.foregroundImage = this.add.image(0, 0, fgKey);
       this.foregroundImage.setOrigin(0, 0);
       this.foregroundImage.setAlpha(1.0);
       this.foregroundImage.setDepth(100);
@@ -194,8 +232,10 @@ export class EditorScene extends Phaser.Scene {
     // Listen for React events
     this.setupEventListeners();
 
-    // Emit ready
-    emitEditorEvent(VIEWPORT_READY, {});
+    // Emit ready after create() fully completes (next tick)
+    this.time.delayedCall(0, () => {
+      emitEditorEvent(VIEWPORT_READY, {});
+    });
   }
 
   private setupInput(): void {
@@ -324,13 +364,14 @@ export class EditorScene extends Phaser.Scene {
             y: hitEntity.y,
           });
 
-          // Start drag timer on selected entity
+          // Start drag immediately on selected entity
           if (this.selectedId === hitEntity.id) {
-            this.dragTimer = setTimeout(() => {
-              this.isDragging = true;
-              this.dragEntityId = hitEntity!.id;
-              emitEditorEvent(DRAG_START, { entityId: hitEntity!.id });
-            }, 200);
+            this.isDragging = true;
+            this.dragEntityId = hitEntity.id;
+            // Dim the original marker to show it's being dragged
+            const dragMarker = this.markers.get(hitEntity.id);
+            if (dragMarker) dragMarker.container.setAlpha(0.3);
+            emitEditorEvent(DRAG_START, { entityId: hitEntity.id });
           }
         } else {
           // No entity hit — start panning with left-click drag
@@ -447,7 +488,6 @@ export class EditorScene extends Phaser.Scene {
     this.input.on("pointerupoutside", () => {
       this.isPanning = false;
       this.panMoved = false;
-      if (this.dragTimer) { clearTimeout(this.dragTimer); this.dragTimer = null; }
       this.isDragging = false;
       this.dragEntityId = null;
       this.clearDragGhost();
@@ -469,10 +509,6 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
-      if (this.dragTimer) {
-        clearTimeout(this.dragTimer);
-        this.dragTimer = null;
-      }
 
       if (this.isDragging && this.dragEntityId) {
         const tileX = Math.floor(pointer.worldX / TILE_SIZE);
@@ -556,11 +592,13 @@ export class EditorScene extends Phaser.Scene {
     MAP_WIDTH = cfg.width;
     MAP_HEIGHT = cfg.height;
 
-    // Destroy existing tilemap layers
+    // Destroy existing tilemap layers and top sprites
     if (this.groundLayer) { this.groundLayer.destroy(); this.groundLayer = null; }
     if (this.foregroundImage) { this.foregroundImage.destroy(); this.foregroundImage = null; }
     if (this.collisionOverlay) { this.collisionOverlay.destroy(); this.collisionOverlay = null; }
     if (this.gridGraphics) { this.gridGraphics.destroy(); this.gridGraphics = null; }
+    for (const s of this.topSprites) s.destroy();
+    this.topSprites = [];
 
     // Create new tilemap
     this.tilemap = this.make.tilemap({ key: cfg.key });
@@ -573,7 +611,42 @@ export class EditorScene extends Phaser.Scene {
       }
     }
 
-    // Foreground for this map
+    // Top-layer sprites for interior maps (furniture, desks, stairs, etc.)
+    const topKey = cfg.tilesetName.replace("_bottom", "_top");
+    if (cfg.tilesetTop && this.textures.exists(topKey) && tileset) {
+      const topTex = this.textures.get(topKey);
+      const groundData = this.tilemap.getLayer("Ground")?.data;
+      if (groundData) {
+        const tW = tileset.tileWidth;
+        const tH = tileset.tileHeight;
+        const margin = (tileset as any).tileMargin ?? 1;
+        const spacing = (tileset as any).tileSpacing ?? 2;
+        const cols = tileset.columns;
+
+        for (let ty = 0; ty < this.tilemap.height; ty++) {
+          for (let tx = 0; tx < this.tilemap.width; tx++) {
+            const tile = groundData[ty]?.[tx];
+            if (!tile || tile.index <= 0) continue;
+            const tileIdx = tile.index - 1;
+            const srcCol = tileIdx % cols;
+            const srcRow = Math.floor(tileIdx / cols);
+            const srcX = margin + srcCol * (tW + spacing);
+            const srcY = margin + srcRow * (tH + spacing);
+
+            const frameKey = `${topKey}_${tileIdx}`;
+            if (!topTex.has(frameKey)) {
+              topTex.add(frameKey, 0, srcX, srcY, tW, tH);
+            }
+
+            const sprite = this.add.sprite(tx * tW + tW / 2, ty * tH + tH / 2, topKey, frameKey);
+            sprite.setDepth(50 + ty);
+            this.topSprites.push(sprite);
+          }
+        }
+      }
+    }
+
+    // Foreground for this map (overworld PNG overlay)
     const fgKey = cfg.tilesetName + "_fg";
     if (cfg.foreground && this.textures.exists(fgKey)) {
       this.foregroundImage = this.add.image(0, 0, fgKey);
@@ -588,10 +661,16 @@ export class EditorScene extends Phaser.Scene {
     cam.setBounds(0, 0, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
     cam.centerOn((MAP_WIDTH * TILE_SIZE) / 2, (MAP_HEIGHT * TILE_SIZE) / 2);
 
-    // Reset zoom for small maps
+    // Reset zoom for small maps, and fit to viewport
     if (MAP_WIDTH < 30) {
-      this.currentZoom = 3;
-      cam.setZoom(3);
+      // Calculate zoom to fit the map within the viewport with some padding
+      const viewW = this.scale.width;
+      const viewH = this.scale.height;
+      const mapPixelW = MAP_WIDTH * TILE_SIZE;
+      const mapPixelH = MAP_HEIGHT * TILE_SIZE;
+      const fitZoom = Math.min(viewW / mapPixelW, viewH / mapPixelH) * 0.85;
+      this.currentZoom = Math.max(2, Math.min(6, fitZoom));
+      cam.setZoom(this.currentZoom);
     }
 
     // Clear entity markers (will be refreshed by React)
@@ -624,6 +703,8 @@ export class EditorScene extends Phaser.Scene {
 
   addMarker(entity: { id: string; type: string; x: number; y: number; spriteKey?: string; iconKey?: string; speciesName?: string; movementRangeX?: number; movementRangeY?: number }): void {
     if (this.markers.has(entity.id)) return;
+    // Guard: scene display list must be initialized
+    if (!this.sys?.displayList) return;
 
     const worldX = entity.x * TILE_SIZE + TILE_SIZE / 2;
     const worldY = entity.y * TILE_SIZE + TILE_SIZE / 2;
@@ -646,9 +727,9 @@ export class EditorScene extends Phaser.Scene {
     // Add sprite thumbnail if available
     let sprite: Phaser.GameObjects.Sprite | undefined;
 
-    // Pokemon icons for wild-pokemon entities
+    // Pokemon icons for wild-pokemon entities (spritesheet: 2 frames of 32x32)
     if (entity.type === "wild-pokemon" && entity.iconKey && this.textures.exists(entity.iconKey)) {
-      const icon = this.add.image(0, -2, entity.iconKey);
+      const icon = this.add.sprite(0, -2, entity.iconKey, 0);
       icon.setScale(0.5);
       icon.setAlpha(0.9);
       container.add(icon);
@@ -767,8 +848,8 @@ export class EditorScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    // Center camera on selected
-    this.cameras.main.centerOn(marker.container.x, marker.container.y);
+    // Don't auto-center camera — user controls the viewport.
+    // Use JUMP_TO_TILE event explicitly when camera movement is desired.
   }
 
   clearSelection(): void {
@@ -900,22 +981,31 @@ export class EditorScene extends Phaser.Scene {
       this.dragGhost.setDepth(500);
     }
     this.dragGhost.clear();
-    this.dragGhost.fillStyle(0xffffff, 0.3);
-    this.dragGhost.fillRect(
-      tileX * TILE_SIZE, tileY * TILE_SIZE,
-      TILE_SIZE, TILE_SIZE,
-    );
-    this.dragGhost.lineStyle(1, 0xffffff, 0.8);
-    this.dragGhost.strokeRect(
-      tileX * TILE_SIZE, tileY * TILE_SIZE,
-      TILE_SIZE, TILE_SIZE,
-    );
+    // Target tile highlight — green for safe, pulsing
+    const color = this.dragEntityId ? (TYPE_COLORS[this.markers.get(this.dragEntityId)?.type || ""] || 0x4a9eed) : 0x4a9eed;
+    this.dragGhost.fillStyle(color, 0.35);
+    this.dragGhost.fillRect(tileX * TILE_SIZE, tileY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    this.dragGhost.lineStyle(2, 0xffffff, 0.9);
+    this.dragGhost.strokeRect(tileX * TILE_SIZE, tileY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    // Also move the entity marker to follow cursor
+    if (this.dragEntityId) {
+      const marker = this.markers.get(this.dragEntityId);
+      if (marker) {
+        marker.container.setPosition(tileX * TILE_SIZE + TILE_SIZE / 2, tileY * TILE_SIZE + TILE_SIZE / 2);
+        marker.container.setAlpha(0.7);
+      }
+    }
   }
 
   private clearDragGhost(): void {
     if (this.dragGhost) {
       this.dragGhost.destroy();
       this.dragGhost = null;
+    }
+    // Restore original marker opacity
+    if (this.dragEntityId) {
+      const marker = this.markers.get(this.dragEntityId);
+      if (marker) marker.container.setAlpha(1);
     }
   }
 
