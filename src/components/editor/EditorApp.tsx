@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EditorProvider, useEditorState, useEditorDispatch } from "./state/EditorContext";
 import type { EditorEntity } from "./state/editorTypes";
 import EditorViewport from "./EditorViewport";
@@ -410,9 +410,86 @@ function LeftPanel() {
   );
 }
 
-/** Center viewport — Phaser tilemap */
+/** Minimap — small overview of the full map with entity dots */
+function Minimap() {
+  const state = useEditorState();
+  const dispatch = useEditorDispatch();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const W = 180;
+  const H = Math.round(W * (120 / 140));
+
+  const typeColors: Record<string, string> = {
+    npc: "#3b82f6", "pokemon-npc": "#06b6d4", pickup: "#f97316",
+    "wild-pokemon": "#22c55e", sign: "#f59e0b", "hidden-item": "#ec4899",
+    warp: "#8b5cf6", gate: "#dc2626",
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.fillStyle = "#1a2e1a";
+    ctx.fillRect(0, 0, W, H);
+
+    // Draw entity dots
+    for (const e of state.entities) {
+      const px = (e.x / 140) * W;
+      const py = (e.y / 120) * H;
+      ctx.fillStyle = typeColors[e.type] || "#888";
+      const r = state.selectedEntityId === e.id ? 3 : 1.5;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw selected entity highlight
+    if (state.selectedEntityId) {
+      const sel = state.entities.find((e) => e.id === state.selectedEntityId);
+      if (sel) {
+        const px = (sel.x / 140) * W;
+        const py = (sel.y / 120) * H;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }, [state.entities, state.selectedEntityId]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.floor(((e.clientX - rect.left) / W) * 140);
+    const y = Math.floor(((e.clientY - rect.top) / H) * 120);
+    emitEditorEvent(JUMP_TO_TILE, { x, y });
+  };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={W}
+      height={H}
+      onClick={handleClick}
+      style={{
+        position: "absolute", bottom: 8, left: 8, zIndex: 10,
+        border: "1px solid #333", borderRadius: 3, cursor: "crosshair",
+        opacity: 0.9,
+      }}
+    />
+  );
+}
+
+/** Center viewport — Phaser tilemap + minimap overlay */
 function Viewport() {
-  return <EditorViewport />;
+  return (
+    <div style={{ flex: 1, position: "relative", minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <EditorViewport />
+      <Minimap />
+    </div>
+  );
 }
 
 /** Editable field row */
