@@ -2035,7 +2035,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Delete (X) button on hover
   - Verification: word-wrap matches game rendering
 
-- [ ] **P2-03** Create `src/components/editor/dialog/DialogPlayback.tsx`
+- [x] **P2-03** Create `src/components/editor/dialog/DialogPlayback.tsx`
   - Floating preview panel (480x160px, centered)
   - Pixel-art dialog box rendering
   - Typewriter effect (50ms per character)
@@ -2188,13 +2188,13 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Grouped by entity: added, removed, moved, changed
   - Verification: diff correctly identifies moved entities
 
-- [ ] **P5-03** Implement cherry-pick from checkpoint
+- [x] **P5-03** Implement cherry-pick from checkpoint
   - Dialog showing entities from checkpoint
   - Select individual entities to restore
   - Selected entities replace their current-state counterparts
   - Verification: cherry-pick one entity from old checkpoint
 
-- [ ] **P5-04** Enhance SaveDiffViewer
+- [x] **P5-04** Enhance SaveDiffViewer
   - Map mini-view with arrows for moved entities
   - Side-by-side dialog diffs with green/red highlights
   - Added entities: green background
