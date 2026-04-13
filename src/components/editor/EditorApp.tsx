@@ -1264,6 +1264,58 @@ function PropSection({ title, color, children }: { title: string; color: string;
 }
 
 /** Right panel — Properties inspector */
+/** KOSTAS dialog branch editor — shows all state-machine branches */
+function KostasDialogEditor() {
+  const state = useEditorState();
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Load kostasDialog from editor data (fetched on mount)
+  const [kostasData, setKostasData] = useState<any>(null);
+  useEffect(() => {
+    fetch("/api/editor/data").then(r => r.json()).then(data => {
+      if (data.kostasDialog) setKostasData(data.kostasDialog);
+    }).catch(() => {});
+  }, []);
+
+  if (!kostasData) return null;
+
+  const branches = [
+    { key: "champion", label: "CHAMPION (all 8 badges)", color: "#f59e0b", lines: kostasData.champion },
+    ...Object.entries(kostasData.badges as Record<string, string[]>).map(([badge, lines]) => ({
+      key: `badge_${badge}`, label: `${badge.toUpperCase()} badge award`, color: "#8b5cf6", lines,
+    })),
+    { key: "hint", label: "HINT (no badge eligible)", color: "#888", lines: kostasData.hint },
+    { key: "received", label: "Badge received confirmation", color: "#22c55e", lines: [kostasData.received] },
+  ];
+
+  return (
+    <PropSection title={`KOSTAS BRANCHES (${branches.length})`} color="#f59e0b">
+      <div style={{ fontSize: 8, color: "#888", marginBottom: 4 }}>
+        State machine dialog — each branch triggers based on player progress
+      </div>
+      {branches.map((b) => (
+        <div key={b.key} style={{ marginBottom: 3 }}>
+          <div onClick={() => setExpanded(expanded === b.key ? null : b.key)}
+            style={{ display: "flex", gap: 4, alignItems: "center", padding: "2px 4px", cursor: "pointer", background: expanded === b.key ? "#1e2a3f" : "transparent", borderRadius: 2 }}>
+            <span style={{ fontSize: 7, color: b.color, fontWeight: 700 }}>{expanded === b.key ? "▾" : "▸"}</span>
+            <span style={{ fontSize: 9, color: "#ccc" }}>{b.label}</span>
+            <span style={{ fontSize: 7, color: "#555" }}>{b.lines.length} lines</span>
+          </div>
+          {expanded === b.key && (
+            <div style={{ padding: "2px 8px" }}>
+              {b.lines.map((line: string, i: number) => (
+                <div key={i} style={{ fontSize: 9, color: "#aaa", fontFamily: "monospace", background: "#0d0d1a", borderRadius: 2, padding: "2px 4px", marginBottom: 1 }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </PropSection>
+  );
+}
+
 function RightPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
@@ -1521,6 +1573,8 @@ function RightPanel() {
           ⚠ Has dynamic dialogFn — edit in source code
         </div>
       )}
+      {/* KOSTAS dialog branch editor */}
+      {selected.id === "gym_kostas" && <KostasDialogEditor />}
       {selected.hasSpawnCondition && (
         <div style={{ background: "#2a1a1a", borderRadius: 5, padding: "4px 8px", fontSize: 9, color: "#f59e0b" }}>
           ⚠ Has spawnCondition — edit in source code
