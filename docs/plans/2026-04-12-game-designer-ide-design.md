@@ -2053,7 +2053,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Arrow keys navigate, Enter inserts, Escape dismisses
   - Verification: typing `{{spot` shows spotify.* commands, Enter inserts
 
-- [ ] **P2-05** Implement inline template preview
+- [x] **P2-05** Implement inline template preview
   - After inserting `{{ command }}`, show resolved value inline (grayed)
   - Async fetch from game API endpoints for live values
   - Fallback: "[loading...]" then actual value
@@ -2182,7 +2182,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Stored in localStorage
   - Verification: save checkpoint, make changes, restore → reverts to checkpoint
 
-- [ ] **P5-02** Implement checkpoint diff view
+- [x] **P5-02** Implement checkpoint diff view
   - Click "Diff" on a checkpoint
   - Shows changes between checkpoint and current state
   - Grouped by entity: added, removed, moved, changed
@@ -2289,7 +2289,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Selection count shown in status bar
   - Verification: Shift+click two entities, both highlighted
 
-- [ ] **P7-05** Batch operations
+- [x] **P7-05** Batch operations
   - Batch move: drag group (relative positions preserved)
   - Batch change movement behavior: floating dropdown
   - Batch change facing: floating dropdown
