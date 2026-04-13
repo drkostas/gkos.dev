@@ -1635,7 +1635,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 0: Infrastructure & Data Pipeline
 
-- [ ] **P0-01** Create `scripts/editor-data-export.mjs`
+- [x] **P0-01** Create `scripts/editor-data-export.mjs`
   - File: `scripts/editor-data-export.mjs`
   - Reads: `src/game/data/npcs.ts`, `src/game/data/wild-pokemon.ts`, `src/game/data/hiddenItems.ts`, `src/game/data/interiors.ts`, `src/game/data/gates.ts`, `src/game/data/warps.ts`, `src/game/data/zones.ts`, `src/game/data/itemDefinitions.ts`, `src/game/data/researchLog.ts`, `src/game/data/pokemon.ts`, `src/game/systems/BadgeMilestones.ts`
   - Writes: `editor-data.json` at repo root
@@ -1644,13 +1644,13 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Applies MAUVILLE_ORIGIN offset (+50,+50) to MAUVILLE_NPCS_RAW and MAUVILLE_SIGNS_RAW positions
   - Verification: `node scripts/editor-data-export.mjs` produces valid JSON with all entity counts matching source files
 
-- [ ] **P0-02** Create `GET /api/editor/data` endpoint
+- [x] **P0-02** Create `GET /api/editor/data` endpoint
   - File: `src/pages/api/editor/data.ts`
   - Returns: contents of `editor-data.json`
   - Guard: returns 403 if `!import.meta.env.DEV`
   - Verification: `curl http://localhost:4321/api/editor/data` returns JSON with entities
 
-- [ ] **P0-03** Create `POST /api/editor/analyze` endpoint
+- [x] **P0-03** Create `POST /api/editor/analyze` endpoint
   - File: `src/pages/api/editor/analyze.ts`
   - Spawns `node scripts/map-analyzer.mjs --quiet` and parses stdout
   - Accepts optional `testTile` parameter → passes `--test X,Y` to analyzer
@@ -1658,23 +1658,23 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Guard: returns 403 if `!import.meta.env.DEV`
   - Verification: `POST /api/editor/analyze` with `{}` body returns safe tile count ~1400
 
-- [ ] **P0-04** Create `POST /api/editor/save` endpoint (skeleton)
+- [x] **P0-04** Create `POST /api/editor/save` endpoint (skeleton)
   - File: `src/pages/api/editor/save.ts`
   - Accepts `SaveRequest` payload
   - For now: logs payload and returns `{ success: true, message: "dry run" }`
   - Guard: returns 403 if `!import.meta.env.DEV`
   - Verification: POST with a test payload returns success response
 
-- [ ] **P0-05** Add `"editor"` dev script to `package.json`
+- [x] **P0-05** Add `"editor"` dev script to `package.json`
   - Adds: `"dev:editor": "node scripts/editor-data-export.mjs && astro dev"`
   - Verification: `npm run dev:editor` generates `editor-data.json` then starts Astro dev server
 
-- [ ] **P0-06** Add `editor-data.json` to `.gitignore`
+- [x] **P0-06** Add `editor-data.json` to `.gitignore`
   - Verification: `git status` after generating does not show `editor-data.json`
 
 ### Phase 1A: Page Shell & Layout
 
-- [ ] **P1A-01** Create `src/pages/editor.astro`
+- [x] **P1A-01** Create `src/pages/editor.astro`
   - Dev-only guard: if `!import.meta.env.DEV`, return `Response` with 404
   - Full HTML page (no BaseLayout, no site header/footer)
   - Dark theme: `bg-[#0f0f23]` body
@@ -1684,7 +1684,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Title: "Pokemon World Designer IDE"
   - Verification: navigate to `http://localhost:4321/editor` shows dark page
 
-- [ ] **P1A-02** Create `src/components/editor/EditorApp.tsx`
+- [x] **P1A-02** Create `src/components/editor/EditorApp.tsx`
   - Top-level React component
   - Wraps everything in `<EditorProvider>` (state context)
   - Layout: CSS Grid with areas for toolbar, left panel, viewport, right panel, bottom panel, status bar
@@ -1692,13 +1692,13 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Shows loading spinner until data arrives
   - Verification: EditorApp renders with "Loading editor data..." then switches to panel layout
 
-- [ ] **P1A-03** Create `src/components/editor/state/EditorContext.tsx`
+- [x] **P1A-03** Create `src/components/editor/state/EditorContext.tsx`
   - React context with `useReducer`
   - State shape: `{ entities, selectedEntityId, layers, tool, undoStack, redoStack, dirty, analysisData }`
   - Dispatch actions: `SELECT_ENTITY`, `DESELECT`, `MOVE_ENTITY`, `UPDATE_FIELD`, `ADD_ENTITY`, `DELETE_ENTITY`, `TOGGLE_LAYER`, `SET_TOOL`, `UNDO`, `REDO`, `LOAD_DATA`, `SET_ANALYSIS`
   - Verification: context provides state and dispatch to children
 
-- [ ] **P1A-04** Create `src/components/editor/state/editorReducer.ts`
+- [x] **P1A-04** Create `src/components/editor/state/editorReducer.ts`
   - Handles all action types from above
   - MOVE_ENTITY: updates entity position, pushes to undo stack
   - UPDATE_FIELD: updates any entity field, pushes to undo stack
@@ -1708,14 +1708,14 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - REDO: pops redo stack, applies action, pushes to undo stack
   - Verification: unit tests for each action type
 
-- [ ] **P1A-05** Create `src/components/editor/state/editorTypes.ts`
+- [x] **P1A-05** Create `src/components/editor/state/editorTypes.ts`
   - TypeScript types: `EditorEntity`, `EditorState`, `EditorAction`, `EditorLayer`, `EditorTool`
   - `EditorEntity` is a superset union: all entity types flattened with a `type` discriminator field
   - `EditorLayer`: `"ground" | "collision" | "foreground" | "entities" | "heatmap" | "zones" | "movement" | "grid"`
   - `EditorTool`: `"select" | "move" | "stamp" | "eraser" | "eyedropper"`
   - Verification: types compile with no errors
 
-- [ ] **P1A-06** Create `src/components/editor/state/undoStack.ts`
+- [x] **P1A-06** Create `src/components/editor/state/undoStack.ts`
   - `pushAction(stack, action)` — pushes to undo stack, returns new stacks (undo + cleared redo)
   - `undo(stacks)` — pops undo, computes inverse, pushes to redo, returns new stacks + inverse action
   - `redo(stacks)` — pops redo, pushes to undo, returns new stacks + action
@@ -1724,7 +1724,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 1B: Phaser Viewport
 
-- [ ] **P1B-01** Create `src/game/scenes/EditorScene.ts`
+- [x] **P1B-01** Create `src/game/scenes/EditorScene.ts`
   - Extends `Phaser.Scene` with key `"EditorScene"`
   - `preload()`: loads `mauville.json` tilemap, `mauville_bottom.png` tileset, foreground image, all NPC sprites, all Pokemon icon sprites
   - `create()`: creates tilemap layers (Ground, Collision as invisible), sets up camera with zoom controls
@@ -1733,7 +1733,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Camera bounds: 0,0 to 140*16, 120*16 (full map extent)
   - Verification: tilemap renders correctly at `/editor`, can pan and zoom
 
-- [ ] **P1B-02** Create `src/components/editor/EditorViewport.tsx`
+- [x] **P1B-02** Create `src/components/editor/EditorViewport.tsx`
   - React component that mounts a Phaser game instance
   - Container div with `ref` for Phaser parent
   - Creates Phaser game with `EditorScene` only (no BootScene, no OverworldScene)
@@ -1741,7 +1741,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Cleanup: destroys Phaser game on unmount
   - Verification: Phaser viewport renders inside the editor layout
 
-- [ ] **P1B-03** Create `src/game/editor/EditorEntityRenderer.ts`
+- [x] **P1B-03** Create `src/game/editor/EditorEntityRenderer.ts`
   - Called by `EditorScene.create()` after tilemap loads
   - Receives entity array from editor state (via DOM event)
   - For each entity, creates a Phaser graphic:
@@ -1751,7 +1751,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Selected entity: white ring (2px, 16px radius), pulsing animation
   - Verification: entity markers appear on the map at correct tile positions
 
-- [ ] **P1B-04** Create `src/game/editor/EditorInteraction.ts`
+- [x] **P1B-04** Create `src/game/editor/EditorInteraction.ts`
   - Click detection: pointer down on entity marker → emit `ENTITY_CLICKED`
   - Hover detection: pointer move near entity marker → emit `ENTITY_HOVERED`
   - Drag detection: pointer down + hold 200ms on selected entity → enter drag mode
@@ -1760,7 +1760,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Right-click: emit custom event for context menu
   - Verification: clicking an entity marker emits the correct event
 
-- [ ] **P1B-05** Create `src/game/editor/EditorOverlays.ts`
+- [x] **P1B-05** Create `src/game/editor/EditorOverlays.ts`
   - Layer management: toggle visibility of overlays
   - Collision overlay: red-tinted semi-transparent tiles over collision GIDs
   - Foreground overlay: foreground PNG rendered at reduced opacity
@@ -1770,7 +1770,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Methods: `setLayerVisible(layer, visible)`, `setHeatmapData(data)`, `clearHeatmap()`
   - Verification: toggling collision overlay shows red tiles over blocked areas
 
-- [ ] **P1B-06** Handle camera controls in `EditorScene`
+- [x] **P1B-06** Handle camera controls in `EditorScene`
   - Middle-mouse button drag: pan camera
   - Space+left-mouse drag: pan camera
   - Scroll wheel: zoom in/out (centered on cursor)
@@ -1779,7 +1779,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Zoom steps: [0.5, 0.75, 1, 1.5, 2, 3, 4]
   - Verification: all pan/zoom controls work smoothly
 
-- [ ] **P1B-07** Coordinate display in viewport
+- [x] **P1B-07** Coordinate display in viewport
   - Bottom-left corner text: `Tile: (X, Y) — ZONE_NAME`
   - Updated from `EditorScene.update()` pointer position
   - Font: monospace, 12px, white with dark shadow
@@ -1788,14 +1788,14 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 1C: Left Panel (Asset Library)
 
-- [ ] **P1C-01** Create `src/components/editor/panels/AssetLibrary.tsx`
+- [x] **P1C-01** Create `src/components/editor/panels/AssetLibrary.tsx`
   - Vertical panel, 280px wide
   - Tab bar: Pokemon | NPCs | Tiles
   - Each tab renders its sub-component
   - Layer toggles section at bottom
   - Verification: tabs switch correctly, panel scrolls
 
-- [ ] **P1C-02** Create `src/components/editor/panels/AssetLibraryPokemonTab.tsx`
+- [x] **P1C-02** Create `src/components/editor/panels/AssetLibraryPokemonTab.tsx`
   - Scrollable list of all POKEDEX entries
   - Each row: 32x32 icon sprite (rendered from `/game/sprites/pokemon/icons/{species}.png`, first frame crop) + `#NNN` + project name
   - Search input at top: filters by name, species, project name
@@ -1803,7 +1803,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Drag start: initiates drag-to-viewport flow
   - Verification: all 31 Pokemon listed with correct icons
 
-- [ ] **P1C-03** Create `src/components/editor/panels/AssetLibraryNPCTab.tsx`
+- [x] **P1C-03** Create `src/components/editor/panels/AssetLibraryNPCTab.tsx`
   - Scrollable list of available NPC sprites (58 sprite keys)
   - Each row: sprite preview (first frame, scaled) + sprite key name
   - Grouped: "Placed NPCs" (by zone) + "Available Sprites" (all keys)
@@ -1812,14 +1812,14 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Drag: initiates drag-to-viewport flow
   - Verification: all 58 sprites listed, templates expand with correct defaults
 
-- [ ] **P1C-04** Create `src/components/editor/panels/AssetLibraryTileTab.tsx`
+- [x] **P1C-04** Create `src/components/editor/panels/AssetLibraryTileTab.tsx`
   - Tile palette rendered from `mauville_bottom.png` as a grid of 16x16 tiles at 2x zoom
   - Click to select tile for painting (Phase 4 — in Phase 1, just displays the palette)
   - Hover shows tile GID
   - Stubbed: "Tile painting available in Phase 4" banner
   - Verification: tileset renders as a grid, tiles are clickable
 
-- [ ] **P1C-05** Layer toggle checkboxes
+- [x] **P1C-05** Layer toggle checkboxes
   - 8 toggles: Ground, Collision, Foreground, Entities, Heatmap, Zones, Movement Ranges, Grid Lines
   - Each: checkbox + label + colored indicator dot
   - Toggle dispatches `TOGGLE_LAYER` to editor state + emits `EditorEvents.TOGGLE_LAYER` to Phaser
@@ -1828,14 +1828,14 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 1D: Right Panel (Properties Inspector)
 
-- [ ] **P1D-01** Create `src/components/editor/panels/PropertiesPanel.tsx`
+- [x] **P1D-01** Create `src/components/editor/panels/PropertiesPanel.tsx`
   - Vertical panel, 320px wide
   - Shows properties of `selectedEntityId` from editor state
   - Empty state: "Select an entity on the map or in the asset library"
   - Accordion sections (collapsible)
   - Verification: selecting an entity populates the panel
 
-- [ ] **P1D-02** Create `src/components/editor/panels/PositionSection.tsx`
+- [x] **P1D-02** Create `src/components/editor/panels/PositionSection.tsx`
   - ID: read-only text field
   - Type badge: colored pill (NPC/Pokemon/Sign/Item/Warp/Gate)
   - Sprite Key: dropdown with preview thumbnails
@@ -1846,7 +1846,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Changes dispatch `UPDATE_FIELD` with undo recording
   - Verification: changing X/Y updates entity position on map
 
-- [ ] **P1D-03** Create movement section
+- [x] **P1D-03** Create movement section
   - Movement Behavior dropdown (all MovementBehavior enum values)
   - Range X/Y number inputs
   - Speed override (optional)
@@ -1854,7 +1854,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - When section expanded: draw movement range rectangle on viewport
   - Verification: changing movement behavior updates the entity
 
-- [ ] **P1D-04** Create `src/components/editor/panels/DialogSection.tsx`
+- [x] **P1D-04** Create `src/components/editor/panels/DialogSection.tsx`
   - Speaker Name text input
   - Dialog slides list (vertical stack of cards)
   - Each card: slide text, estimated line count, page count
@@ -1864,7 +1864,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Changes dispatch `UPDATE_DIALOG` action
   - Verification: editing dialog text and reordering persists in state
 
-- [ ] **P1D-05** Create `src/components/editor/panels/AutoGiveSection.tsx`
+- [x] **P1D-05** Create `src/components/editor/panels/AutoGiveSection.tsx`
   - Conditional: only shown if entity has autoGive or is a template that includes it
   - Item ID dropdown (all ITEM_DEFINITIONS, grouped by pocket)
   - Aside Position X/Y inputs
@@ -1872,13 +1872,13 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - "Show aside" button: draws dashed line on viewport
   - Verification: selecting an item updates the autoGive config
 
-- [ ] **P1D-06** Create `src/components/editor/panels/PickupSection.tsx`
+- [x] **P1D-06** Create `src/components/editor/panels/PickupSection.tsx`
   - Conditional: only shown if entity has pickup
   - Item ID dropdown
   - Legacy fields (read-only if present)
   - Verification: selecting a pickup item updates the entity
 
-- [ ] **P1D-07** Create `src/components/editor/panels/PokemonSection.tsx`
+- [x] **P1D-07** Create `src/components/editor/panels/PokemonSection.tsx`
   - Conditional: only shown if entity has pokemon data
   - Pokedex Number dropdown (all entries)
   - Auto-fill: species, project name, description, URL from POKEDEX
@@ -1896,7 +1896,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 1E: Bottom Panel & Status
 
-- [ ] **P1E-01** Create `src/components/editor/panels/ProblemsPanel.tsx`
+- [x] **P1E-01** Create `src/components/editor/panels/ProblemsPanel.tsx`
   - Tab in bottom panel
   - List of validation problems: severity icon, rule name, entity id, message
   - Click problem → select entity on map + scroll viewport to it
@@ -1905,13 +1905,13 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Auto-refresh on entity changes (debounced 300ms)
   - Verification: validation rules produce correct problems for test data
 
-- [ ] **P1E-02** Implement validation rules
+- [x] **P1E-02** Implement validation rules
   - File: `src/components/editor/state/validationRules.ts`
   - Each rule: `(entities, itemDefs, pokedex, badges) => Problem[]`
   - Rules: `no-duplicate-ids`, `entity-on-collision`, `entity-unreachable`, `npc-range-into-collision`, `missing-autogive-item`, `missing-pickup-item`, `missing-pokemon-entry`, `badge-unachievable`, `orphan-item`, `template-unresolved`, `sign-no-text`, `warp-no-interior`, `gate-no-npc`, `hidden-item-map-mismatch`
   - Verification: unit tests for each validation rule
 
-- [ ] **P1E-03** Create `src/components/editor/viewport/StatusBar.tsx`
+- [x] **P1E-03** Create `src/components/editor/viewport/StatusBar.tsx`
   - 24px bar at bottom of editor
   - Left: zone name, tile coordinates (mirrors viewport coordinate display)
   - Center: entity counts ("47 NPCs, 30 Pokemon, 12 Signs, 8 Items")
@@ -1920,7 +1920,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 1F: Drag/Drop, Delete, Context Menu
 
-- [ ] **P1F-01** Implement drag-to-move in viewport
+- [x] **P1F-01** Implement drag-to-move in viewport
   - Selected entity: hold 200ms to enter drag mode
   - Ghost preview: semi-transparent sprite at 50% opacity, snapped to grid
   - Dashed outline at original position
@@ -1944,7 +1944,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - All dispatch `DELETE_ENTITY` action (undoable)
   - Verification: delete an entity, Ctrl+Z brings it back
 
-- [ ] **P1F-04** Create `src/components/editor/viewport/ContextMenu.tsx`
+- [x] **P1F-04** Create `src/components/editor/viewport/ContextMenu.tsx`
   - React component rendered as a portal
   - Positioned at right-click location
   - Entity context: Edit Properties, Duplicate, Delete, Move to Safe Tile, Play from Here, Measure Distance, Copy ID
@@ -1954,7 +1954,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 1G: Save, Undo, Toolbar, Minimap
 
-- [ ] **P1G-01** Implement save flow
+- [x] **P1G-01** Implement save flow
   - Ctrl+S triggers save
   - Compute diff between current state and original loaded state
   - Show SaveDiffViewer modal
@@ -1963,7 +1963,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - On error: show error message, mark which changes failed
   - Verification: edit an NPC position, Ctrl+S, verify source file changed on disk
 
-- [ ] **P1G-02** Implement full save endpoint
+- [x] **P1G-02** Implement full save endpoint
   - File: `src/pages/api/editor/save.ts` (replace skeleton from P0-04)
   - For each change in the payload:
     - Read the target source file
@@ -1981,20 +1981,20 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - "Save Changes" and "Cancel" buttons
   - Verification: making changes shows correct diff in viewer
 
-- [ ] **P1G-04** Implement undo/redo keyboard shortcuts
+- [x] **P1G-04** Implement undo/redo keyboard shortcuts
   - `useKeyboardShortcuts` hook
   - Ctrl+Z dispatches `UNDO`
   - Ctrl+Y / Ctrl+Shift+Z dispatches `REDO`
   - Verification: move an entity, undo, entity returns to original position
 
-- [ ] **P1G-05** Create `src/components/editor/toolbar/Toolbar.tsx`
+- [x] **P1G-05** Create `src/components/editor/toolbar/Toolbar.tsx`
   - File/Edit/View dropdown menus
   - Tool buttons: Select, Move, Stamp, Eraser, Eyedropper
   - Search bar (right side)
   - Entity count display
   - Verification: menus open, tools switch, search filters
 
-- [ ] **P1G-06** Create `src/components/editor/viewport/Minimap.tsx`
+- [x] **P1G-06** Create `src/components/editor/viewport/Minimap.tsx`
   - 180x120px canvas in bottom-left of viewport
   - Renders zone colors as background
   - Entity dots (1-2px, colored by type)
@@ -2011,7 +2011,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Cache last result
   - Verification: enabling heatmap shows green/red overlay matching map-analyzer output
 
-- [ ] **P1G-08** Implement all remaining keyboard shortcuts
+- [x] **P1G-08** Implement all remaining keyboard shortcuts
   - Full shortcut table from Section 11.8
   - Prevent browser defaults (Ctrl+S, Ctrl+D, etc.)
   - Shortcuts only active when editor has focus (not in text inputs)
@@ -2019,7 +2019,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 2: Dialog & Template System
 
-- [ ] **P2-01** Create `src/components/editor/dialog/DialogSlideEditor.tsx`
+- [x] **P2-01** Create `src/components/editor/dialog/DialogSlideEditor.tsx`
   - Visual storyboard: horizontal scrollable row of slide cards
   - Each card: 240x80px with pixel-art border
   - Shows speaker name, text with word-wrap preview, page count badge
@@ -2027,7 +2027,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - "+" button at end
   - Verification: slides render with correct word-wrap, reorder works
 
-- [ ] **P2-02** Create `src/components/editor/dialog/DialogSlide.tsx`
+- [x] **P2-02** Create `src/components/editor/dialog/DialogSlide.tsx`
   - Single slide card component
   - 35-character word-wrap preview (matching game's dialog box)
   - Page indicator: "1/3" if text spans multiple pages
@@ -2045,7 +2045,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Resolves `{{ }}` templates
   - Verification: clicking Play animates dialog with correct timing
 
-- [ ] **P2-04** Create `src/components/editor/dialog/TemplateAutocomplete.tsx`
+- [x] **P2-04** Create `src/components/editor/dialog/TemplateAutocomplete.tsx`
   - Triggered by typing `{{` in dialog text inputs
   - Floating dropdown below cursor
   - Lists all available template commands with icons and descriptions
@@ -2092,20 +2092,20 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 3: Debug Launcher & Testing
 
-- [ ] **P3-01** Create `src/components/editor/panels/DebugLauncher.tsx`
+- [x] **P3-01** Create `src/components/editor/panels/DebugLauncher.tsx`
   - Bottom panel tab
   - Two-column layout: Player State (left), Badges & Items (right)
   - All controls from Section 7.1
   - State stored in React local state (not editor context)
   - Verification: all controls render and update state
 
-- [ ] **P3-02** Implement LAUNCH GAME button
+- [x] **P3-02** Implement LAUNCH GAME button
   - Constructs GameSave object from debug launcher state
   - Writes to localStorage as `__editor_debug_save`
   - Opens `/explore` in new tab
   - Verification: clicking LAUNCH GAME opens game with debug state applied
 
-- [ ] **P3-03** Implement PLAY FROM HERE
+- [x] **P3-03** Implement PLAY FROM HERE
   - Uses selected tile position as spawn
   - Combines with debug launcher state
   - Available in context menu and debug launcher panel
@@ -2116,7 +2116,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Clear `__editor_debug_save` after loading
   - Verification: debug save is consumed once and cleared
 
-- [ ] **P3-05** Implement save state presets
+- [x] **P3-05** Implement save state presets
   - Pre-built: Fresh Start, Mid-game, Near Champion, All Badges
   - Custom: Save/Load/Delete presets in localStorage
   - Dropdown selector in debug launcher
@@ -2173,7 +2173,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 5: Checkpoints & History
 
-- [ ] **P5-01** Create `src/components/editor/panels/CheckpointsPanel.tsx`
+- [x] **P5-01** Create `src/components/editor/panels/CheckpointsPanel.tsx`
   - Bottom panel tab
   - "Save Checkpoint" button with name prompt
   - List of checkpoints: name, timestamp, counts
@@ -2211,12 +2211,12 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 6: Interior Editing
 
-- [ ] **P6-01** Add interior map dropdown to viewport
+- [x] **P6-01** Add interior map dropdown to viewport
   - Dropdown: Overworld / Pokemon Center / Mart / Gym
   - Positioned at top-left of viewport area
   - Verification: dropdown renders with all 4 options
 
-- [ ] **P6-02** Implement interior tilemap loading
+- [x] **P6-02** Implement interior tilemap loading
   - Selecting an interior:
     - Unloads current tilemap in EditorScene
     - Loads interior's mapJson with its tilesets
@@ -2256,7 +2256,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 7: Advanced Features
 
-- [ ] **P7-01** NPC movement preview visualization
+- [x] **P7-01** NPC movement preview visualization
   - Movement Ranges layer toggle
   - STATIONARY: dot only
   - WANDER_*: dotted rectangle showing range box
@@ -2265,7 +2265,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - RUN_*: faster animated arrow
   - Verification: each movement type shows correct visualization
 
-- [ ] **P7-02** Search & filter bar
+- [x] **P7-02** Search & filter bar
   - Search input in toolbar
   - Filters entities by: id, dialog text, speaker name, item name, project name
   - Matching entities highlighted yellow on map
