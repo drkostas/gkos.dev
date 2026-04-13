@@ -512,14 +512,25 @@ function LeftPanel() {
             {filteredSprites.map((sprite) => (
               <div
                 key={sprite}
-                title={sprite}
+                title={`Click to place ${sprite} NPC on map`}
                 style={{
                   background: "#161628", borderRadius: 3, padding: 4,
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                  cursor: "grab", border: "1px solid transparent",
+                  cursor: "pointer", border: "1px solid transparent",
                 }}
-                onMouseEnter={(e) => { (e.target as HTMLElement).style.borderColor = "#4a9eed"; }}
-                onMouseLeave={(e) => { (e.target as HTMLElement).style.borderColor = "transparent"; }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#4a9eed"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}
+                onClick={() => {
+                  const id = `npc_new_${sprite}_${Date.now().toString(36)}`;
+                  const newEntity = {
+                    type: "npc" as const, id, x: 70, y: 60,
+                    spriteKey: sprite, facingDirection: "down",
+                    movementBehavior: "STATIONARY", movementRangeX: 0, movementRangeY: 0,
+                    dialog: ["Hello!"], sourceFile: "npcs.ts",
+                  };
+                  dispatch({ type: "ADD_ENTITY", entity: newEntity });
+                  emitEditorEvent(JUMP_TO_TILE, { x: 70, y: 60 });
+                }}
               >
                 <img
                   src={`/game/sprites/emerald/${sprite}.png`}

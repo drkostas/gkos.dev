@@ -1929,7 +1929,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Escape: cancel drag
   - Verification: drag an NPC from one tile to another, see position update
 
-- [ ] **P1F-02** Implement drag-from-library to viewport
+- [x] **P1F-02** Implement drag-from-library to viewport
   - Mouse down on library item starts drag
   - Green pulsing preview on viewport
   - Release on valid tile: dispatch `ADD_ENTITY` with template defaults
