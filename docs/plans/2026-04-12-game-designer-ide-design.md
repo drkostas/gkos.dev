@@ -1974,7 +1974,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Handle errors gracefully (regex match failure → detailed error message)
   - Verification: save a position change, check source file has new coordinates
 
-- [ ] **P1G-03** Create `src/components/editor/viewport/SaveDiffViewer.tsx`
+- [x] **P1G-03** Create `src/components/editor/viewport/SaveDiffViewer.tsx`
   - Full-screen modal overlay
   - Groups changes by file
   - Shows: moved (arrow), changed dialog (diff), added (green), deleted (red)
@@ -2305,7 +2305,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Uses `<audio>` elements with game's sound files
   - Verification: clicking play on a zone previews the BGM track
 
-- [ ] **P7-07** Entity relationship graph
+- [x] **P7-07** Entity relationship graph
   - View > Entity Relationships
   - Modal with force-directed graph
   - Nodes: entities, items, badges

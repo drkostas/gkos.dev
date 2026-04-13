@@ -37,6 +37,7 @@ function Toolbar() {
   const dispatch = useEditorDispatch();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [hoveredTool, setHoveredTool] = useState<string | null>(null);
+  const [saveDiffChanges, setSaveDiffChanges] = useState<any[] | null>(null);
 
   const tools = [
     { id: "select" as const, icon: "⊹", label: "Select", desc: "Click to select entities" },
@@ -46,9 +47,8 @@ function Toolbar() {
     { id: "eyedropper" as const, icon: "◉", label: "Eyedropper", desc: "Pick tile from map (5)" },
   ];
 
-  const handleSave = async () => {
-    // Collect changes from undo stack
-    const changes = state.undoStack
+  const collectChanges = () => {
+    return state.undoStack
       .filter((u) => u.action.type === "MOVE_ENTITY" || u.action.type === "UPDATE_FIELD")
       .map((u) => {
         const a = u.action;
@@ -64,12 +64,19 @@ function Toolbar() {
         return [];
       })
       .flat();
+  };
 
+  const handleSave = async () => {
+    const changes = collectChanges();
     if (changes.length === 0) {
       console.log("[save] No changes to save");
       return;
     }
+    // Show diff preview
+    setSaveDiffChanges(changes);
+  };
 
+  const executeSave = async (changes: any[]) => {
     try {
       const r = await fetch("/api/editor/save", {
         method: "POST",
@@ -84,11 +91,15 @@ function Toolbar() {
     } catch (e) {
       console.error("Save failed:", e);
     }
+    setSaveDiffChanges(null);
   };
 
   // Listen for Ctrl+S trigger from keyboard handler
   useEffect(() => {
-    const handler = () => handleSave();
+    const handler = () => {
+      const changes = collectChanges();
+      if (changes.length > 0) setSaveDiffChanges(changes);
+    };
     window.addEventListener("editor:trigger-save", handler);
     return () => window.removeEventListener("editor:trigger-save", handler);
   }, [state.undoStack]);
@@ -192,6 +203,10 @@ function Toolbar() {
         <MenuItem label="Reset View" onClick={() => {
           emitEditorEvent(JUMP_TO_TILE, { x: 70, y: 60 });
         }} />
+        <MenuSep />
+        <MenuItem label="Entity Relationships" onClick={() => {
+          window.dispatchEvent(new CustomEvent("editor:show-relationships"));
+        }} />
       </>
     ),
   };
@@ -285,6 +300,41 @@ function Toolbar() {
         <span onClick={handleRedo} title="Redo (⌘Y)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Y</span>
         <span onClick={handleSave} title="Save (⌘S)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘S</span>
       </div>
+      {/* Save Diff Viewer Modal */}
+      {saveDiffChanges && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9998 }} onClick={() => setSaveDiffChanges(null)} />
+          <div style={{
+            position: "fixed", top: "15%", left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+            background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 8, padding: 16,
+            width: 450, maxHeight: "60vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Save Changes ({saveDiffChanges.length})</div>
+            <div style={{ flex: 1, overflowY: "auto", minHeight: 0, marginBottom: 12 }}>
+              {saveDiffChanges.map((c, i) => (
+                <div key={i} style={{ fontSize: 10, padding: "3px 0", borderBottom: "1px solid #2a2a40", display: "flex", gap: 6 }}>
+                  <span style={{ color: "#4a9eed", fontFamily: "monospace", minWidth: 140 }}>{c.entityId}</span>
+                  <span style={{ color: "#888" }}>.{c.field}</span>
+                  <span style={{ color: "#ef4444" }}>{JSON.stringify(c.oldValue).substring(0, 20)}</span>
+                  <span style={{ color: "#666" }}>{"→"}</span>
+                  <span style={{ color: "#22c55e" }}>{JSON.stringify(c.newValue).substring(0, 20)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setSaveDiffChanges(null)} style={{
+                background: "#2a2a40", color: "#ccc", border: "1px solid #3a3a50", borderRadius: 4,
+                padding: "6px 16px", fontSize: 11, cursor: "pointer",
+              }}>Cancel</button>
+              <button onClick={() => executeSave(saveDiffChanges)} style={{
+                background: "#22c55e", color: "#000", border: "none", borderRadius: 4,
+                padding: "6px 16px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+              }}>Save {saveDiffChanges.length} Changes</button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1452,6 +1502,7 @@ function EditorInner() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showRelationships, setShowRelationships] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     if (typeof localStorage === "undefined") return false;
     return !localStorage.getItem("editor_onboarding_done");
@@ -1471,11 +1522,16 @@ function EditorInner() {
       .catch((e) => dispatch({ type: "SET_ERROR", error: e.message }));
   }, []);
 
-  // Listen for show-history event from Edit menu
+  // Listen for show-history and show-relationships events
   useEffect(() => {
-    const handler = () => setShowHistory(true);
-    window.addEventListener("editor:show-history", handler);
-    return () => window.removeEventListener("editor:show-history", handler);
+    const histHandler = () => setShowHistory(true);
+    const relHandler = () => setShowRelationships(true);
+    window.addEventListener("editor:show-history", histHandler);
+    window.addEventListener("editor:show-relationships", relHandler);
+    return () => {
+      window.removeEventListener("editor:show-history", histHandler);
+      window.removeEventListener("editor:show-relationships", relHandler);
+    };
   }, []);
 
   // Listen for right-click context menu from Phaser
@@ -1571,6 +1627,61 @@ function EditorInner() {
           entityId={contextMenu.entityId}
           onClose={() => setContextMenu(null)}
         />
+      )}
+      {showRelationships && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9998 }} onClick={() => setShowRelationships(false)} />
+          <div style={{
+            position: "fixed", top: "10%", left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+            background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 8, padding: 16,
+            width: 500, maxHeight: "70vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>Entity Relationships</span>
+              <span onClick={() => setShowRelationships(false)} style={{ cursor: "pointer", color: "#666" }}>x</span>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+              {(() => {
+                const givers = state.entities.filter((e) => e.autoGive);
+                const pokemon = state.entities.filter((e) => e.type === "wild-pokemon" || e.type === "pokemon-npc");
+                const items = state.entities.filter((e) => e.type === "hidden-item" || e.type === "pickup");
+                return (
+                  <>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#4a9eed", marginBottom: 4 }}>KEY ITEM GIVERS ({givers.length}) {"→"} CONNECTED badge</div>
+                    {givers.map((g) => (
+                      <div key={g.id} style={{ fontSize: 9, color: "#ccc", padding: "2px 0" }}>
+                        {g.id} {"→"} gives <span style={{ color: "#f59e0b" }}>{g.autoGive?.itemId}</span>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#22c55e", margin: "8px 0 4px" }}>POKEMON ({pokemon.length}) {"→"} POKEDEX badge</div>
+                    {pokemon.slice(0, 10).map((p) => (
+                      <div key={p.id} style={{ fontSize: 9, color: "#ccc", padding: "2px 0" }}>
+                        {p.id} at ({p.x}, {p.y}) {p.pokemon ? `- ${p.pokemon.speciesName}` : ""}
+                      </div>
+                    ))}
+                    {pokemon.length > 10 && <div style={{ fontSize: 9, color: "#666" }}>...and {pokemon.length - 10} more</div>}
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#ec4899", margin: "8px 0 4px" }}>ITEMS ({items.length})</div>
+                    {items.map((it) => (
+                      <div key={it.id} style={{ fontSize: 9, color: "#ccc", padding: "2px 0" }}>
+                        {it.id} at ({it.x}, {it.y}) {it.itemId ? `- ${it.itemId}` : ""}
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#8b5cf6", margin: "8px 0 4px" }}>BADGE CHAIN SUMMARY</div>
+                    <div style={{ fontSize: 9, color: "#aaa", lineHeight: 1.6 }}>
+                      GYM: gym puzzle completion<br />
+                      PUBLICATION: {state.entities.filter(e => e.dialog?.some(d => d.includes("paper"))).length} paper-related NPCs<br />
+                      CONNECTED: {givers.length} key item givers<br />
+                      POKEDEX: {pokemon.length} Pokemon encounters<br />
+                      BLOGGER: {state.entities.filter(e => e.dialog?.some(d => d.includes("blog"))).length} blog-related NPCs<br />
+                      ENGINEER: TM collection<br />
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </>
       )}
       {showOnboarding && (
         <>
