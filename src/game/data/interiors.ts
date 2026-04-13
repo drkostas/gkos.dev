@@ -149,6 +149,55 @@ export interface InteriorDef {
   npcs: InteriorNPC[];
 }
 
+/**
+ * KOSTAS dialog text — editable via the editor's Data Manager.
+ * The dialogFn reads from this structure at runtime, so changing
+ * these strings changes what KOSTAS says without touching logic.
+ */
+export const KOSTAS_DIALOG: { champion: string[]; badges: Record<string, string[]>; received: string; hint: string[] } = {
+  champion: [
+    "Wahahahaha! {NAME}, you've",
+    "collected all 8 badges! You're",
+    "a true CHAMPION of ML Engineering!",
+  ],
+  badges: {
+    gym: [
+      "{NAME}, you beat every trainer",
+      "in this gym! Take the GYM",
+      "BADGE — you've earned it.",
+    ],
+    publication: [
+      "Ten real publications, {NAME}!",
+      "This PUBLICATION BADGE means",
+      "you've read our research too.",
+    ],
+    connected: [
+      "{NAME}, you followed every URL",
+      "I left out there. The CONNECTED",
+      "BADGE is yours — stay in touch!",
+    ],
+    pokedex: [
+      "All 30 projects registered,",
+      "{NAME}? Incredible. The POKeDEX",
+      "BADGE goes to true completionists.",
+    ],
+    blogger: [
+      "Ten blog posts read, {NAME}!",
+      "The BLOGGER BADGE is my way of",
+      "saying: writing matters, keep it up.",
+    ],
+    engineer: [
+      "Twenty TMs. Twenty tools.",
+      "{NAME}, the ENGINEER BADGE is",
+      "the mark of a real shipper.",
+    ],
+  },
+  received: "KOSTAS handed over",
+  hint: [
+    "Not yet, {NAME}.",
+  ],
+};
+
 export const INTERIORS: Record<string, InteriorDef> = {
   pokecenter: {
     key: "pokecenter",
@@ -311,6 +360,8 @@ export const INTERIORS: Record<string, InteriorDef> = {
         position: { x: 5, y: 2 },
         facingDirection: "down",
         speakerName: "KOSTAS",
+        // Editable dialog text for each state-machine branch.
+        // dialogFn reads from KOSTAS_DIALOG at runtime.
         dialog: [
           "Welcome to my GYM!",
         ],
@@ -318,20 +369,10 @@ export const INTERIORS: Record<string, InteriorDef> = {
           const priority = resolveKostasPriority(save);
 
           if (priority.kind === "champion") {
-            // Priority 0 (endgame): all 8 badges earned.
-            // {NAME} is interpolated by DialogSystem using the
-            // player's save.playerName.
-            return {
-              lines: [
-                "Wahahahaha! {NAME}, you've",
-                "collected all 8 badges! You're",
-                "a true CHAMPION of ML Engineering!",
-              ],
-            };
+            return { lines: KOSTAS_DIALOG.champion };
           }
 
           if (priority.kind === "hint") {
-            // Priority 7 (fallback): no badge condition met yet
             return {
               lines: [
                 `Not yet, {NAME}.`,
@@ -341,44 +382,8 @@ export const INTERIORS: Record<string, InteriorDef> = {
             };
           }
 
-          // Priorities 1..6: award the eligible badge.
-          // Each KOSTAS badge has a unique monologue so the gym
-          // visits don't feel copy-pasted. Falls back to a generic
-          // line if a new badge id is ever added without copy.
           const { badgeId, badgeName } = priority;
-          const perBadgeLines: Record<string, string[]> = {
-            gym: [
-              `{NAME}, you beat every trainer`,
-              `in this gym! Take the GYM`,
-              `BADGE — you've earned it.`,
-            ],
-            publication: [
-              `Ten real publications, {NAME}!`,
-              `This PUBLICATION BADGE means`,
-              `you've read our research too.`,
-            ],
-            connected: [
-              `{NAME}, you followed every URL`,
-              `I left out there. The CONNECTED`,
-              `BADGE is yours — stay in touch!`,
-            ],
-            pokedex: [
-              `All 30 projects registered,`,
-              `{NAME}? Incredible. The POKeDEX`,
-              `BADGE goes to true completionists.`,
-            ],
-            blogger: [
-              `Ten blog posts read, {NAME}!`,
-              `The BLOGGER BADGE is my way of`,
-              `saying: writing matters, keep it up.`,
-            ],
-            engineer: [
-              `Twenty TMs. Twenty tools.`,
-              `{NAME}, the ENGINEER BADGE is`,
-              `the mark of a real shipper.`,
-            ],
-          };
-          const lines = perBadgeLines[badgeId] ?? [
+          const lines = KOSTAS_DIALOG.badges[badgeId] ?? [
             `{NAME}, you've been working hard!`,
             `Take the ${badgeName} BADGE`,
             `as proof of your skills!`,
@@ -405,7 +410,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
                 jinglePromise,
                 dialogSystem.showDialog({
                   lines: [
-                    `KOSTAS handed over`,
+                    KOSTAS_DIALOG.received,
                     `the ${badgeName} BADGE!`,
                   ],
                 }),
