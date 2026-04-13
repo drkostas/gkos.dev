@@ -131,6 +131,13 @@ function Toolbar() {
             if (e) dispatch({ type: "DELETE_ENTITY", id: e.id, entity: e });
           }
         }} />
+        <MenuSep />
+        <MenuItem label="Duplicate Selected" shortcut="⌘D" disabled={!state.selectedEntityId} onClick={() => {
+          if (state.selectedEntityId) {
+            const e = state.entities.find((x) => x.id === state.selectedEntityId);
+            if (e) dispatch({ type: "ADD_ENTITY", entity: { ...e, id: e.id + "_copy", x: e.x + 1 } });
+          }
+        }} />
       </>
     ),
     View: (
