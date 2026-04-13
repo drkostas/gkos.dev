@@ -633,6 +633,27 @@ function extractInteriors(text) {
       const rxM = slice.match(/movementRangeX:\s*(\d+)/);
       const ryM = slice.match(/movementRangeY:\s*(\d+)/);
       const hasDialogFn = /dialogFn\s*:/.test(slice);
+      // Extract autoGive
+      let autoGive = null;
+      if (slice.includes("autoGive:")) {
+        const agItemM = slice.match(/itemId:\s*"([^"]+)"/);
+        if (agItemM) {
+          autoGive = { itemId: agItemM[1] };
+          const asideM = slice.match(/asidePosition:\s*\{\s*x:\s*(\d+)\s*,\s*y:\s*(\d+)\s*\}/);
+          if (asideM) {
+            autoGive.asideX = parseInt(asideM[1], 10);
+            autoGive.asideY = parseInt(asideM[2], 10);
+          }
+          const clearedDlgM = slice.match(/clearedDialog:\s*\[([\s\S]*?)\]/);
+          if (clearedDlgM) {
+            const lines = [];
+            const lineRe = /"([^"]*)"/g;
+            let m2;
+            while ((m2 = lineRe.exec(clearedDlgM[1])) !== null) lines.push(m2[1]);
+            if (lines.length) autoGive.clearedDialog = lines;
+          }
+        }
+      }
       // Extract dialog lines
       let dialog = [];
       const dlgStart = slice.indexOf("dialog:");
@@ -668,6 +689,7 @@ function extractInteriors(text) {
         speakerName: speakerM?.[1] || "",
         dialog,
         hasDialogFn,
+        autoGive,
         sourceFile: "interiors.ts",
         interior: key,
       });
