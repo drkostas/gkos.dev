@@ -160,6 +160,24 @@ let flushScheduled = false;
 
 function loadFromStorage(): GameSave {
   if (typeof localStorage === "undefined") return defaults();
+
+  // Check for editor debug save (one-time override from the IDE)
+  try {
+    const debugRaw = localStorage.getItem("__editor_debug_save");
+    if (debugRaw) {
+      localStorage.removeItem("__editor_debug_save");
+      const debug = JSON.parse(debugRaw);
+      const save = defaults();
+      if (debug.playerName) save.playerName = debug.playerName;
+      if (debug.badges) save.badges = debug.badges;
+      if (debug.spawnOverride) {
+        (save as any).__editorSpawnOverride = debug.spawnOverride;
+      }
+      console.log("[GameSave] Loaded editor debug save:", debug);
+      return save;
+    }
+  } catch { /* ignore debug save errors */ }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaults();
