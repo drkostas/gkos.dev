@@ -391,7 +391,13 @@ function extractInteriors(text) {
         { type: "special", id: "gym_switch_4", x: 8, y: 9, specialType: "switch", interior: "gym" },
       );
     }
-    interiors[key] = { npcs, exitWarps, pcTiles, switches };
+    // Add gym puzzle solution
+    const puzzleSolution = key === "gym" ? {
+      switchOrder: [1, 3, 2, 4],
+      description: "Press switches in order: #1 (0,15) → #3 (3,9) → #2 (4,12) → #4 (8,9) to reach KOSTAS at (5,2)",
+      path: "Entrance (7,20) → Switch 1 → North → Switch 3 → East → Switch 2 → North → Switch 4 → KOSTAS",
+    } : null;
+    interiors[key] = { npcs, exitWarps, pcTiles, switches, puzzleSolution };
   }
   return interiors;
 }
