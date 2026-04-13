@@ -1,4 +1,4 @@
-import type { EditorState, EditorAction, EditorLayer } from "./editorTypes";
+import type { EditorState, EditorAction, EditorLayer, CatalogData } from "./editorTypes";
 
 const DEFAULT_LAYERS: Record<EditorLayer, boolean> = {
   ground: true, collision: false, foreground: true,
@@ -16,12 +16,39 @@ export const initialState: EditorState = {
   dirty: false,
   loading: true,
   error: null,
+  catalog: null,
+  availableSprites: null,
 };
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case "LOAD_DATA":
       return { ...state, entities: action.entities, loading: false };
+
+    case "LOAD_CATALOG":
+      return { ...state, catalog: action.catalog };
+
+    case "LOAD_SPRITES":
+      return { ...state, availableSprites: action.sprites };
+
+    case "UPDATE_CATALOG": {
+      if (!state.catalog) return state;
+      const arr = [...(state.catalog[action.dataType] as any[])];
+      arr[action.index] = { ...arr[action.index], [action.field]: action.value };
+      return { ...state, catalog: { ...state.catalog, [action.dataType]: arr }, dirty: true };
+    }
+
+    case "ADD_CATALOG_ENTRY": {
+      if (!state.catalog) return state;
+      const arr = [...(state.catalog[action.dataType] as any[]), action.entry];
+      return { ...state, catalog: { ...state.catalog, [action.dataType]: arr }, dirty: true };
+    }
+
+    case "DELETE_CATALOG_ENTRY": {
+      if (!state.catalog) return state;
+      const arr = (state.catalog[action.dataType] as any[]).filter((_, i) => i !== action.index);
+      return { ...state, catalog: { ...state.catalog, [action.dataType]: arr }, dirty: true };
+    }
 
     case "SELECT_ENTITY":
       return { ...state, selectedEntityId: action.id, selectedEntityIds: [action.id] };

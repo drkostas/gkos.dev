@@ -34,6 +34,33 @@ function sliceArrayBody(text, arrayName) {
   return text.slice(start, i - 1);
 }
 
+// ── Resolve dialog variable references ───────────────────────────
+// When dialog: SOME_CONSTANT, find the constant's definition in the
+// live NPC source files and extract the string literals from it.
+const dialogVarCache = new Map();
+function resolveDialogVar(varName) {
+  if (dialogVarCache.has(varName)) return dialogVarCache.get(varName);
+  const liveDir = resolve(ROOT, "src/game/npcs/live");
+  const files = ["github.ts", "spotify.ts", "strava.ts", "pypi.ts", "steps.ts"];
+  for (const f of files) {
+    try {
+      const text = readFileSync(resolve(liveDir, f), "utf-8");
+      const re = new RegExp(`export\\s+const\\s+${varName}[^=]*=\\s*\\[([\\s\\S]*?)\\];`);
+      const m = text.match(re);
+      if (m) {
+        const lines = [];
+        const lineRe = /"([^"]*)"/g;
+        let lm;
+        while ((lm = lineRe.exec(m[1])) !== null) lines.push(lm[1]);
+        dialogVarCache.set(varName, lines);
+        return lines;
+      }
+    } catch {}
+  }
+  dialogVarCache.set(varName, []);
+  return [];
+}
+
 // ── Extract NPC fields (expanded from map-analyzer) ──────────────
 function extractFullNpcs(body, applyOffset, sourceFile) {
   if (!body) return [];
@@ -69,8 +96,10 @@ function extractFullNpcs(body, applyOffset, sourceFile) {
     let dialog = [];
     const dlgStart = slice.indexOf("dialog:");
     if (dlgStart !== -1) {
-      const bracketStart = slice.indexOf("[", dlgStart);
-      if (bracketStart !== -1) {
+      const afterDialog = slice.substring(dlgStart + 7).trimStart();
+      if (afterDialog.startsWith("[")) {
+        // Inline array: dialog: ["line1", "line2"]
+        const bracketStart = slice.indexOf("[", dlgStart);
         let depth = 1, j = bracketStart + 1;
         while (j < slice.length && depth > 0) {
           if (slice[j] === "[") depth++;
@@ -81,6 +110,12 @@ function extractFullNpcs(body, applyOffset, sourceFile) {
         const lineRe = /"([^"]*)"/g;
         let lm;
         while ((lm = lineRe.exec(dlgBody)) !== null) dialog.push(lm[1]);
+      } else {
+        // Variable reference: dialog: SOME_FALLBACK_LINES,
+        const varMatch = afterDialog.match(/^([A-Z_][A-Z0-9_]*)/);
+        if (varMatch) {
+          dialog = resolveDialogVar(varMatch[1]);
+        }
       }
     }
 
@@ -292,6 +327,229 @@ function extractGates(text) {
   return out;
 }
 
+// ── Extract item definitions ────────────────────────────────────
+function extractItemDefinitions(text) {
+  // ITEM_DEFINITIONS is a Record<string, ItemDef> — find each block by id field
+  const startMarker = "ITEM_DEFINITIONS";
+  const recStart = text.indexOf(startMarker);
+  if (recStart === -1) return [];
+  const afterRec = text.substring(recStart);
+
+  const out = [];
+  const idRe = /id:\s*"([^"]+)"/g;
+  const idMatches = [];
+  let m;
+  while ((m = idRe.exec(afterRec)) !== null) idMatches.push({ id: m[1], idx: m.index });
+
+  for (let i = 0; i < idMatches.length; i++) {
+    const start = idMatches[i].idx;
+    const end = i + 1 < idMatches.length ? idMatches[i + 1].idx : afterRec.length;
+    const slice = afterRec.slice(start, end);
+    const nameM = slice.match(/name:\s*"([^"]+)"/);
+    const pocketM = slice.match(/pocket:\s*"([^"]+)"/);
+    const urlM = slice.match(/url:\s*"([^"]+)"/);
+    const iconM = slice.match(/icon:\s*"([^"]+)"/);
+    // Description can be multi-line with string concatenation — capture all quoted segments
+    const descParts = [];
+    const descStart = slice.indexOf("description:");
+    if (descStart !== -1) {
+      const descSlice = slice.substring(descStart, descStart + 300);
+      const descLineRe = /"([^"]*)"/g;
+      let dm;
+      // Stop after hitting url: or icon: or pocket: or the closing }
+      const nextField = descSlice.search(/\b(url|icon|pocket)\s*:/);
+      const descRegion = nextField > 0 ? descSlice.substring(0, nextField) : descSlice;
+      while ((dm = descLineRe.exec(descRegion)) !== null) descParts.push(dm[1]);
+    }
+    out.push({
+      id: idMatches[i].id,
+      name: nameM?.[1] || "",
+      pocket: pocketM?.[1] || "",
+      description: descParts.join("\n"),
+      url: urlM?.[1] || "",
+      icon: iconM?.[1] || "",
+    });
+  }
+  return out;
+}
+
+// ── Extract step milestones (TM shop) ───────────────────────────
+function extractStepMilestones(text) {
+  const body = sliceArrayBody(text, "STEP_MILESTONES");
+  if (!body) return [];
+  const out = [];
+  const re = /steps:\s*(\d+)[^}]*itemId:\s*"([^"]+)"[^}]*tm:\s*"([^"]+)"[^}]*description:\s*"([^"]*)"/g;
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    out.push({
+      steps: parseInt(m[1], 10),
+      itemId: m[2],
+      tm: m[3],
+      description: m[4],
+    });
+  }
+  return out;
+}
+
+// ── Extract full pokedex ────────────────────────────────────────
+function extractFullPokedex(text) {
+  const body = sliceArrayBody(text, "POKEDEX");
+  if (!body) return [];
+  const out = [];
+  // Split by number: field to get each entry
+  const re = /number:\s*(\d+)[^}]*name:\s*"([^"]+)"[^}]*level:\s*(\d+)[^}]*types:\s*\["([^"]+)",\s*"([^"]+)"\][^}]*status:\s*"([^"]+)"[^}]*pokemon:\s*"([^"]+)"[^}]*description:\s*"([^"]*)"(?:[^}]*url:\s*"([^"]*)")?/g;
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    out.push({
+      number: parseInt(m[1], 10),
+      name: m[2],
+      level: parseInt(m[3], 10),
+      types: [m[4], m[5]],
+      status: m[6],
+      pokemon: m[7],
+      description: m[8],
+      url: m[9] || "",
+    });
+  }
+  return out;
+}
+
+// ── Extract party pokemon ───────────────────────────────────────
+function extractParty(text) {
+  const body = sliceArrayBody(text, "ALL_PARTY");
+  if (!body) return [];
+  const out = [];
+  const idRe = /id:\s*"([^"]+)"/g;
+  const idMatches = [];
+  let m;
+  while ((m = idRe.exec(body)) !== null) idMatches.push({ id: m[1], idx: m.index });
+
+  for (let i = 0; i < idMatches.length; i++) {
+    const start = idMatches[i].idx;
+    const end = i + 1 < idMatches.length ? idMatches[i + 1].idx : body.length;
+    const slice = body.slice(start, end);
+    const nickM = slice.match(/nickname:\s*"([^"]+)"/);
+    const specM = slice.match(/species:\s*"([^"]+)"/);
+    const lvlM = slice.match(/level:\s*(\d+)/);
+    const hpM = slice.match(/hp:\s*(\d+)/);
+    const maxHpM = slice.match(/maxHp:\s*(\d+)/);
+    const projM = slice.match(/projectName:\s*"([^"]+)"/);
+    const urlM = slice.match(/url:\s*"([^"]+)"/);
+    const descM = slice.match(/description:\s*"([^"]*)"/);
+    const dexM = slice.match(/dexNo:\s*(\d+)/);
+    // Extract moves array
+    const moves = [];
+    const moveRe = /name:\s*"([^"]+)"[^}]*type:\s*"([^"]+)"[^}]*pp:\s*(\d+)[^}]*maxPp:\s*(\d+)[^}]*description:\s*"([^"]*)"/g;
+    const movesStart = slice.indexOf("moves:");
+    if (movesStart !== -1) {
+      const movesSlice = slice.substring(movesStart);
+      let mm;
+      while ((mm = moveRe.exec(movesSlice)) !== null) {
+        moves.push({ name: mm[1], type: mm[2], pp: parseInt(mm[3], 10), maxPp: parseInt(mm[4], 10), description: mm[5] });
+      }
+    }
+    out.push({
+      id: idMatches[i].id,
+      nickname: nickM?.[1] || "",
+      species: specM?.[1] || "",
+      level: lvlM ? parseInt(lvlM[1], 10) : 1,
+      hp: hpM ? parseInt(hpM[1], 10) : 1,
+      maxHp: maxHpM ? parseInt(maxHpM[1], 10) : 1,
+      projectName: projM?.[1] || "",
+      url: urlM?.[1] || "",
+      description: descM?.[1] || "",
+      dexNo: dexM ? parseInt(dexM[1], 10) : 0,
+      moves,
+    });
+  }
+  return out;
+}
+
+// ── Extract badges ──────────────────────────────────────────────
+function extractBadges(text) {
+  const body = sliceArrayBody(text, "BADGES");
+  if (!body) return [];
+  const out = [];
+  const idRe = /id:\s*"([^"]+)"/g;
+  const idMatches = [];
+  let m;
+  while ((m = idRe.exec(body)) !== null) idMatches.push({ id: m[1], idx: m.index });
+
+  for (let i = 0; i < idMatches.length; i++) {
+    const start = idMatches[i].idx;
+    const end = i + 1 < idMatches.length ? idMatches[i + 1].idx : body.length;
+    const slice = body.slice(start, end);
+    const nameM = slice.match(/name:\s*"([^"]+)"/);
+    const hintM = slice.match(/hint:\s*"([^"]+)"/);
+    const autoM = slice.match(/auto:\s*(true|false)/);
+    out.push({
+      id: idMatches[i].id,
+      name: nameM?.[1] || "",
+      hint: hintM?.[1] || "",
+      auto: autoM?.[1] === "true",
+      hasCondition: /condition\s*:/.test(slice),
+    });
+  }
+  return out;
+}
+
+// ── Extract field move awards ───────────────────────────────────
+function extractFieldMoveAwards(text) {
+  const body = sliceArrayBody(text, "FIELD_MOVE_AWARDS");
+  if (!body) return [];
+  const out = [];
+  const re = /badgeId:\s*"([^"]+)"[^}]*pokemonId:\s*"([^"]+)"[^}]*moveName:\s*"([^"]+)"[^}]*learnMessage:\s*"([^"]*)"/g;
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    out.push({ badgeId: m[1], pokemonId: m[2], moveName: m[3], learnMessage: m[4] });
+  }
+  return out;
+}
+
+// ── Extract research log ────────────────────────────────────────
+function extractResearchLog(text) {
+  const body = sliceArrayBody(text, "LOG_ENTRIES");
+  if (!body) return [];
+  const out = [];
+  const numRe = /number:\s*(\d+)/g;
+  const numMatches = [];
+  let m;
+  while ((m = numRe.exec(body)) !== null) numMatches.push({ num: parseInt(m[1], 10), idx: m.index });
+
+  for (let i = 0; i < numMatches.length; i++) {
+    const start = numMatches[i].idx;
+    const end = i + 1 < numMatches.length ? numMatches[i + 1].idx : body.length;
+    const slice = body.slice(start, end);
+    const titleM = slice.match(/title:\s*"([^"]+)"/);
+    const threshM = slice.match(/threshold:\s*(\d+)/);
+    // Extract text array
+    const textLines = [];
+    const textStart = slice.indexOf("text:");
+    if (textStart !== -1) {
+      const bracketStart = slice.indexOf("[", textStart);
+      if (bracketStart !== -1) {
+        let depth = 1, j = bracketStart + 1;
+        while (j < slice.length && depth > 0) {
+          if (slice[j] === "[") depth++;
+          else if (slice[j] === "]") depth--;
+          j++;
+        }
+        const textBody = slice.slice(bracketStart + 1, j - 1);
+        const lineRe = /"([^"]*)"/g;
+        let lm;
+        while ((lm = lineRe.exec(textBody)) !== null) textLines.push(lm[1]);
+      }
+    }
+    out.push({
+      number: numMatches[i].num,
+      title: titleM?.[1] || "",
+      threshold: threshM ? parseInt(threshM[1], 10) : 0,
+      text: textLines,
+    });
+  }
+  return out;
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 const npcsText = readFileSync(resolve(ROOT, "src/game/data/npcs.ts"), "utf-8");
 const wildText = readFileSync(resolve(ROOT, "src/game/data/wild-pokemon.ts"), "utf-8");
@@ -299,6 +557,13 @@ const hiddenText = readFileSync(resolve(ROOT, "src/game/data/hiddenItems.ts"), "
 const warpsText = readFileSync(resolve(ROOT, "src/game/data/warps.ts"), "utf-8");
 const gatesText = readFileSync(resolve(ROOT, "src/game/data/gates.ts"), "utf-8");
 const pokemonText = readFileSync(resolve(ROOT, "src/game/data/pokemon.ts"), "utf-8");
+
+const itemDefsText = readFileSync(resolve(ROOT, "src/game/data/itemDefinitions.ts"), "utf-8");
+const stepMilestonesText = readFileSync(resolve(ROOT, "src/game/systems/StepMilestones.ts"), "utf-8");
+const partyText = readFileSync(resolve(ROOT, "src/game/data/party.ts"), "utf-8");
+const badgesText = readFileSync(resolve(ROOT, "src/game/systems/BadgeMilestones.ts"), "utf-8");
+const fmaText = readFileSync(resolve(ROOT, "src/game/data/fieldMoveAwards.ts"), "utf-8");
+const researchLogText = readFileSync(resolve(ROOT, "src/game/data/researchLog.ts"), "utf-8");
 
 const pokedexMap = buildPokedexMap(pokemonText);
 const mauvilleNpcs = extractFullNpcsFromTopLevel(npcsText, "MAUVILLE_NPCS_RAW", true, "npcs.ts");
@@ -339,17 +604,55 @@ function extractInteriors(text) {
     const blockEnd = Math.min(text.indexOf("\n  },", blockStart + 100) + 5, text.length);
     const block = text.substring(blockStart, blockEnd > blockStart ? blockEnd : blockStart + 3000);
 
-    // NPC extraction
-    const npcRe = /id:\s*"([^"]+)"[\s\S]*?position:\s*\{\s*x:\s*(\d+)\s*,\s*y:\s*(\d+)\s*\}[\s\S]*?facingDirection:\s*"([^"]+)"/g;
-    let m;
+    // NPC extraction — use ID-based block slicing for full field extraction
     const npcBlock = block.substring(block.indexOf("npcs:"));
-    while ((m = npcRe.exec(npcBlock)) !== null) {
+    const idRe = /id:\s*"([^"]+)"/g;
+    const idMatches = [];
+    let m;
+    while ((m = idRe.exec(npcBlock)) !== null) idMatches.push({ id: m[1], idx: m.index });
+
+    for (let ni = 0; ni < idMatches.length; ni++) {
+      const nStart = idMatches[ni].idx;
+      const nEnd = ni + 1 < idMatches.length ? idMatches[ni + 1].idx : npcBlock.length;
+      const slice = npcBlock.slice(nStart, nEnd);
+      const posM = slice.match(/position:\s*\{\s*x:\s*(\d+)\s*,\s*y:\s*(\d+)\s*\}/);
+      if (!posM) continue;
+      const facingM = slice.match(/facingDirection:\s*"([^"]+)"/);
+      const spriteM = slice.match(/spriteKey:\s*"([^"]+)"/);
+      const speakerM = slice.match(/speakerName:\s*"([^"]+)"/);
+      const hasDialogFn = /dialogFn\s*:/.test(slice);
+      // Extract dialog lines
+      let dialog = [];
+      const dlgStart = slice.indexOf("dialog:");
+      if (dlgStart !== -1) {
+        const afterDlg = slice.substring(dlgStart + 7).trimStart();
+        if (afterDlg.startsWith("[")) {
+          const bracketStart = slice.indexOf("[", dlgStart);
+          let depth = 1, j = bracketStart + 1;
+          while (j < slice.length && depth > 0) {
+            if (slice[j] === "[") depth++;
+            else if (slice[j] === "]") depth--;
+            j++;
+          }
+          const dlgBody = slice.slice(bracketStart + 1, j - 1);
+          const lineRe = /"([^"]*)"/g;
+          let lm;
+          while ((lm = lineRe.exec(dlgBody)) !== null) dialog.push(lm[1]);
+        } else {
+          const varMatch = afterDlg.match(/^([A-Z_][A-Z0-9_]*)/);
+          if (varMatch) dialog = resolveDialogVar(varMatch[1]);
+        }
+      }
       npcs.push({
         type: "npc",
-        id: m[1],
-        x: parseInt(m[2], 10),
-        y: parseInt(m[3], 10),
-        facingDirection: m[4],
+        id: idMatches[ni].id,
+        x: parseInt(posM[1], 10),
+        y: parseInt(posM[2], 10),
+        facingDirection: facingM?.[1] || "down",
+        spriteKey: spriteM?.[1] || undefined,
+        speakerName: speakerM?.[1] || "",
+        dialog,
+        hasDialogFn,
         sourceFile: "interiors.ts",
         interior: key,
       });
@@ -404,6 +707,15 @@ function extractInteriors(text) {
 
 const interiorData = extractInteriors(interiorsText);
 
+// ── Extract catalog data ─────────────────────────────────────────
+const catalogItemDefs = extractItemDefinitions(itemDefsText);
+const catalogMilestones = extractStepMilestones(stepMilestonesText);
+const catalogPokedex = extractFullPokedex(pokemonText);
+const catalogParty = extractParty(partyText);
+const catalogBadges = extractBadges(badgesText);
+const catalogFieldMoves = extractFieldMoveAwards(fmaText);
+const catalogResearchLog = extractResearchLog(researchLogText);
+
 const data = {
   generatedAt: new Date().toISOString(),
   entityCount: allEntities.length,
@@ -419,9 +731,37 @@ const data = {
   },
   entities: allEntities,
   interiors: interiorData,
+  // Catalog data for the Data Manager panel
+  catalog: {
+    itemDefinitions: catalogItemDefs,
+    stepMilestones: catalogMilestones,
+    pokedex: catalogPokedex,
+    party: catalogParty,
+    badges: catalogBadges,
+    fieldMoveAwards: catalogFieldMoves,
+    researchLog: catalogResearchLog,
+  },
   mapSize: { width: 140, height: 120 },
   spawn: { x: 72, y: 58 },
   mauvilleOrigin: { x: 50, y: 50 },
+};
+
+// ── Scan available sprites ───────────────────────────────────────
+import { readdirSync } from "fs";
+const spriteDir = resolve(ROOT, "public/game/sprites/emerald");
+const allNpcSprites = readdirSync(spriteDir)
+  .filter(f => f.endsWith(".png"))
+  .map(f => f.replace(".png", ""))
+  .sort();
+const pokemonOwDir = resolve(ROOT, "public/game/sprites/pokemon/overworld");
+const allPokemonOw = readdirSync(pokemonOwDir).filter(f => f.endsWith(".png")).map(f => f.replace(".png", "")).sort();
+const itemIconDir = resolve(ROOT, "public/game/ui/items");
+const allItemIcons = readdirSync(itemIconDir).filter(f => f.endsWith(".png")).map(f => f.replace(".png", "")).sort();
+
+data.availableSprites = {
+  npcs: allNpcSprites,
+  pokemonOverworld: allPokemonOw,
+  itemIcons: allItemIcons,
 };
 
 const outPath = resolve(ROOT, "editor-data.json");
@@ -431,3 +771,4 @@ console.log(`editor-data.json generated: ${allEntities.length} entities`);
 console.log(`  NPCs: ${data.byType.npc}, Pokemon NPCs: ${data.byType["pokemon-npc"]}, Pickups: ${data.byType.pickup}`);
 console.log(`  Wild Pokemon: ${data.byType["wild-pokemon"]}, Signs: ${data.byType.sign}`);
 console.log(`  Hidden Items: ${data.byType["hidden-item"]}, Warps: ${data.byType.warp}, Gates: ${data.byType.gate}`);
+console.log(`  Catalog: ${catalogItemDefs.length} items, ${catalogMilestones.length} TMs, ${catalogPokedex.length} pokedex, ${catalogParty.length} party, ${catalogBadges.length} badges, ${catalogFieldMoves.length} field moves, ${catalogResearchLog.length} log entries`);
