@@ -1321,7 +1321,9 @@ function StatusBar() {
     <div style={{ height: 22, background: "#2d2d44", display: "flex", alignItems: "center", padding: "0 10px", fontSize: 9, color: "#666", borderTop: "1px solid #3a3a50", flexShrink: 0, gap: 4 }}>
       <span>Mauville City</span>
       <span style={{ width: 1, height: 10, background: "#444", margin: "0 4px" }} />
-      {selected ? <span>Tile ({selected.x}, {selected.y})</span> : <span>No selection</span>}
+      {selected ? (
+        <span>Tile ({selected.x}, {selected.y}){state.selectedEntityIds.length > 1 ? ` [${state.selectedEntityIds.length} selected]` : ""}</span>
+      ) : <span>No selection</span>}
       <span style={{ width: 1, height: 10, background: "#444", margin: "0 4px" }} />
       <span>{state.entities.filter((e) => e.type === "npc" || e.type === "pokemon-npc" || e.type === "pickup").length} NPCs</span>
       <span>{state.entities.filter((e) => e.type === "wild-pokemon").length} Pokemon</span>

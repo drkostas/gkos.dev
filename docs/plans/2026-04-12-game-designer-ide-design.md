@@ -2282,7 +2282,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Has Pokemon: All / Yes / No
   - Verification: filtering by zone shows only entities in that zone
 
-- [ ] **P7-04** Multi-select
+- [x] **P7-04** Multi-select
   - Shift+click to add/remove from selection
   - Shift+drag to rectangle-select
   - Ctrl+A to select all visible

@@ -54,6 +54,8 @@ export interface UndoEntry {
 export interface EditorState {
   entities: EditorEntity[];
   selectedEntityId: string | null;
+  /** Multi-select: additional selected entity IDs (Shift+click) */
+  selectedEntityIds: string[];
   layers: Record<EditorLayer, boolean>;
   tool: EditorTool;
   undoStack: UndoEntry[];
@@ -66,6 +68,7 @@ export interface EditorState {
 export type EditorAction =
   | { type: "LOAD_DATA"; entities: EditorEntity[] }
   | { type: "SELECT_ENTITY"; id: string }
+  | { type: "TOGGLE_SELECT"; id: string }
   | { type: "DESELECT" }
   | { type: "MOVE_ENTITY"; id: string; x: number; y: number; oldX: number; oldY: number }
   | { type: "UPDATE_FIELD"; id: string; field: string; value: any; oldValue: any }
