@@ -26,6 +26,8 @@ export const REFRESH_ENTITIES = "editor:refresh-entities";
 export const SHOW_HEATMAP = "editor:show-heatmap";
 export const HIDE_HEATMAP = "editor:hide-heatmap";
 export const SWITCH_MAP = "editor:switch-map";
+export const TILE_PAINT = "editor:tile-paint";
+export const TILE_EYEDROP = "editor:tile-eyedrop";
 
 /** Emit an editor event on window */
 export function emitEditorEvent(event: string, detail?: unknown): void {

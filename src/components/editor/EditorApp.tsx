@@ -42,7 +42,8 @@ function Toolbar() {
     { id: "select" as const, icon: "⊹", label: "Select", desc: "Click to select entities" },
     { id: "move" as const, icon: "✥", label: "Move", desc: "Drag entities to reposition" },
     { id: "stamp" as const, icon: "⊞", label: "Stamp", desc: "Place new entities from library" },
-    { id: "eraser" as const, icon: "⌫", label: "Eraser", desc: "Remove entities from map" },
+    { id: "eraser" as const, icon: "⌫", label: "Eraser", desc: "Remove entities/clear tiles" },
+    { id: "eyedropper" as const, icon: "◉", label: "Eyedropper", desc: "Pick tile from map (5)" },
   ];
 
   const handleSave = async () => {
@@ -205,7 +206,7 @@ function Toolbar() {
       {tools.map((t) => (
         <div
           key={t.id}
-          onClick={() => dispatch({ type: "SET_TOOL", tool: t.id })}
+          onClick={() => { dispatch({ type: "SET_TOOL", tool: t.id }); emitEditorEvent("editor:set-tool", { tool: t.id }); }}
           onMouseEnter={() => setHoveredTool(t.id)}
           onMouseLeave={() => setHoveredTool(null)}
           title={`${t.label}: ${t.desc}`}
@@ -449,16 +450,34 @@ function LeftPanel() {
 
       {/* Tiles tab */}
       {activeTab === "tiles" && (
-        <div style={{ flex: 1, padding: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#555" }}>
-          <div style={{ fontSize: 11, marginBottom: 8 }}>Tile Palette</div>
-          <img
-            src="/game/tilesets/mauville_bottom.png"
-            alt="tileset"
-            style={{ imageRendering: "pixelated", maxWidth: "100%", border: "1px solid #2a2a40", borderRadius: 3 }}
-          />
-          <div style={{ fontSize: 9, color: "#666", marginTop: 8, textAlign: "center" }}>
-            Tile painting available in Phase 4.
-            <br />Select tiles to copy, replace, or modify.
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 4px", display: "flex", flexDirection: "column" }}>
+          <div style={{ fontSize: 9, color: "#666", padding: "0 4px 4px" }}>
+            Click tile to select for Stamp tool (3). Tileset: 16x16 tiles, 16 columns.
+          </div>
+          <div
+            style={{ position: "relative", cursor: "crosshair" }}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const scale = 208 / 288; // displayed width / real width
+              const realX = (e.clientX - rect.left) / (2 * scale);
+              const realY = (e.clientY - rect.top) / (2 * scale);
+              const tileCol = Math.floor(realX / 16);
+              const tileRow = Math.floor(realY / 16);
+              const gid = tileRow * 16 + tileCol + 1; // +1 because Tiled GIDs are 1-indexed
+              emitEditorEvent("editor:select-tile-gid", { gid });
+              // Auto-switch to stamp tool
+              dispatch({ type: "SET_TOOL", tool: "stamp" });
+              emitEditorEvent("editor:set-tool", { tool: "stamp" });
+            }}
+          >
+            <img
+              src="/game/tilesets/mauville_bottom.png"
+              alt="tileset"
+              style={{ imageRendering: "pixelated", width: "100%", display: "block" }}
+            />
+          </div>
+          <div style={{ fontSize: 8, color: "#555", padding: "4px", textAlign: "center" }}>
+            Select Stamp (3) → click palette → click map to paint
           </div>
         </div>
       )}
@@ -1386,6 +1405,7 @@ function EditorInner() {
       if (e.key === "2" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "move" });
       if (e.key === "3" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "stamp" });
       if (e.key === "4" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eraser" });
+      if (e.key === "5" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eyedropper" });
       // Ctrl+D: duplicate selected entity
       if ((e.metaKey || e.ctrlKey) && e.key === "d") {
         e.preventDefault();
