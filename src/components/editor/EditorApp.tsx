@@ -210,10 +210,46 @@ function Toolbar() {
   );
 }
 
-/** Left panel — Entity list with type filtering */
+/** NPC sprite preview — renders first frame of a 144x32 spritesheet */
+function SpritePreview({ spriteKey, size = 24 }: { spriteKey: string; size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, overflow: "hidden", flexShrink: 0,
+      background: "#0d0d1a", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <img
+        src={`/game/sprites/emerald/${spriteKey}.png`}
+        alt={spriteKey}
+        style={{
+          imageRendering: "pixelated",
+          width: size * 9, height: size * 2,
+          objectFit: "none",
+          objectPosition: "0 0",
+          clipPath: `inset(0 ${(size * 9) - size}px ${size}px 0)`,
+        }}
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+    </div>
+  );
+}
+
+const ALL_NPC_SPRITES = [
+  "boy_1", "boy_2", "boy_3", "girl_1", "girl_2", "girl_3",
+  "man_1", "woman_1", "woman_2", "woman_4", "fat_man", "old_man", "old_woman",
+  "rich_boy", "school_kid_m", "maniac", "lass", "fisherman", "youngster",
+  "beauty", "black_belt", "bug_catcher", "gentleman", "hiker",
+  "little_boy", "little_girl", "nurse", "pokefan_f", "pokefan_m", "scientist_1",
+  "aqua_member_f", "aqua_member_m", "magma_member_f", "magma_member_m",
+  "brendan", "may", "wally", "wattson", "scott",
+  "item_ball", "snorlax", "slaking", "slakoth",
+  "poochyena_ow", "camerupt", "carvanha", "golbat", "mightyena", "numel", "sharpedo", "wailmer",
+];
+
+/** Left panel — Tabbed Asset Library */
 function LeftPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
+  const [activeTab, setActiveTab] = useState<"entities" | "sprites" | "tiles">("entities");
   const [filterType, setFilterType] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const entityTypes = ["npc", "pokemon-npc", "pickup", "wild-pokemon", "sign", "hidden-item", "warp", "gate"] as const;
@@ -229,62 +265,147 @@ function LeftPanel() {
     return true;
   });
 
+  const filteredSprites = ALL_NPC_SPRITES.filter((s) =>
+    !searchQuery || s.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const tabs = [
+    { id: "entities" as const, label: "Entities", count: state.entities.length },
+    { id: "sprites" as const, label: "NPC Sprites", count: ALL_NPC_SPRITES.length },
+    { id: "tiles" as const, label: "Tiles", count: 0 },
+  ];
+
   return (
-    <div style={{ width: 200, background: "#1e1e30", borderRight: "1px solid #2a2a40", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-      <div style={{ padding: "8px 8px 4px", flexShrink: 0 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6 }}>
-          Entities ({state.entities.length})
-        </div>
+    <div style={{ width: 220, background: "#1e1e30", borderRight: "1px solid #2a2a40", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      {/* Tab bar */}
+      <div style={{ display: "flex", flexShrink: 0, borderBottom: "1px solid #2a2a40" }}>
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            onClick={() => { setActiveTab(tab.id); setSearchQuery(""); setFilterType(null); }}
+            style={{
+              flex: 1, padding: "6px 4px", fontSize: 9, textAlign: "center", cursor: "pointer",
+              color: activeTab === tab.id ? "#fff" : "#888",
+              borderBottom: activeTab === tab.id ? "2px solid #4a9eed" : "2px solid transparent",
+              fontWeight: activeTab === tab.id ? 700 : 400,
+            }}
+          >
+            {tab.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div style={{ padding: "6px 8px", flexShrink: 0 }}>
         <input
           type="text"
-          placeholder="Search entities..."
+          placeholder={activeTab === "entities" ? "Search entities..." : activeTab === "sprites" ? "Search sprites..." : "Search tiles..."}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
             width: "100%", background: "#161628", border: "1px solid #2a2a40", borderRadius: 3,
-            color: "#ccc", fontSize: 10, padding: "3px 6px", outline: "none", marginBottom: 6, boxSizing: "border-box",
+            color: "#ccc", fontSize: 10, padding: "3px 6px", outline: "none", boxSizing: "border-box",
           }}
         />
-        {entityTypes.map((t) => {
-          const count = state.entities.filter((e) => e.type === t).length;
-          if (count === 0) return null;
-          const active = filterType === t;
-          return (
-            <div
-              key={t}
-              onClick={() => setFilterType(active ? null : t)}
-              style={{
-                padding: "2px 8px", fontSize: 10, cursor: "pointer",
-                background: active ? "#1e3a5f" : "transparent", borderRadius: 2,
-              }}
-            >
-              <span style={{ color: typeColors[t] || "#888", marginRight: 4 }}>●</span>
-              <span style={{ color: active ? "#fff" : "#aaa" }}>{t} ({count})</span>
-            </div>
-          );
-        })}
       </div>
-      <div style={{ height: 1, background: "#2a2a40", margin: "4px 8px", flexShrink: 0 }} />
-      <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, padding: "4px 8px", textTransform: "uppercase", flexShrink: 0 }}>
-        {filterType ? `${filterType} (${filtered.length})` : `All (${filtered.length})`}
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        {filtered.map((e) => (
-          <div
-            key={e.id}
-            onClick={() => dispatch({ type: "SELECT_ENTITY", id: e.id })}
-            style={{
-              padding: "3px 8px", fontSize: 10, cursor: "pointer",
-              background: state.selectedEntityId === e.id ? "#1e3a5f" : "transparent",
-              color: state.selectedEntityId === e.id ? "#e5e5e5" : "#999",
-              display: "flex", alignItems: "center", gap: 4,
-            }}
-          >
-            <span style={{ color: typeColors[e.type] || "#888" }}>●</span>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.id}</span>
+
+      {/* Entity tab */}
+      {activeTab === "entities" && (
+        <>
+          <div style={{ padding: "0 8px 4px", flexShrink: 0 }}>
+            {entityTypes.map((t) => {
+              const count = state.entities.filter((e) => e.type === t).length;
+              if (count === 0) return null;
+              const active = filterType === t;
+              return (
+                <div
+                  key={t}
+                  onClick={() => setFilterType(active ? null : t)}
+                  style={{
+                    padding: "2px 6px", fontSize: 10, cursor: "pointer",
+                    background: active ? "#1e3a5f" : "transparent", borderRadius: 2,
+                  }}
+                >
+                  <span style={{ color: typeColors[t] || "#888", marginRight: 4 }}>●</span>
+                  <span style={{ color: active ? "#fff" : "#aaa" }}>{t} ({count})</span>
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
+          <div style={{ height: 1, background: "#2a2a40", margin: "2px 8px", flexShrink: 0 }} />
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1, padding: "4px 8px", flexShrink: 0 }}>
+            {filterType ? `${filterType} (${filtered.length})` : `All (${filtered.length})`}
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+            {filtered.map((e) => (
+              <div
+                key={e.id}
+                onClick={() => dispatch({ type: "SELECT_ENTITY", id: e.id })}
+                style={{
+                  padding: "3px 8px", fontSize: 10, cursor: "pointer",
+                  background: state.selectedEntityId === e.id ? "#1e3a5f" : "transparent",
+                  color: state.selectedEntityId === e.id ? "#e5e5e5" : "#999",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}
+              >
+                {e.spriteKey && <SpritePreview spriteKey={e.spriteKey} size={18} />}
+                {!e.spriteKey && <span style={{ color: typeColors[e.type] || "#888", width: 18, textAlign: "center" }}>●</span>}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.id}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* NPC Sprites tab */}
+      {activeTab === "sprites" && (
+        <div style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "0 4px" }}>
+          <div style={{ fontSize: 9, color: "#666", padding: "4px 4px", flexShrink: 0 }}>
+            {filteredSprites.length} sprites — drag to viewport to place
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
+            {filteredSprites.map((sprite) => (
+              <div
+                key={sprite}
+                title={sprite}
+                style={{
+                  background: "#161628", borderRadius: 3, padding: 4,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                  cursor: "grab", border: "1px solid transparent",
+                }}
+                onMouseEnter={(e) => { (e.target as HTMLElement).style.borderColor = "#4a9eed"; }}
+                onMouseLeave={(e) => { (e.target as HTMLElement).style.borderColor = "transparent"; }}
+              >
+                <img
+                  src={`/game/sprites/emerald/${sprite}.png`}
+                  alt={sprite}
+                  style={{ imageRendering: "pixelated", width: 48, height: "auto" }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <span style={{ fontSize: 7, color: "#888", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                  {sprite}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tiles tab */}
+      {activeTab === "tiles" && (
+        <div style={{ flex: 1, padding: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#555" }}>
+          <div style={{ fontSize: 11, marginBottom: 8 }}>Tile Palette</div>
+          <img
+            src="/game/tilesets/mauville_bottom.png"
+            alt="tileset"
+            style={{ imageRendering: "pixelated", maxWidth: "100%", border: "1px solid #2a2a40", borderRadius: 3 }}
+          />
+          <div style={{ fontSize: 9, color: "#666", marginTop: 8, textAlign: "center" }}>
+            Tile painting available in Phase 4.
+            <br />Select tiles to copy, replace, or modify.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
