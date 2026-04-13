@@ -85,6 +85,13 @@ function Toolbar() {
     }
   };
 
+  // Listen for Ctrl+S trigger from keyboard handler
+  useEffect(() => {
+    const handler = () => handleSave();
+    window.addEventListener("editor:trigger-save", handler);
+    return () => window.removeEventListener("editor:trigger-save", handler);
+  }, [state.undoStack]);
+
   const handleUndo = () => dispatch({ type: "UNDO" });
   const handleRedo = () => dispatch({ type: "REDO" });
 
@@ -1318,7 +1325,7 @@ function EditorInner() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); dispatch({ type: "UNDO" }); }
       if ((e.metaKey || e.ctrlKey) && e.key === "y") { e.preventDefault(); dispatch({ type: "REDO" }); }
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); /* save handled by toolbar */ }
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); window.dispatchEvent(new CustomEvent("editor:trigger-save")); }
       if (e.key === "Escape") { dispatch({ type: "DESELECT" }); setContextMenu(null); }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (state.selectedEntityId) {
