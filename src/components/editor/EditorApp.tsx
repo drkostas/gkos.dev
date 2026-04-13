@@ -749,7 +749,13 @@ function BottomPanel() {
         {problems.map((p, i) => (
           <div
             key={i}
-            onClick={() => p.entityId && dispatch({ type: "SELECT_ENTITY", id: p.entityId })}
+            onClick={() => {
+              if (p.entityId) {
+                dispatch({ type: "SELECT_ENTITY", id: p.entityId });
+                const entity = state.entities.find((e) => e.id === p.entityId);
+                if (entity) emitEditorEvent(JUMP_TO_TILE, { x: entity.x, y: entity.y });
+              }
+            }}
             style={{
               fontSize: 10, padding: "2px 0", cursor: p.entityId ? "pointer" : "default",
               color: p.severity === "error" ? "#ef4444" : p.severity === "warning" ? "#f59e0b" : "#22c55e",
@@ -785,10 +791,59 @@ function StatusBar() {
   );
 }
 
+/** Context menu overlay */
+function ContextMenu({ x, y, entityId, onClose }: { x: number; y: number; entityId: string | null; onClose: () => void }) {
+  const state = useEditorState();
+  const dispatch = useEditorDispatch();
+  const entity = entityId ? state.entities.find((e) => e.id === entityId) : null;
+
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9998 }} onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
+      <div style={{
+        position: "fixed", top: y, left: x, zIndex: 9999,
+        background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 4,
+        padding: "4px 0", minWidth: 160, boxShadow: "0 4px 20px rgba(0,0,0,0.8)",
+      }}>
+        {entity ? (
+          <>
+            <div style={{ padding: "4px 12px", fontSize: 9, color: "#666", fontWeight: 700 }}>{entity.id}</div>
+            <MenuItem label="Select" onClick={() => { dispatch({ type: "SELECT_ENTITY", id: entity.id }); onClose(); }} />
+            <MenuItem label="Jump to Entity" onClick={() => {
+              emitEditorEvent(JUMP_TO_TILE, { x: entity.x, y: entity.y });
+              dispatch({ type: "SELECT_ENTITY", id: entity.id });
+              onClose();
+            }} />
+            <MenuSep />
+            <MenuItem label="Duplicate" onClick={() => {
+              const newEntity = { ...entity, id: entity.id + "_copy", x: entity.x + 1, y: entity.y };
+              dispatch({ type: "ADD_ENTITY", entity: newEntity });
+              onClose();
+            }} />
+            <MenuItem label="Delete" shortcut="Del" onClick={() => {
+              dispatch({ type: "DELETE_ENTITY", id: entity.id, entity });
+              onClose();
+            }} />
+          </>
+        ) : (
+          <>
+            <MenuItem label="Deselect All" shortcut="Esc" onClick={() => { dispatch({ type: "DESELECT" }); onClose(); }} />
+            <MenuItem label="Reset View" onClick={() => {
+              emitEditorEvent(JUMP_TO_TILE, { x: 70, y: 60 });
+              onClose();
+            }} />
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 /** Inner app with context */
 function EditorInner() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string | null } | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -804,12 +859,30 @@ function EditorInner() {
       .catch((e) => dispatch({ type: "SET_ERROR", error: e.message }));
   }, []);
 
+  // Listen for right-click context menu from Phaser
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      // Only intercept right-clicks on the canvas
+      if (e.target instanceof HTMLCanvasElement) {
+        e.preventDefault();
+        setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          entityId: state.selectedEntityId,
+        });
+      }
+    };
+    window.addEventListener("contextmenu", handler);
+    return () => window.removeEventListener("contextmenu", handler);
+  }, [state.selectedEntityId]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); dispatch({ type: "UNDO" }); }
       if ((e.metaKey || e.ctrlKey) && e.key === "y") { e.preventDefault(); dispatch({ type: "REDO" }); }
-      if (e.key === "Escape") dispatch({ type: "DESELECT" });
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); /* save handled by toolbar */ }
+      if (e.key === "Escape") { dispatch({ type: "DESELECT" }); setContextMenu(null); }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (state.selectedEntityId) {
           const entity = state.entities.find((e) => e.id === state.selectedEntityId);
@@ -854,6 +927,14 @@ function EditorInner() {
         <RightPanel />
       </div>
       <StatusBar />
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          entityId={contextMenu.entityId}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

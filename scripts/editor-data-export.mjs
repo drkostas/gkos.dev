@@ -185,16 +185,31 @@ function extractSigns(text, arrayName, applyOffset) {
   return entries;
 }
 
+// ── Extract Pokedex species mapping ──────────────────────────────
+function buildPokedexMap(pokemonText) {
+  const map = {};
+  const re = /number:\s*(\d+)[^}]*pokemon:\s*"([^"]+)"/g;
+  let m;
+  while ((m = re.exec(pokemonText)) !== null) {
+    map[parseInt(m[1], 10)] = m[2].toLowerCase();
+  }
+  return map;
+}
+
 // ── Extract wild Pokemon ─────────────────────────────────────────
-function extractWildPokemon(text) {
+function extractWildPokemon(text, pokedexMap) {
   const re = /wild\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g;
   const out = [];
   let m;
   while ((m = re.exec(text)) !== null) {
+    const dexNum = parseInt(m[1], 10);
+    const species = pokedexMap[dexNum] || null;
     out.push({
       type: "wild-pokemon",
       id: `wild_dex${m[1]}`,
-      pokedexNumber: parseInt(m[1], 10),
+      pokedexNumber: dexNum,
+      speciesName: species,
+      iconKey: species ? `pkmn_icon_${species}` : null,
       x: parseInt(m[2], 10),
       y: parseInt(m[3], 10),
       sourceFile: "wild-pokemon.ts",
@@ -283,10 +298,12 @@ const wildText = readFileSync(resolve(ROOT, "src/game/data/wild-pokemon.ts"), "u
 const hiddenText = readFileSync(resolve(ROOT, "src/game/data/hiddenItems.ts"), "utf-8");
 const warpsText = readFileSync(resolve(ROOT, "src/game/data/warps.ts"), "utf-8");
 const gatesText = readFileSync(resolve(ROOT, "src/game/data/gates.ts"), "utf-8");
+const pokemonText = readFileSync(resolve(ROOT, "src/game/data/pokemon.ts"), "utf-8");
 
+const pokedexMap = buildPokedexMap(pokemonText);
 const mauvilleNpcs = extractFullNpcsFromTopLevel(npcsText, "MAUVILLE_NPCS_RAW", true, "npcs.ts");
 const routeNpcs = extractFullNpcsFromTopLevel(npcsText, "ROUTE_NPCS", false, "npcs.ts");
-const wildPokemon = extractWildPokemon(wildText);
+const wildPokemon = extractWildPokemon(wildText, pokedexMap);
 const mauvilleSigns = extractSigns(npcsText, "MAUVILLE_SIGNS_RAW", true);
 const routeSigns = extractSigns(npcsText, "ROUTE_SIGNS", false);
 const hiddenItems = extractHiddenItems(hiddenText);
