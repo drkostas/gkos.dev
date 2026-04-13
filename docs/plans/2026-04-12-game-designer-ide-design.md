@@ -2003,7 +2003,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Drag viewport rectangle to pan
   - Verification: minimap shows entity dots, clicking jumps viewport
 
-- [ ] **P1G-07** Implement reachability heatmap
+- [x] **P1G-07** Implement reachability heatmap
   - Toggle "Heatmap" layer
   - Calls `/api/editor/analyze` to get reachability data
   - Renders green gradient (reachable, by distance) and red (unreachable)
@@ -2066,7 +2066,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Up to 2 nesting levels
   - Verification: creating a conditional block produces correct template syntax
 
-- [ ] **P2-07** Create `src/game/systems/TemplateResolver.ts`
+- [x] **P2-07** Create `src/game/systems/TemplateResolver.ts`
   - `resolve(lines: string[]): Promise<string[]>` — processes all `{{ }}` tokens
   - Namespace registry: spotify, strava, github, pypi, steps, badges, player, pokedex
   - Cache with 60-second TTL
@@ -2111,7 +2111,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Available in context menu and debug launcher panel
   - Verification: right-click > Play from Here opens game at that position
 
-- [ ] **P3-04** Modify `GameSave.loadFromStorage()` to check for debug save
+- [x] **P3-04** Modify `GameSave.loadFromStorage()` to check for debug save
   - If `__editor_debug_save` exists in localStorage, load it instead of regular save
   - Clear `__editor_debug_save` after loading
   - Verification: debug save is consumed once and cleared
