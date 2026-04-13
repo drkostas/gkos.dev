@@ -547,6 +547,123 @@ function Viewport() {
   );
 }
 
+/** Template commands for autocomplete */
+const TEMPLATE_COMMANDS = [
+  { cmd: "github.followers", desc: "GitHub follower count", ns: "github" },
+  { cmd: "github.repos", desc: "Public repo count", ns: "github" },
+  { cmd: "github.stars", desc: "Total stars", ns: "github" },
+  { cmd: "github.commits", desc: "Recent commit count", ns: "github" },
+  { cmd: "spotify.track", desc: "Currently playing track", ns: "spotify" },
+  { cmd: "spotify.artist", desc: "Currently playing artist", ns: "spotify" },
+  { cmd: "strava.distance", desc: "Recent activity distance", ns: "strava" },
+  { cmd: "strava.type", desc: "Recent activity type", ns: "strava" },
+  { cmd: "strava.name", desc: "Recent activity name", ns: "strava" },
+  { cmd: "pypi.downloads", desc: "Total PyPI downloads", ns: "pypi" },
+  { cmd: "pypi.packages", desc: "Package count", ns: "pypi" },
+  { cmd: "player.name", desc: "Player's name", ns: "player" },
+  { cmd: "player.steps", desc: "Total steps walked", ns: "player" },
+  { cmd: "badges.count", desc: "Badges earned", ns: "badges" },
+  { cmd: "badges.total", desc: "Total available badges", ns: "badges" },
+  { cmd: "pokedex.seen", desc: "Pokemon seen count", ns: "pokedex" },
+  { cmd: "pokedex.caught", desc: "Pokemon caught count", ns: "pokedex" },
+];
+
+/** Dialog textarea with template autocomplete */
+function DialogTextarea({ value, onChange, placeholder }: {
+  value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [acFilter, setAcFilter] = useState("");
+  const [acIndex, setAcIndex] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const filtered = TEMPLATE_COMMANDS.filter((c) =>
+    !acFilter || c.cmd.toLowerCase().includes(acFilter.toLowerCase()) || c.desc.toLowerCase().includes(acFilter.toLowerCase()),
+  );
+
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const v = e.target.value;
+    onChange(v);
+
+    // Check if we just typed {{
+    const cursorPos = e.target.selectionStart;
+    const before = v.substring(0, cursorPos);
+    const lastOpen = before.lastIndexOf("{{");
+    const lastClose = before.lastIndexOf("}}");
+
+    if (lastOpen > lastClose && lastOpen >= 0) {
+      const partial = before.substring(lastOpen + 2).trim();
+      setAcFilter(partial);
+      setShowAutocomplete(true);
+      setAcIndex(0);
+    } else {
+      setShowAutocomplete(false);
+    }
+  };
+
+  const insertTemplate = (cmd: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const cursorPos = ta.selectionStart;
+    const before = value.substring(0, cursorPos);
+    const lastOpen = before.lastIndexOf("{{");
+    const after = value.substring(cursorPos);
+    const newValue = before.substring(0, lastOpen) + `{{ ${cmd} }}` + after;
+    onChange(newValue);
+    setShowAutocomplete(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showAutocomplete) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setAcIndex(Math.min(filtered.length - 1, acIndex + 1)); }
+    if (e.key === "ArrowUp") { e.preventDefault(); setAcIndex(Math.max(0, acIndex - 1)); }
+    if (e.key === "Enter" && filtered[acIndex]) { e.preventDefault(); insertTemplate(filtered[acIndex].cmd); }
+    if (e.key === "Escape") { setShowAutocomplete(false); }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={handleInput}
+        onKeyDown={handleKeyDown}
+        onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+        placeholder={placeholder}
+        style={{
+          width: "100%", background: "transparent", border: "none",
+          color: "#ccc", fontSize: 10, padding: "4px 6px", outline: "none", resize: "vertical",
+          fontFamily: "monospace", minHeight: 32, boxSizing: "border-box",
+        }}
+      />
+      {showAutocomplete && filtered.length > 0 && (
+        <div style={{
+          position: "absolute", left: 0, right: 0, top: "100%", zIndex: 9999,
+          background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 4,
+          padding: "2px 0", maxHeight: 150, overflowY: "auto",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
+        }}>
+          {filtered.slice(0, 10).map((c, i) => (
+            <div
+              key={c.cmd}
+              onMouseDown={(e) => { e.preventDefault(); insertTemplate(c.cmd); }}
+              style={{
+                padding: "3px 8px", fontSize: 10, cursor: "pointer",
+                background: i === acIndex ? "#2a2a50" : "transparent",
+                color: i === acIndex ? "#fff" : "#ccc",
+                display: "flex", justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontFamily: "monospace" }}>{"{{ "}{c.cmd}{" }}"}</span>
+              <span style={{ color: "#666", fontSize: 8, marginLeft: 8 }}>{c.desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Editable field row */
 function PropField({ label, value, onChange, type = "text", disabled, options }: {
   label: string; value: string | number | undefined; onChange?: (v: string) => void;
@@ -704,19 +821,14 @@ function RightPanel() {
                     }} style={{ fontSize: 10, cursor: "pointer", color: "#ef4444" }} title="Delete slide">×</span>
                   </div>
                 </div>
-                <textarea
+                <DialogTextarea
                   value={line}
-                  onChange={(e) => {
+                  onChange={(v) => {
                     const newDialog = [...selected.dialog!];
-                    newDialog[i] = e.target.value;
+                    newDialog[i] = v;
                     updateField("dialog", newDialog, selected.dialog);
                   }}
-                  placeholder="Enter dialog text... Use {{ }} for templates"
-                  style={{
-                    width: "100%", background: "transparent", border: "none",
-                    color: "#ccc", fontSize: 10, padding: "4px 6px", outline: "none", resize: "vertical",
-                    fontFamily: "monospace", minHeight: 32, boxSizing: "border-box",
-                  }}
+                  placeholder="Enter dialog text... Type {{ for templates"
                 />
                 {line.includes("{{") && (
                   <div style={{ padding: "2px 6px 3px", fontSize: 8, color: "#06b6d4", background: "#0d1a2a" }}>
