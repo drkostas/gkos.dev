@@ -2073,7 +2073,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Fallback values per namespace
   - Verification: `resolve(["Hello {{ player.name }}!"])` returns `["Hello RED!"]`
 
-- [ ] **P2-08** Register template namespaces
+- [x] **P2-08** Register template namespaces
   - spotify: calls existing `/api/spotify/now-playing` → extracts track/artist
   - strava: calls existing `/api/strava/recent` → extracts distance/type/name
   - github: calls existing `/api/stats/github` → extracts commits/followers/stars/repos
@@ -2313,7 +2313,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Orphan highlights: red borders
   - Verification: graph shows NPC -> item -> badge chain
 
-- [ ] **P7-08** Screenshot/export tools
+- [x] **P7-08** Screenshot/export tools
   - File > Export > Screenshot: Phaser snapshot as PNG
   - File > Export > Full Map: render at 1x with annotations
   - File > Export > Entity JSON: current state as JSON
@@ -2328,7 +2328,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - "Tips" button in toolbar to replay
   - Verification: first launch shows onboarding, subsequent launches don't
 
-- [ ] **P7-10** Keyboard shortcuts implementation
+- [x] **P7-10** Keyboard shortcuts implementation
   - Complete shortcut table from Section 11.8
   - Prevent browser defaults for captured shortcuts
   - Shortcuts disabled when focus is in text inputs

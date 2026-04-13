@@ -112,6 +112,15 @@ function Toolbar() {
           const a = document.createElement("a"); a.href = url; a.download = "editor-entities.json"; a.click();
           URL.revokeObjectURL(url);
         }} />
+        <MenuItem label="Export CSV..." onClick={() => {
+          const header = "id,type,x,y,spriteKey,facingDirection,movementBehavior";
+          const rows = state.entities.map((e) => `${e.id},${e.type},${e.x},${e.y},${e.spriteKey || ""},${e.facingDirection || ""},${e.movementBehavior || ""}`);
+          const csv = [header, ...rows].join("\n");
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = "editor-entities.csv"; a.click();
+          URL.revokeObjectURL(url);
+        }} />
         <MenuSep />
         <MenuItem label="Regenerate Data" onClick={async () => {
           const r = await fetch("/api/editor/analyze", { method: "POST" });
@@ -1379,6 +1388,7 @@ function EditorInner() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string | null } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -1432,6 +1442,7 @@ function EditorInner() {
       if (e.key === "3" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "stamp" });
       if (e.key === "4" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eraser" });
       if (e.key === "5" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eyedropper" });
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) setShowShortcuts((p) => !p);
       // Ctrl+D: duplicate selected entity
       if ((e.metaKey || e.ctrlKey) && e.key === "d") {
         e.preventDefault();
@@ -1493,6 +1504,42 @@ function EditorInner() {
           entityId={contextMenu.entityId}
           onClose={() => setContextMenu(null)}
         />
+      )}
+      {showShortcuts && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9998 }} onClick={() => setShowShortcuts(false)} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 9999,
+            background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 8, padding: 20,
+            width: 360, boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Keyboard Shortcuts</div>
+            {[
+              ["1", "Select tool"],
+              ["2", "Move tool"],
+              ["3", "Stamp tool (tile painting)"],
+              ["4", "Eraser tool"],
+              ["5", "Eyedropper tool"],
+              ["Ctrl+Z", "Undo"],
+              ["Ctrl+Y / Ctrl+Shift+Z", "Redo"],
+              ["Ctrl+S", "Save to source files"],
+              ["Ctrl+D", "Duplicate entity"],
+              ["Delete", "Delete entity (with confirm)"],
+              ["Escape", "Deselect / close menu"],
+              ["Ctrl+Click", "Toggle collision tile"],
+              ["Arrow Keys", "Pan camera"],
+              ["Scroll Wheel", "Zoom in/out"],
+              ["Left-Drag", "Pan map"],
+              ["Right-Click", "Context menu"],
+              ["?", "Toggle this help"],
+            ].map(([key, desc]) => (
+              <div key={key} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 10, borderBottom: "1px solid #2a2a40" }}>
+                <span style={{ fontFamily: "monospace", color: "#4a9eed", fontWeight: 700 }}>{key}</span>
+                <span style={{ color: "#aaa" }}>{desc}</span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
       {showHistory && (
         <>
