@@ -14,6 +14,7 @@ import {
   DESELECT,
   TOGGLE_LAYER,
   UPDATE_ENTITY_POSITION,
+  UPDATE_ENTITY_FIELD,
   ADD_ENTITY_MARKER,
   REMOVE_ENTITY_MARKER,
   JUMP_TO_TILE,
@@ -548,6 +549,9 @@ export class EditorScene extends Phaser.Scene {
       onEditorEvent(UPDATE_ENTITY_POSITION, (detail: { entityId: string; x: number; y: number }) => {
         this.updateMarkerPosition(detail.entityId, detail.x, detail.y);
       }),
+      onEditorEvent(UPDATE_ENTITY_FIELD, (detail: { entityId: string; field: string; value: any }) => {
+        this.updateMarkerField(detail.entityId, detail.field, detail.value);
+      }),
       onEditorEvent(ADD_ENTITY_MARKER, (detail: { entity: any }) => {
         this.addMarker(detail.entity);
       }),
@@ -814,6 +818,41 @@ export class EditorScene extends Phaser.Scene {
         x * TILE_SIZE + TILE_SIZE / 2,
         y * TILE_SIZE + TILE_SIZE / 2,
       );
+    }
+  }
+
+  updateMarkerField(entityId: string, field: string, value: any): void {
+    const marker = this.markers.get(entityId);
+    if (!marker) return;
+
+    if (field === "spriteKey") {
+      marker.spriteKey = value;
+      // Remove old sprite from container
+      if (marker.sprite) {
+        marker.sprite.destroy();
+        marker.sprite = undefined;
+      }
+      // Add new sprite
+      const texKey = `npc_${value}`;
+      if (this.textures.exists(texKey)) {
+        const sprite = this.add.sprite(0, -4, texKey, 0);
+        sprite.setScale(0.9);
+        sprite.setAlpha(0.85);
+        marker.container.add(sprite);
+        marker.sprite = sprite;
+      }
+    }
+
+    if (field === "facingDirection") {
+      // Facing maps to sprite frame: down=0, up=1, left=2, right=3 (standard GBA layout)
+      const frameMap: Record<string, number> = { down: 0, up: 1, left: 2, right: 3 };
+      const frame = frameMap[value] ?? 0;
+      if (marker.sprite) {
+        const tex = marker.sprite.texture;
+        if (frame < tex.frameTotal) {
+          marker.sprite.setFrame(frame);
+        }
+      }
     }
   }
 

@@ -620,6 +620,9 @@ function extractInteriors(text) {
       const facingM = slice.match(/facingDirection:\s*"([^"]+)"/);
       const spriteM = slice.match(/spriteKey:\s*"([^"]+)"/);
       const speakerM = slice.match(/speakerName:\s*"([^"]+)"/);
+      const movM = slice.match(/movementBehavior:\s*(?:MovementBehavior\.)?(\w+)/);
+      const rxM = slice.match(/movementRangeX:\s*(\d+)/);
+      const ryM = slice.match(/movementRangeY:\s*(\d+)/);
       const hasDialogFn = /dialogFn\s*:/.test(slice);
       // Extract dialog lines
       let dialog = [];
@@ -650,6 +653,9 @@ function extractInteriors(text) {
         y: parseInt(posM[2], 10),
         facingDirection: facingM?.[1] || "down",
         spriteKey: spriteM?.[1] || undefined,
+        movementBehavior: movM?.[1] || "STATIONARY",
+        movementRangeX: rxM ? parseInt(rxM[1], 10) : 0,
+        movementRangeY: ryM ? parseInt(ryM[1], 10) : 0,
         speakerName: speakerM?.[1] || "",
         dialog,
         hasDialogFn,

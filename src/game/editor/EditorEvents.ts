@@ -18,6 +18,7 @@ export const SELECT_ENTITY = "editor:select-entity";
 export const DESELECT = "editor:deselect";
 export const TOGGLE_LAYER = "editor:toggle-layer";
 export const UPDATE_ENTITY_POSITION = "editor:update-pos";
+export const UPDATE_ENTITY_FIELD = "editor:update-field";
 export const ADD_ENTITY_MARKER = "editor:add-marker";
 export const REMOVE_ENTITY_MARKER = "editor:remove-marker";
 export const JUMP_TO_TILE = "editor:jump-to";

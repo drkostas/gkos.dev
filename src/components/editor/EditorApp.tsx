@@ -48,22 +48,18 @@ function Toolbar() {
   ];
 
   const collectChanges = () => {
-    return state.undoStack
-      .filter((u) => u.action.type === "MOVE_ENTITY" || u.action.type === "UPDATE_FIELD")
-      .map((u) => {
-        const a = u.action;
-        if (a.type === "MOVE_ENTITY") {
-          return [
-            { entityId: a.id, field: "x", oldValue: a.oldX, newValue: a.x },
-            { entityId: a.id, field: "y", oldValue: a.oldY, newValue: a.y },
-          ];
-        }
-        if (a.type === "UPDATE_FIELD") {
-          return [{ entityId: a.id, field: a.field, oldValue: a.oldValue, newValue: a.value }];
-        }
-        return [];
-      })
-      .flat();
+    // Collect changes from undo stack, deduplicating to keep only LATEST per entity+field
+    const changeMap = new Map<string, { entityId: string; field: string; oldValue: any; newValue: any }>();
+    for (const u of state.undoStack) {
+      const a = u.action;
+      if (a.type === "MOVE_ENTITY") {
+        changeMap.set(`${a.id}:x`, { entityId: a.id, field: "x", oldValue: a.oldX, newValue: a.x });
+        changeMap.set(`${a.id}:y`, { entityId: a.id, field: "y", oldValue: a.oldY, newValue: a.y });
+      } else if (a.type === "UPDATE_FIELD") {
+        changeMap.set(`${a.id}:${a.field}`, { entityId: a.id, field: a.field, oldValue: a.oldValue, newValue: a.value });
+      }
+    }
+    return Array.from(changeMap.values());
   };
 
   const handleSave = async () => {
@@ -87,6 +83,22 @@ function Toolbar() {
       const result = await r.json();
       console.log("[save] Result:", result);
       if (result.success) {
+        // Re-export editor-data.json so reloads get fresh data
+        try {
+          await fetch("/api/editor/re-export", { method: "POST" });
+        } catch {}
+        // Reload fresh data from the updated export
+        try {
+          const dataResp = await fetch("/api/editor/data");
+          const freshData = await dataResp.json();
+          if (freshData.entities) {
+            dispatch({ type: "LOAD_DATA", entities: freshData.entities });
+          }
+          if (freshData.catalog) {
+            dispatch({ type: "LOAD_CATALOG", catalog: freshData.catalog });
+          }
+        } catch {}
+        // MARK_CLEAN also clears undo/redo stacks
         dispatch({ type: "MARK_CLEAN" });
       }
     } catch (e) {
@@ -1394,6 +1406,10 @@ function RightPanel() {
         const newX = field === "x" ? Number(value) : selected.x;
         const newY = field === "y" ? Number(value) : selected.y;
         emitEditorEvent("editor:update-pos", { entityId: selected.id, x: newX, y: newY });
+      }
+      // Sync facing/sprite changes to Phaser
+      if (field === "facingDirection" || field === "spriteKey") {
+        emitEditorEvent("editor:update-field", { entityId: selected.id, field, value });
       }
     }
   };

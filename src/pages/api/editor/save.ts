@@ -75,7 +75,7 @@ function patchPosition(
   };
 }
 
-/** Apply a facing direction patch */
+/** Apply a facing direction patch — handles both Direction.UP (overworld) and "up" (interiors) formats */
 function patchFacingDirection(
   content: string,
   entityId: string,
@@ -86,21 +86,35 @@ function patchFacingDirection(
   if (!idMatch) return { content, applied: false };
 
   const searchRegion = content.substring(idMatch.index, idMatch.index + 500);
-  const facingPattern = /facingDirection:\s*Direction\.\w+/;
-  const facingMatch = facingPattern.exec(searchRegion);
-  if (!facingMatch) return { content, applied: false };
+  const dirLower = newDirection.toLowerCase();
 
-  const dirMap: Record<string, string> = {
-    up: "UP", down: "DOWN", left: "LEFT", right: "RIGHT",
-  };
-  const dirEnum = dirMap[newDirection.toLowerCase()] || "DOWN";
-  const fullStart = idMatch.index + facingMatch.index;
-  const fullEnd = fullStart + facingMatch[0].length;
+  // Try Direction.ENUM format first (overworld)
+  const enumPattern = /facingDirection:\s*Direction\.\w+/;
+  const enumMatch = enumPattern.exec(searchRegion);
+  if (enumMatch) {
+    const dirMap: Record<string, string> = { up: "UP", down: "DOWN", left: "LEFT", right: "RIGHT" };
+    const dirEnum = dirMap[dirLower] || "DOWN";
+    const fullStart = idMatch.index + enumMatch.index;
+    const fullEnd = fullStart + enumMatch[0].length;
+    return {
+      content: content.substring(0, fullStart) + `facingDirection: Direction.${dirEnum}` + content.substring(fullEnd),
+      applied: true,
+    };
+  }
 
-  return {
-    content: content.substring(0, fullStart) + `facingDirection: Direction.${dirEnum}` + content.substring(fullEnd),
-    applied: true,
-  };
+  // Try string format (interiors): facingDirection: "down"
+  const strPattern = /facingDirection:\s*"[^"]*"/;
+  const strMatch = strPattern.exec(searchRegion);
+  if (strMatch) {
+    const fullStart = idMatch.index + strMatch.index;
+    const fullEnd = fullStart + strMatch[0].length;
+    return {
+      content: content.substring(0, fullStart) + `facingDirection: "${dirLower}"` + content.substring(fullEnd),
+      applied: true,
+    };
+  }
+
+  return { content, applied: false };
 }
 
 /** Apply a dialog text patch */
@@ -142,6 +156,30 @@ function patchDialog(
   // Replace from "dialog:" to the closing "]"
   return {
     content: content.substring(0, absDialogStart) + replacement + content.substring(bracketEnd),
+    applied: true,
+  };
+}
+
+/** Apply a spriteKey patch */
+function patchSpriteKey(
+  content: string,
+  entityId: string,
+  newSpriteKey: string,
+): { content: string; applied: boolean } {
+  const idPattern = new RegExp(`id:\\s*["']${entityId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`);
+  const idMatch = idPattern.exec(content);
+  if (!idMatch) return { content, applied: false };
+
+  const searchRegion = content.substring(idMatch.index, idMatch.index + 500);
+  const spritePattern = /spriteKey:\s*"[^"]*"/;
+  const spriteMatch = spritePattern.exec(searchRegion);
+  if (!spriteMatch) return { content, applied: false };
+
+  const fullStart = idMatch.index + spriteMatch.index;
+  const fullEnd = fullStart + spriteMatch[0].length;
+
+  return {
+    content: content.substring(0, fullStart) + `spriteKey: "${newSpriteKey}"` + content.substring(fullEnd),
     applied: true,
   };
 }
@@ -208,49 +246,77 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
-    // Apply changes
+    // Consolidate x/y changes per entity — both must be applied together to avoid overwriting
+    const positionChanges = new Map<string, { x?: number; y?: number }>();
+    const otherChanges: SaveChange[] = [];
     for (const change of body.changes) {
-      const source = entitySourceMap.get(change.entityId);
-      if (!source) {
-        results.push({ entityId: change.entityId, field: change.field, status: "skipped", message: "No source file mapping" });
-        continue;
+      if (change.field === "x" || change.field === "y") {
+        const existing = positionChanges.get(change.entityId) || {};
+        existing[change.field] = change.newValue;
+        positionChanges.set(change.entityId, existing);
+      } else {
+        otherChanges.push(change);
       }
+    }
 
+    // Helper: load file content for an entity
+    const loadFileForEntity = (entityId: string): { filePath: string; source: { file: string; hasOffset: boolean } } | null => {
+      const source = entitySourceMap.get(entityId);
+      if (!source) {
+        results.push({ entityId, field: "position", status: "skipped", message: "No source file mapping" });
+        return null;
+      }
       const filePath = resolveSourcePath(source.file);
-
-      // Load file content (cached across changes to same file)
       if (!fileContents.has(filePath)) {
         try {
           fileContents.set(filePath, readFileSync(filePath, "utf-8"));
         } catch {
-          results.push({ entityId: change.entityId, field: change.field, status: "error", message: `Cannot read ${source.file}` });
-          continue;
+          results.push({ entityId, field: "position", status: "error", message: `Cannot read ${source.file}` });
+          return null;
         }
       }
+      return { filePath, source };
+    };
 
-      let content = fileContents.get(filePath)!;
+    // Apply consolidated position changes
+    for (const [entityId, pos] of positionChanges) {
+      const loaded = loadFileForEntity(entityId);
+      if (!loaded) continue;
+
+      // Find current position from editorData
+      let entity = editorData.entities.find((e: any) => e.id === entityId);
+      if (!entity && editorData.interiors) {
+        for (const interior of Object.values(editorData.interiors as Record<string, any>)) {
+          entity = (interior.npcs || []).find((e: any) => e.id === entityId);
+          if (entity) break;
+        }
+      }
+      if (!entity) {
+        results.push({ entityId, field: "position", status: "error", message: "Entity not found in editor data" });
+        continue;
+      }
+
+      const newX = pos.x ?? entity.x;
+      const newY = pos.y ?? entity.y;
+      let content = fileContents.get(loaded.filePath)!;
+      const result = patchPosition(content, entityId, newX, newY, loaded.source.hasOffset);
+      if (result.applied) {
+        fileContents.set(loaded.filePath, result.content);
+        results.push({ entityId, field: "position", status: "applied", message: `(${newX}, ${newY})` });
+      } else {
+        results.push({ entityId, field: "position", status: "error", message: "Pattern not found in source" });
+      }
+    }
+
+    // Apply other changes (facing, dialog, spriteKey, etc.)
+    for (const change of otherChanges) {
+      const loaded = loadFileForEntity(change.entityId);
+      if (!loaded) continue;
+
+      let content = fileContents.get(loaded.filePath)!;
       let applied = false;
 
       switch (change.field) {
-        case "x":
-        case "y": {
-          // Search both overworld and interior entities
-          let entity = editorData.entities.find((e: any) => e.id === change.entityId);
-          if (!entity && editorData.interiors) {
-            for (const interior of Object.values(editorData.interiors as Record<string, any>)) {
-              entity = (interior.npcs || []).find((e: any) => e.id === change.entityId);
-              if (entity) break;
-            }
-          }
-          if (entity) {
-            const newX = change.field === "x" ? change.newValue : entity.x;
-            const newY = change.field === "y" ? change.newValue : entity.y;
-            const result = patchPosition(content, change.entityId, newX, newY, source.hasOffset);
-            content = result.content;
-            applied = result.applied;
-          }
-          break;
-        }
         case "facingDirection": {
           const result = patchFacingDirection(content, change.entityId, change.newValue);
           content = result.content;
@@ -263,13 +329,19 @@ export const POST: APIRoute = async ({ request }) => {
           applied = result.applied;
           break;
         }
+        case "spriteKey": {
+          const result = patchSpriteKey(content, change.entityId, change.newValue);
+          content = result.content;
+          applied = result.applied;
+          break;
+        }
         default:
           results.push({ entityId: change.entityId, field: change.field, status: "skipped", message: `Field "${change.field}" not yet patchable` });
           continue;
       }
 
       if (applied) {
-        fileContents.set(filePath, content);
+        fileContents.set(loaded.filePath, content);
         results.push({ entityId: change.entityId, field: change.field, status: "applied", message: "OK" });
       } else {
         results.push({ entityId: change.entityId, field: change.field, status: "error", message: "Pattern not found in source" });

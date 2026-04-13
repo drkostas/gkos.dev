@@ -169,7 +169,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "MARK_CLEAN":
-      return { ...state, dirty: false };
+      return { ...state, dirty: false, undoStack: [], redoStack: [] };
 
     case "SET_ERROR":
       return { ...state, error: action.error, loading: false };
