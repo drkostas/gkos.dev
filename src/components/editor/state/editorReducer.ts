@@ -8,6 +8,7 @@ const DEFAULT_LAYERS: Record<EditorLayer, boolean> = {
 export const initialState: EditorState = {
   entities: [],
   selectedEntityId: null,
+  selectedEntityIds: [],
   layers: DEFAULT_LAYERS,
   tool: "select",
   undoStack: [],
@@ -23,10 +24,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, entities: action.entities, loading: false };
 
     case "SELECT_ENTITY":
-      return { ...state, selectedEntityId: action.id };
+      return { ...state, selectedEntityId: action.id, selectedEntityIds: [action.id] };
+
+    case "TOGGLE_SELECT": {
+      const ids = state.selectedEntityIds.includes(action.id)
+        ? state.selectedEntityIds.filter((id) => id !== action.id)
+        : [...state.selectedEntityIds, action.id];
+      return { ...state, selectedEntityId: ids[ids.length - 1] || null, selectedEntityIds: ids };
+    }
 
     case "DESELECT":
-      return { ...state, selectedEntityId: null };
+      return { ...state, selectedEntityId: null, selectedEntityIds: [] };
 
     case "MOVE_ENTITY": {
       const entities = state.entities.map((e) =>
