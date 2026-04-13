@@ -125,9 +125,7 @@ export class EditorScene extends Phaser.Scene {
     }
 
     // NPC spritesheets — load ALL sprites from /game/sprites/emerald/
-    // Fetch the sprite list from editor-data.json, fall back to a core set.
-    // Sprites are loaded on-demand when markers are created, but we preload
-    // the ones used by existing entities plus a core set for the palette.
+    // Load every sprite so the user can switch any NPC to any sprite via dropdown.
     const SPECIAL_SIZES: Record<string, { w: number; h: number }> = {
       slakoth: { w: 48, h: 48 },
       slaking: { w: 48, h: 48 },
@@ -138,36 +136,30 @@ export class EditorScene extends Phaser.Scene {
       scott: { w: 48, h: 128 },
       wally: { w: 48, h: 128 },
     };
-    // Core sprites used by existing game entities (always preload)
-    const CORE_SPRITES = [
-      "aqua_member_f", "aqua_member_m", "beauty", "black_belt",
-      "boy_1", "boy_2", "boy_3", "brendan", "bug_catcher",
-      "camerupt", "carvanha", "fat_man", "fisherman", "gentleman",
-      "girl_1", "girl_2", "girl_3", "golbat", "hiker",
-      "item_ball", "lass", "little_boy", "little_girl",
-      "magma_member_f", "magma_member_m", "man_1", "maniac",
-      "may", "mightyena", "numel", "nurse",
-      "old_man", "old_woman", "pokefan_f", "pokefan_m",
-      "poochyena_ow", "rich_boy", "school_kid_m", "scientist_1",
-      "sharpedo", "slaking", "slakoth", "snorlax",
-      "wailmer", "woman_1", "woman_2", "woman_4", "youngster",
-    ];
-    for (const key of CORE_SPRITES) {
-      const special = SPECIAL_SIZES[key];
-      if (special) {
-        if (special.w <= 16 && special.h <= 16) {
-          this.load.image(`npc_${key}`, `/game/sprites/emerald/${key}.png`);
+    // Fetch the full sprite list from editor-data.json and preload all of them.
+    // This runs during Phaser's preload phase, which supports async loading.
+    this.load.json("editor-data-sprites", "/api/editor/data");
+    this.load.once("filecomplete-json-editor-data-sprites", () => {
+      const data = this.cache.json.get("editor-data-sprites");
+      const spriteList: string[] = data?.availableSprites?.npcs || [];
+      for (const key of spriteList) {
+        if (this.textures.exists(`npc_${key}`)) continue;
+        const special = SPECIAL_SIZES[key];
+        if (special) {
+          if (special.w <= 16 && special.h <= 16) {
+            this.load.image(`npc_${key}`, `/game/sprites/emerald/${key}.png`);
+          } else {
+            this.load.spritesheet(`npc_${key}`, `/game/sprites/emerald/${key}.png`, {
+              frameWidth: special.w, frameHeight: special.h,
+            });
+          }
         } else {
           this.load.spritesheet(`npc_${key}`, `/game/sprites/emerald/${key}.png`, {
-            frameWidth: special.w, frameHeight: special.h,
+            frameWidth: 16, frameHeight: 32,
           });
         }
-      } else {
-        this.load.spritesheet(`npc_${key}`, `/game/sprites/emerald/${key}.png`, {
-          frameWidth: 16, frameHeight: 32,
-        });
       }
-    }
+    });
 
     // Pokemon icon sprites (from /game/sprites/pokemon/icons/)
     const pokemonIcons = [

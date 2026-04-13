@@ -707,6 +707,43 @@ function extractInteriors(text) {
 
 const interiorData = extractInteriors(interiorsText);
 
+// ── Extract KOSTAS_DIALOG structure ─────────────────────────────
+function extractKostasDialog(text) {
+  const result = { champion: [], badges: {}, received: "", hint: [] };
+  // Champion lines
+  const champMatch = text.match(/champion:\s*\[([\s\S]*?)\]/);
+  if (champMatch) {
+    const lineRe = /"([^"]*)"/g;
+    let m;
+    while ((m = lineRe.exec(champMatch[1])) !== null) result.champion.push(m[1]);
+  }
+  // Per-badge lines
+  for (const badge of ["gym", "publication", "connected", "pokedex", "blogger", "engineer"]) {
+    const re = new RegExp(`${badge}:\\s*\\[([\\s\\S]*?)\\]`);
+    const m = text.match(re);
+    if (m) {
+      const lines = [];
+      const lineRe = /"([^"]*)"/g;
+      let lm;
+      while ((lm = lineRe.exec(m[1])) !== null) lines.push(lm[1]);
+      result.badges[badge] = lines;
+    }
+  }
+  // Received line
+  const recM = text.match(/received:\s*"([^"]+)"/);
+  if (recM) result.received = recM[1];
+  // Hint lines
+  const hintM = text.match(/hint:\s*\[([\s\S]*?)\]/);
+  if (hintM) {
+    const lineRe = /"([^"]*)"/g;
+    let m;
+    while ((m = lineRe.exec(hintM[1])) !== null) result.hint.push(m[1]);
+  }
+  return result;
+}
+const kostasDialogStart = interiorsText.indexOf("KOSTAS_DIALOG");
+const kostasDialog = kostasDialogStart !== -1 ? extractKostasDialog(interiorsText.substring(kostasDialogStart, kostasDialogStart + 2000)) : null;
+
 // ── Extract catalog data ─────────────────────────────────────────
 const catalogItemDefs = extractItemDefinitions(itemDefsText);
 const catalogMilestones = extractStepMilestones(stepMilestonesText);
@@ -731,6 +768,7 @@ const data = {
   },
   entities: allEntities,
   interiors: interiorData,
+  kostasDialog: kostasDialog,
   // Catalog data for the Data Manager panel
   catalog: {
     itemDefinitions: catalogItemDefs,
