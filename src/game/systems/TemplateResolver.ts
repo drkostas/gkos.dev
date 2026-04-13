@@ -34,6 +34,8 @@ async function fetchNamespace(ns: string): Promise<NamespaceData> {
             repos: json.public_repos ?? "?",
             stars: json.stars ?? "?",
             commits: json.recent_commits ?? "?",
+            forks: json.forks ?? "?",
+            contributions: json.contributions ?? "?",
           };
         }
         break;
@@ -45,7 +47,9 @@ async function fetchNamespace(ns: string): Promise<NamespaceData> {
           data = {
             track: json.title ?? "nothing",
             artist: json.artist ?? "unknown",
-            album: json.album ?? "unknown",
+            album: json.album ?? "",
+            playing: json.isPlaying ? "listening to" : "last played",
+            status: json.isPlaying ? "right now" : "recently",
           };
         }
         break;
@@ -54,10 +58,15 @@ async function fetchNamespace(ns: string): Promise<NamespaceData> {
         const r = await fetch("/api/strava/recent");
         if (r.ok) {
           const json = await r.json();
+          const distKm = json.distance ? (json.distance / 1000).toFixed(1) : "0";
+          const pace = json.distance && json.movingTime
+            ? `${Math.floor(json.movingTime / 60 / (json.distance / 1000))}:${String(Math.round(json.movingTime / (json.distance / 1000)) % 60).padStart(2, "0")}/km`
+            : "";
           data = {
-            distance: json.distance ?? "0",
+            distance: distKm,
             type: json.type ?? "unknown",
             name: json.name ?? "Activity",
+            pace,
           };
         }
         break;
@@ -66,8 +75,12 @@ async function fetchNamespace(ns: string): Promise<NamespaceData> {
         const r = await fetch("/api/stats/pypi");
         if (r.ok) {
           const json = await r.json();
+          const dl = json.total_downloads;
+          const formatted = dl >= 1_000_000 ? `${(dl / 1_000_000).toFixed(1)}M`
+            : dl >= 1_000 ? `${(dl / 1_000).toFixed(0)}K`
+            : String(dl ?? "?");
           data = {
-            downloads: json.total_downloads ?? "?",
+            downloads: formatted,
             packages: json.package_count ?? "?",
           };
         }

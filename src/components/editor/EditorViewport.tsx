@@ -30,7 +30,7 @@ export default function EditorViewport() {
     if (!containerRef.current || gameRef.current) return;
 
     const config: Phaser.Types.Core.GameConfig = {
-      type: Phaser.CANVAS,
+      type: Phaser.AUTO,
       parent: containerRef.current,
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
@@ -52,28 +52,35 @@ export default function EditorViewport() {
     };
 
     gameRef.current = new Phaser.Game(config);
+    (window as any).__EDITOR_GAME__ = gameRef.current;
 
     return () => {
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
+      entitiesSentRef.current = false;
     };
   }, []);
 
   // Send entities to Phaser when loaded or when viewport becomes ready
+  const entitiesSentRef = useRef(false);
   useEffect(() => {
     if (state.entities.length === 0) return;
 
     const sendEntities = () => {
+      entitiesSentRef.current = true;
       emitEditorEvent(REFRESH_ENTITIES, { entities: state.entities });
     };
 
-    // Send now (in case scene is already ready)
-    sendEntities();
-
-    // Also listen for viewport ready in case scene loads after entities
+    // Listen for viewport ready (scene may not exist yet)
     const unsub = onEditorEvent(VIEWPORT_READY, sendEntities);
+
+    // If we already sent before (entity data changed), re-send now
+    if (entitiesSentRef.current) {
+      sendEntities();
+    }
+
     return unsub;
   }, [state.entities]);
 

@@ -28,17 +28,14 @@ export const WARPS: Warp[] = [
   // Player tries to walk into them → gets blocked → warp triggers.
   // Spawn one tile above exit warps to avoid instant re-exit.
 
-  // Mauville Gym (double door) — spawn on the exit mat tile, facing up
+  // Mauville Gym — single door tile, spawn on the exit mat tile, facing up
   { overworldTile: { x: 58, y: 55 }, targetMap: "gym", spawnTile: { x: 4, y: 20 }, spawnFacing: "up" },
-  { overworldTile: { x: 59, y: 55 }, targetMap: "gym", spawnTile: { x: 5, y: 20 }, spawnFacing: "up" },
 
-  // Pokemon Center — spawn on the exit mat tile, facing up
+  // Pokemon Center — single door tile, spawn on the exit mat tile, facing up
   { overworldTile: { x: 72, y: 55 }, targetMap: "pokecenter", spawnTile: { x: 7, y: 8 }, spawnFacing: "up" },
-  { overworldTile: { x: 73, y: 55 }, targetMap: "pokecenter", spawnTile: { x: 6, y: 8 }, spawnFacing: "up" },
 
-  // Pokemart (double door) — spawn on the exit mat tile, facing up
+  // Pokemart — single door tile, spawn on the exit mat tile, facing up
   { overworldTile: { x: 73, y: 64 }, targetMap: "mart", spawnTile: { x: 3, y: 7 }, spawnFacing: "up" },
-  { overworldTile: { x: 74, y: 64 }, targetMap: "mart", spawnTile: { x: 4, y: 7 }, spawnFacing: "up" },
 ];
 
 /** Look up a warp by the BLOCKED door tile the player is trying to walk into. */

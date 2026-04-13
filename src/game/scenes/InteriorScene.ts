@@ -656,12 +656,13 @@ export class InteriorScene extends Phaser.Scene {
     this.shiftKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
     // Interaction keys: A, Space, Enter
+    // enableCapture=false so keydown events reach the React DialogBox overlay.
     for (const code of [
       Phaser.Input.Keyboard.KeyCodes.A,
       Phaser.Input.Keyboard.KeyCodes.SPACE,
       Phaser.Input.Keyboard.KeyCodes.ENTER,
     ]) {
-      this.input.keyboard!.addKey(code).on("down", () => this.handleInteraction());
+      this.input.keyboard!.addKey(code, /* enableCapture */ false).on("down", () => this.handleInteraction());
     }
 
     // Menu keys: ESC, M

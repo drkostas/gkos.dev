@@ -9,8 +9,7 @@ import { FIELD_MOVE_AWARDS } from "@/game/data/fieldMoveAwards";
 import type { DynamicDialogResult } from "@/game/types/npc";
 import { sfx } from "@/game/systems/SoundManager";
 import { BADGES } from "@/game/systems/BadgeMilestones";
-import { getPypiDialog, PYPI_FALLBACK_LINES } from "@/game/npcs/live/pypi";
-import { getStepsDialog, STEPS_FALLBACK_LINES } from "@/game/npcs/live/steps";
+// PyPI + Steps NPCs now use {{ }} templates resolved by TemplateResolver
 
 /**
  * KOSTAS state machine — 7 priority branches, each corresponding to a
@@ -267,11 +266,12 @@ export const INTERIORS: Record<string, InteriorDef> = {
         position: { x: 5, y: 4 },
         facingDirection: "right",
         speakerName: "PYPI EXPERT",
-        dialog: PYPI_FALLBACK_LINES,
-        dialogFn: async () => {
-          const lines = await getPypiDialog();
-          return { lines };
-        },
+        dialog: [
+          "Welcome to the MART!",
+          "{{ pypi.downloads }} downloads across {{ pypi.packages }} PyPI packages --",
+          "all maintained by KOSTAS.",
+          "Take your time browsing the TM catalog!",
+        ],
       },
       // LIVE NPC #5 — Step Tracker. Pulls the current step count
       // from StepStore (localStorage) and compares it against the
@@ -285,11 +285,11 @@ export const INTERIORS: Record<string, InteriorDef> = {
         position: { x: 5, y: 5 },
         facingDirection: "right",
         speakerName: "STEP TRACKER",
-        dialog: STEPS_FALLBACK_LINES,
-        dialogFn: () => {
-          const lines = getStepsDialog();
-          return { lines };
-        },
+        dialog: [
+          "{{ steps.count }} steps logged!",
+          "Walking counts -- every tile you explore powers the MART's TM dispenser.",
+          "Keep stepping, trainer!",
+        ],
       },
     ],
   },

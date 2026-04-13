@@ -2,9 +2,6 @@ import { Direction } from "grid-engine";
 import { MovementBehavior, type NPCDefinition, type SignDefinition } from "@/game/types/npc";
 import { WILD_POKEMON } from "@/game/data/wild-pokemon";
 import { isGateCleared } from "@/game/systems/GameSave";
-import { getGithubDialog, GITHUB_FALLBACK_LINES } from "@/game/npcs/live/github";
-import { getSpotifyDialog, SPOTIFY_FALLBACK_LINES } from "@/game/npcs/live/spotify";
-import { getStravaDialog, STRAVA_FALLBACK_LINES } from "@/game/npcs/live/strava";
 
 /**
  * Offset applied to all Mauville positions to account for the stitched
@@ -61,11 +58,12 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
-    dialog: SPOTIFY_FALLBACK_LINES,
-    dialogFn: async () => {
-      const lines = await getSpotifyDialog();
-      return { lines };
-    },
+    dialog: [
+      "KOSTAS is {{ spotify.playing }}...",
+      "{{ spotify.track }}",
+      "by {{ spotify.artist }}.",
+      "Great taste {{ spotify.status }}!",
+    ],
     speakerName: "MUSIC FAN",
     animated: true,
   },
@@ -85,11 +83,12 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
-    dialog: STRAVA_FALLBACK_LINES,
-    dialogFn: async () => {
-      const lines = await getStravaDialog();
-      return { lines };
-    },
+    dialog: [
+      "KOSTAS's last {{ strava.type }}...",
+      "{{ strava.distance }} km at {{ strava.pace }}.",
+      "He does this every week --",
+      "endurance for the long game.",
+    ],
     speakerName: "STRAVA NERD",
     animated: true,
   },
@@ -917,11 +916,12 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementBehavior: MovementBehavior.LOOK_AROUND,
     movementRangeX: 0,
     movementRangeY: 0,
-    dialog: GITHUB_FALLBACK_LINES,
-    dialogFn: async () => {
-      const lines = await getGithubDialog();
-      return { lines };
-    },
+    dialog: [
+      "Welcome to the ML MODEL DAY CARE!",
+      "We train your models while you work on other projects.",
+      "KOSTAS has {{ github.followers }} GitHub followers -- a trusted name.",
+      "{{ github.stars }} stars across {{ github.repos }} public repos.",
+    ],
     speakerName: "Day Care Man",
     animated: false,  // 3-frame sprite, Grid Engine can't use walkingAnimationMapping
   },
