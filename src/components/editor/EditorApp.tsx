@@ -1333,6 +1333,7 @@ function EditorInner() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string | null } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -1378,10 +1379,20 @@ function EditorInner() {
       if (e.key === "2" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "move" });
       if (e.key === "3" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "stamp" });
       if (e.key === "4" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eraser" });
+      // Ctrl+D: duplicate selected entity
+      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
+        e.preventDefault();
+        if (state.selectedEntityId) {
+          const entity = state.entities.find((ent) => ent.id === state.selectedEntityId);
+          if (entity) {
+            const newEntity = { ...entity, id: entity.id + "_copy", x: entity.x + 1 };
+            dispatch({ type: "ADD_ENTITY", entity: newEntity });
+          }
+        }
+      }
       if (e.key === "Delete" || e.key === "Backspace") {
         if (state.selectedEntityId) {
-          const entity = state.entities.find((e) => e.id === state.selectedEntityId);
-          if (entity) dispatch({ type: "DELETE_ENTITY", id: entity.id, entity });
+          setDeleteConfirm(state.selectedEntityId);
         }
       }
     };
@@ -1430,6 +1441,39 @@ function EditorInner() {
           onClose={() => setContextMenu(null)}
         />
       )}
+      {deleteConfirm && (() => {
+        const entity = state.entities.find((e) => e.id === deleteConfirm);
+        if (!entity) return null;
+        return (
+          <>
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9998 }} onClick={() => setDeleteConfirm(null)} />
+            <div style={{
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 9999,
+              background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 8, padding: 20,
+              minWidth: 280, boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Delete Entity?</div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 16 }}>
+                Are you sure you want to delete <span style={{ color: "#ef4444", fontWeight: 700 }}>{entity.id}</span>?
+                <br /><span style={{ fontSize: 9, color: "#666" }}>This can be undone with Ctrl+Z.</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => setDeleteConfirm(null)} style={{
+                  background: "#2a2a40", color: "#ccc", border: "1px solid #3a3a50", borderRadius: 4,
+                  padding: "6px 16px", fontSize: 11, cursor: "pointer",
+                }}>Cancel</button>
+                <button onClick={() => {
+                  dispatch({ type: "DELETE_ENTITY", id: entity.id, entity });
+                  setDeleteConfirm(null);
+                }} style={{
+                  background: "#ef4444", color: "#fff", border: "none", borderRadius: 4,
+                  padding: "6px 16px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                }}>Delete</button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
