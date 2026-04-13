@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { EditorProvider, useEditorState, useEditorDispatch } from "./state/EditorContext";
 import type { EditorEntity } from "./state/editorTypes";
 import EditorViewport from "./EditorViewport";
-import { emitEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE, SWITCH_MAP } from "../../game/editor/EditorEvents";
+import { emitEditorEvent, onEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE, SWITCH_MAP, VIEWPORT_READY } from "../../game/editor/EditorEvents";
 
 /** Dropdown menu item */
 function MenuItem({ label, shortcut, onClick, disabled }: { label: string; shortcut?: string; onClick?: () => void; disabled?: boolean }) {
@@ -68,7 +68,8 @@ function Toolbar() {
 
   const handleSave = async () => {
     const changes = collectChanges();
-    if (changes.length === 0) {
+    const hasCatalogChanges = state.dirty && state.catalog;
+    if (changes.length === 0 && !hasCatalogChanges) {
       console.log("[save] No changes to save");
       return;
     }
@@ -81,7 +82,7 @@ function Toolbar() {
       const r = await fetch("/api/editor/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ changes, dryRun: false }),
+        body: JSON.stringify({ changes, catalog: state.catalog, dryRun: false }),
       });
       const result = await r.json();
       console.log("[save] Result:", result);
@@ -98,11 +99,11 @@ function Toolbar() {
   useEffect(() => {
     const handler = () => {
       const changes = collectChanges();
-      if (changes.length > 0) setSaveDiffChanges(changes);
+      if (changes.length > 0 || state.dirty) setSaveDiffChanges(changes);
     };
     window.addEventListener("editor:trigger-save", handler);
     return () => window.removeEventListener("editor:trigger-save", handler);
-  }, [state.undoStack]);
+  }, [state.undoStack, state.dirty]);
 
   const handleUndo = () => dispatch({ type: "UNDO" });
   const handleRedo = () => dispatch({ type: "REDO" });
@@ -339,46 +340,99 @@ function Toolbar() {
   );
 }
 
-/** NPC sprite preview — renders first frame of a 144x32 spritesheet */
+/** NPC sprite preview — renders first frame using canvas for universal sprite sizes */
 function SpritePreview({ spriteKey, size = 24 }: { spriteKey: string; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, size, size);
+      ctx.imageSmoothingEnabled = false;
+      // Determine frame size: height is the full image height, width is 16 for standard or min(w, 48)
+      const frameW = Math.min(img.width, img.height <= 16 ? 16 : 16);
+      const frameH = img.height;
+      // Scale to fit the canvas while maintaining aspect ratio
+      const scale = Math.min(size / frameW, size / frameH);
+      const dw = frameW * scale;
+      const dh = frameH * scale;
+      ctx.drawImage(img, 0, 0, frameW, frameH, (size - dw) / 2, (size - dh) / 2, dw, dh);
+    };
+    img.src = `/game/sprites/emerald/${spriteKey}.png`;
+  }, [spriteKey, size]);
+
   return (
-    <div style={{
-      width: size, height: size, overflow: "hidden", flexShrink: 0,
-      background: "#0d0d1a", borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
-      <img
-        src={`/game/sprites/emerald/${spriteKey}.png`}
-        alt={spriteKey}
-        style={{
-          imageRendering: "pixelated",
-          width: size * 9, height: size * 2,
-          objectFit: "none",
-          objectPosition: "0 0",
-          clipPath: `inset(0 ${(size * 9) - size}px ${size}px 0)`,
-        }}
-        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-      />
-    </div>
+    <canvas ref={canvasRef} width={size} height={size}
+      style={{ width: size, height: size, flexShrink: 0, background: "#0d0d1a", borderRadius: 2, imageRendering: "pixelated" }} />
   );
 }
 
-const ALL_NPC_SPRITES = [
+// Fallback sprite list used before dynamic list loads
+const FALLBACK_NPC_SPRITES = [
   "boy_1", "boy_2", "boy_3", "girl_1", "girl_2", "girl_3",
-  "man_1", "woman_1", "woman_2", "woman_4", "fat_man", "old_man", "old_woman",
-  "rich_boy", "school_kid_m", "maniac", "lass", "fisherman", "youngster",
-  "beauty", "black_belt", "bug_catcher", "gentleman", "hiker",
-  "little_boy", "little_girl", "nurse", "pokefan_f", "pokefan_m", "scientist_1",
-  "aqua_member_f", "aqua_member_m", "magma_member_f", "magma_member_m",
-  "brendan", "may", "wally", "wattson", "scott",
-  "item_ball", "snorlax", "slaking", "slakoth",
-  "poochyena_ow", "camerupt", "carvanha", "golbat", "mightyena", "numel", "sharpedo", "wailmer",
+  "man_1", "woman_1", "woman_2", "woman_4", "fat_man", "old_man",
+  "beauty", "maniac", "lass", "fisherman", "nurse", "item_ball",
 ];
+
+const ALL_TILESETS = [
+  { id: "mauville_bottom", label: "Mauville Ground", path: "/game/tilesets/mauville_bottom.png" },
+  { id: "mauville_top", label: "Mauville Top", path: "/game/tilesets/mauville_top.png" },
+  { id: "mauville_ground", label: "Mauville Base", path: "/game/tilesets/mauville_ground.png" },
+  { id: "pokecenter_bottom", label: "Pokemon Center", path: "/game/tilesets/pokecenter_bottom.png" },
+  { id: "pokecenter_top", label: "Pokemon Center Top", path: "/game/tilesets/pokecenter_top.png" },
+  { id: "mart_bottom", label: "Mart", path: "/game/tilesets/mart_bottom.png" },
+  { id: "mart_top", label: "Mart Top", path: "/game/tilesets/mart_top.png" },
+  { id: "gym_bottom", label: "Gym", path: "/game/tilesets/gym_bottom.png" },
+  { id: "gym_top", label: "Gym Top", path: "/game/tilesets/gym_top.png" },
+];
+
+function TilesPanel() {
+  const dispatch = useEditorDispatch();
+  const [selectedTileset, setSelectedTileset] = useState("mauville_bottom");
+  const ts = ALL_TILESETS.find((t) => t.id === selectedTileset) || ALL_TILESETS[0];
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "4px", display: "flex", flexDirection: "column" }}>
+      <select value={selectedTileset} onChange={(e) => setSelectedTileset(e.target.value)}
+        style={{ width: "100%", background: "#161628", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "3px 4px", marginBottom: 4 }}>
+        {ALL_TILESETS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+      </select>
+      <div style={{ fontSize: 8, color: "#666", padding: "0 2px 3px" }}>
+        Click tile to select for Stamp tool (3)
+      </div>
+      <div
+        style={{ position: "relative", cursor: "crosshair" }}
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const img = e.currentTarget.querySelector("img");
+          if (!img) return;
+          const scaleX = img.naturalWidth / rect.width;
+          const scaleY = img.naturalHeight / rect.height;
+          const realX = (e.clientX - rect.left) * scaleX;
+          const realY = (e.clientY - rect.top) * scaleY;
+          const tileCol = Math.floor(realX / 16);
+          const tileRow = Math.floor(realY / 16);
+          const gid = tileRow * 16 + tileCol + 1;
+          emitEditorEvent("editor:select-tile-gid", { gid });
+          dispatch({ type: "SET_TOOL", tool: "stamp" });
+          emitEditorEvent("editor:set-tool", { tool: "stamp" });
+        }}
+      >
+        <img src={ts.path} alt={ts.label}
+          style={{ imageRendering: "pixelated", width: "100%", display: "block" }} />
+      </div>
+    </div>
+  );
+}
 
 /** Left panel — Tabbed Asset Library */
 function LeftPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
-  const [activeTab, setActiveTab] = useState<"entities" | "sprites" | "tiles">("entities");
+  const [activeTab, setActiveTab] = useState<"entities" | "sprites" | "tiles" | "data">("entities");
   const [filterType, setFilterType] = useState<string | null>(null);
   const [filterZone, setFilterZone] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -399,18 +453,23 @@ function LeftPanel() {
     return true;
   });
 
-  const filteredSprites = ALL_NPC_SPRITES.filter((s) =>
+  const allSprites = state.availableSprites?.npcs || FALLBACK_NPC_SPRITES;
+  const filteredSprites = allSprites.filter((s) =>
     !searchQuery || s.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  const catalogCount = state.catalog
+    ? state.catalog.itemDefinitions.length + state.catalog.stepMilestones.length + state.catalog.pokedex.length + state.catalog.party.length + state.catalog.badges.length + state.catalog.researchLog.length + state.catalog.fieldMoveAwards.length
+    : 0;
   const tabs = [
     { id: "entities" as const, label: "Entities", count: state.entities.length },
-    { id: "sprites" as const, label: "NPC Sprites", count: ALL_NPC_SPRITES.length },
+    { id: "sprites" as const, label: "NPC Sprites", count: allSprites.length },
     { id: "tiles" as const, label: "Tiles", count: 0 },
+    { id: "data" as const, label: "Data", count: catalogCount },
   ];
 
   return (
-    <div style={{ width: 220, background: "#1e1e30", borderRight: "1px solid #2a2a40", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+    <div style={{ width: "100%", height: "100%", background: "#1e1e30", display: "flex", flexDirection: "column" }}>
       {/* Tab bar */}
       <div style={{ display: "flex", flexShrink: 0, borderBottom: "1px solid #2a2a40" }}>
         {tabs.map((tab) => (
@@ -548,38 +607,309 @@ function LeftPanel() {
       )}
 
       {/* Tiles tab */}
-      {activeTab === "tiles" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 4px", display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 9, color: "#666", padding: "0 4px 4px" }}>
-            Click tile to select for Stamp tool (3). Tileset: 16x16 tiles, 16 columns.
-          </div>
-          <div
-            style={{ position: "relative", cursor: "crosshair" }}
-            onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const scale = 208 / 288; // displayed width / real width
-              const realX = (e.clientX - rect.left) / (2 * scale);
-              const realY = (e.clientY - rect.top) / (2 * scale);
-              const tileCol = Math.floor(realX / 16);
-              const tileRow = Math.floor(realY / 16);
-              const gid = tileRow * 16 + tileCol + 1; // +1 because Tiled GIDs are 1-indexed
-              emitEditorEvent("editor:select-tile-gid", { gid });
-              // Auto-switch to stamp tool
-              dispatch({ type: "SET_TOOL", tool: "stamp" });
-              emitEditorEvent("editor:set-tool", { tool: "stamp" });
-            }}
-          >
-            <img
-              src="/game/tilesets/mauville_bottom.png"
-              alt="tileset"
-              style={{ imageRendering: "pixelated", width: "100%", display: "block" }}
-            />
-          </div>
-          <div style={{ fontSize: 8, color: "#555", padding: "4px", textAlign: "center" }}>
-            Select Stamp (3) → click palette → click map to paint
-          </div>
-        </div>
+      {activeTab === "tiles" && <TilesPanel />}
+
+      {/* Data Manager tab */}
+      {activeTab === "data" && <DataManagerPanel />}
+    </div>
+  );
+}
+
+/** Data Manager sub-tabs */
+type DataSubTab = "items" | "tms" | "pokedex" | "party" | "badges" | "log" | "moves";
+const DATA_SUB_TABS: { id: DataSubTab; label: string }[] = [
+  { id: "items", label: "Items" },
+  { id: "tms", label: "TMs" },
+  { id: "pokedex", label: "Pokedex" },
+  { id: "party", label: "Party" },
+  { id: "badges", label: "Badges" },
+  { id: "log", label: "Log" },
+  { id: "moves", label: "Moves" },
+];
+
+const POCKET_COLORS: Record<string, string> = {
+  papers: "#ef4444", blogs: "#3b82f6", keyItems: "#f59e0b", tms: "#22c55e",
+};
+
+function DataManagerPanel() {
+  const state = useEditorState();
+  const dispatch = useEditorDispatch();
+  const [subTab, setSubTab] = useState<DataSubTab>("items");
+  const [search, setSearch] = useState("");
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const catalog = state.catalog;
+
+  if (!catalog) return <div style={{ padding: 12, color: "#555", fontSize: 11 }}>Loading catalog data...</div>;
+
+  const updateCatalog = (dataType: keyof typeof catalog, index: number, field: string, value: any) => {
+    dispatch({ type: "UPDATE_CATALOG", dataType, index, field, value });
+  };
+
+  const renderField = (label: string, value: any, onChange: (v: string) => void, opts?: { type?: string; disabled?: boolean; options?: string[] }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+      <span style={{ fontSize: 8, color: "#888", width: 55, flexShrink: 0, textAlign: "right" }}>{label}</span>
+      {opts?.options ? (
+        <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} disabled={opts.disabled}
+          style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }}>
+          {opts.options.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input type={opts?.type || "text"} value={value ?? ""} onChange={(e) => onChange(e.target.value)} disabled={opts?.disabled}
+          style={{ flex: 1, background: opts?.disabled ? "transparent" : "#0d0d1a", border: opts?.disabled ? "none" : "1px solid #2a2a40", borderRadius: 2, color: opts?.disabled ? "#666" : "#ccc", fontSize: 9, padding: "1px 3px", boxSizing: "border-box" }} />
       )}
+    </div>
+  );
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      {/* Sub-tab bar */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 1, padding: "4px 4px 2px", flexShrink: 0 }}>
+        {DATA_SUB_TABS.map((t) => {
+          const count = catalog[t.id === "tms" ? "stepMilestones" : t.id === "log" ? "researchLog" : t.id === "moves" ? "fieldMoveAwards" : t.id === "items" ? "itemDefinitions" : t.id]?.length || 0;
+          return (
+            <span key={t.id} onClick={() => { setSubTab(t.id); setSearch(""); setExpandedIdx(null); }}
+              style={{
+                fontSize: 8, padding: "2px 5px", borderRadius: 3, cursor: "pointer",
+                background: subTab === t.id ? "#1e3a5f" : "#161628",
+                color: subTab === t.id ? "#fff" : "#888",
+              }}>{t.label} ({count})</span>
+          );
+        })}
+      </div>
+      {/* Search */}
+      <div style={{ padding: "3px 6px", flexShrink: 0 }}>
+        <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)}
+          style={{ width: "100%", background: "#161628", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 5px", outline: "none", boxSizing: "border-box" }} />
+      </div>
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "0 4px" }}>
+
+        {/* ── ITEMS ── */}
+        {subTab === "items" && catalog.itemDefinitions
+          .map((item, idx) => ({ item, idx }))
+          .filter(({ item }) => !search || item.name.toLowerCase().includes(search.toLowerCase()) || item.id.toLowerCase().includes(search.toLowerCase()))
+          .map(({ item, idx }) => (
+            <div key={item.id} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 7, padding: "0 3px", borderRadius: 3, background: POCKET_COLORS[item.pocket] || "#555", color: "#fff", fontWeight: 700 }}>{item.pocket}</span>
+                <span style={{ fontSize: 9, color: "#ccc", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
+                <span style={{ fontSize: 7, color: "#555" }}>{item.id}</span>
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("ID", item.id, () => {}, { disabled: true })}
+                  {renderField("Name", item.name, (v) => updateCatalog("itemDefinitions", idx, "name", v))}
+                  {renderField("Pocket", item.pocket, (v) => updateCatalog("itemDefinitions", idx, "pocket", v), { options: ["papers", "blogs", "keyItems", "tms"] })}
+                  {renderField("URL", item.url, (v) => updateCatalog("itemDefinitions", idx, "url", v))}
+                  {renderField("Icon", item.icon, (v) => updateCatalog("itemDefinitions", idx, "icon", v))}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontSize: 8, color: "#888", width: 55, flexShrink: 0, textAlign: "right", paddingTop: 2 }}>Desc</span>
+                    <textarea value={item.description} onChange={(e) => updateCatalog("itemDefinitions", idx, "description", e.target.value)}
+                      style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 4px", resize: "vertical", minHeight: 32, fontFamily: "monospace", boxSizing: "border-box" }} />
+                  </div>
+                  <span onClick={() => dispatch({ type: "DELETE_CATALOG_ENTRY", dataType: "itemDefinitions", index: idx })}
+                    style={{ fontSize: 8, color: "#ef4444", cursor: "pointer" }}>Delete</span>
+                </div>
+              )}
+            </div>
+          ))}
+        {subTab === "items" && (
+          <div onClick={() => {
+            const id = `item_new_${Date.now().toString(36)}`;
+            dispatch({ type: "ADD_CATALOG_ENTRY", dataType: "itemDefinitions", entry: { id, name: "New Item", pocket: "keyItems", description: "", url: "", icon: "" } });
+          }} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer", padding: "4px 8px" }}>+ Add Item</div>
+        )}
+
+        {/* ── TMs ── */}
+        {subTab === "tms" && catalog.stepMilestones
+          .map((tm, idx) => ({ tm, idx }))
+          .filter(({ tm }) => !search || tm.tm.toLowerCase().includes(search.toLowerCase()) || tm.itemId.toLowerCase().includes(search.toLowerCase()))
+          .map(({ tm, idx }) => (
+            <div key={idx} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 8, color: "#22c55e", fontFamily: "monospace", width: 40 }}>{tm.steps}s</span>
+                <span style={{ fontSize: 9, color: "#ccc", flex: 1 }}>{tm.tm}</span>
+                <span style={{ fontSize: 7, color: "#555" }}>{tm.itemId}</span>
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("Steps", tm.steps, (v) => updateCatalog("stepMilestones", idx, "steps", parseInt(v) || 0), { type: "number" })}
+                  {renderField("TM Name", tm.tm, (v) => updateCatalog("stepMilestones", idx, "tm", v))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontSize: 8, color: "#888", width: 55, flexShrink: 0, textAlign: "right" }}>Item</span>
+                    <select value={tm.itemId} onChange={(e) => updateCatalog("stepMilestones", idx, "itemId", e.target.value)}
+                      style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }}>
+                      {catalog.itemDefinitions.filter((it) => it.pocket === "tms").map((it) => (
+                        <option key={it.id} value={it.id}>{it.name} ({it.id})</option>
+                      ))}
+                    </select>
+                  </div>
+                  {renderField("Desc", tm.description, (v) => updateCatalog("stepMilestones", idx, "description", v))}
+                </div>
+              )}
+            </div>
+          ))}
+
+        {/* ── POKEDEX ── */}
+        {subTab === "pokedex" && catalog.pokedex
+          .map((p, idx) => ({ p, idx }))
+          .filter(({ p }) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.pokemon.toLowerCase().includes(search.toLowerCase()))
+          .map(({ p, idx }) => (
+            <div key={p.number} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 8, color: "#22c55e", fontFamily: "monospace", width: 24 }}>#{p.number}</span>
+                <span style={{ fontSize: 9, color: "#ccc", flex: 1 }}>{p.name}</span>
+                <span style={{ fontSize: 7, color: "#888" }}>{p.pokemon}</span>
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("#", p.number, (v) => updateCatalog("pokedex", idx, "number", parseInt(v) || 0), { type: "number" })}
+                  {renderField("Name", p.name, (v) => updateCatalog("pokedex", idx, "name", v))}
+                  {renderField("Species", p.pokemon, (v) => updateCatalog("pokedex", idx, "pokemon", v))}
+                  {renderField("Level", p.level, (v) => updateCatalog("pokedex", idx, "level", parseInt(v) || 1), { type: "number" })}
+                  {renderField("Type 1", p.types[0], (v) => updateCatalog("pokedex", idx, "types", [v, p.types[1]]),
+                    { options: ["Normal", "Fire", "Water", "Grass", "Electric", "Ice", "Fighting", "Poison", "Ground", "Flying", "Psychic", "Bug", "Rock", "Ghost", "Dragon", "Dark", "Steel", "Fairy"] })}
+                  {renderField("Type 2", p.types[1], (v) => updateCatalog("pokedex", idx, "types", [p.types[0], v]),
+                    { options: ["Normal", "Fire", "Water", "Grass", "Electric", "Ice", "Fighting", "Poison", "Ground", "Flying", "Psychic", "Bug", "Rock", "Ghost", "Dragon", "Dark", "Steel", "Fairy"] })}
+                  {renderField("Status", p.status, (v) => updateCatalog("pokedex", idx, "status", v), { options: ["caught", "seen", "unseen"] })}
+                  {renderField("URL", p.url, (v) => updateCatalog("pokedex", idx, "url", v))}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontSize: 8, color: "#888", width: 55, flexShrink: 0, textAlign: "right", paddingTop: 2 }}>Desc</span>
+                    <textarea value={p.description} onChange={(e) => updateCatalog("pokedex", idx, "description", e.target.value)}
+                      style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 4px", resize: "vertical", minHeight: 24, fontFamily: "monospace", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+        {/* ── PARTY ── */}
+        {subTab === "party" && catalog.party
+          .map((m, idx) => ({ m, idx }))
+          .filter(({ m }) => !search || m.nickname.toLowerCase().includes(search.toLowerCase()) || m.species.toLowerCase().includes(search.toLowerCase()))
+          .map(({ m, idx }) => (
+            <div key={m.id} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 9, color: "#ccc", flex: 1 }}>{m.nickname}</span>
+                <span style={{ fontSize: 8, color: "#888" }}>Lv.{m.level} {m.species}</span>
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("ID", m.id, () => {}, { disabled: true })}
+                  {renderField("Nickname", m.nickname, (v) => updateCatalog("party", idx, "nickname", v))}
+                  {renderField("Species", m.species, (v) => updateCatalog("party", idx, "species", v))}
+                  {renderField("Level", m.level, (v) => updateCatalog("party", idx, "level", parseInt(v) || 1), { type: "number" })}
+                  {renderField("HP", m.hp, (v) => updateCatalog("party", idx, "hp", parseInt(v) || 1), { type: "number" })}
+                  {renderField("Max HP", m.maxHp, (v) => updateCatalog("party", idx, "maxHp", parseInt(v) || 1), { type: "number" })}
+                  {renderField("Project", m.projectName, (v) => updateCatalog("party", idx, "projectName", v))}
+                  {renderField("URL", m.url, (v) => updateCatalog("party", idx, "url", v))}
+                  <div style={{ fontSize: 8, fontWeight: 700, color: "#8b5cf6", margin: "4px 0 2px" }}>MOVES</div>
+                  {m.moves.map((mv, mi) => (
+                    <div key={mi} style={{ marginLeft: 8, marginBottom: 3, padding: "2px 4px", background: "#161628", borderRadius: 2 }}>
+                      {renderField("Name", mv.name, (v) => {
+                        const moves = [...m.moves]; moves[mi] = { ...moves[mi], name: v };
+                        updateCatalog("party", idx, "moves", moves);
+                      })}
+                      {renderField("Type", mv.type, (v) => {
+                        const moves = [...m.moves]; moves[mi] = { ...moves[mi], type: v };
+                        updateCatalog("party", idx, "moves", moves);
+                      }, { options: ["Normal", "Fire", "Water", "Grass", "Electric", "Ice", "Fighting", "Poison", "Ground", "Flying", "Psychic", "Bug", "Rock", "Ghost", "Dragon", "Dark", "Steel", "Fairy"] })}
+                      {renderField("PP", mv.pp, (v) => {
+                        const moves = [...m.moves]; moves[mi] = { ...moves[mi], pp: parseInt(v) || 0 };
+                        updateCatalog("party", idx, "moves", moves);
+                      }, { type: "number" })}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+        {/* ── BADGES ── */}
+        {subTab === "badges" && catalog.badges
+          .map((b, idx) => ({ b, idx }))
+          .map(({ b, idx }) => (
+            <div key={b.id} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 9, color: "#f59e0b" }}>{b.name}</span>
+                <span style={{ fontSize: 7, color: "#555", flex: 1 }}>{b.id}</span>
+                {b.auto && <span style={{ fontSize: 7, color: "#22c55e" }}>auto</span>}
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("ID", b.id, () => {}, { disabled: true })}
+                  {renderField("Name", b.name, (v) => updateCatalog("badges", idx, "name", v))}
+                  {renderField("Hint", b.hint, (v) => updateCatalog("badges", idx, "hint", v))}
+                  {b.hasCondition && <div style={{ fontSize: 8, color: "#f59e0b", marginTop: 2 }}>Condition: complex logic — edit in source</div>}
+                </div>
+              )}
+            </div>
+          ))}
+
+        {/* ── RESEARCH LOG ── */}
+        {subTab === "log" && catalog.researchLog
+          .map((entry, idx) => ({ entry, idx }))
+          .filter(({ entry }) => !search || entry.title.toLowerCase().includes(search.toLowerCase()))
+          .map(({ entry, idx }) => (
+            <div key={entry.number} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 8, color: "#8b5cf6", fontFamily: "monospace", width: 16 }}>#{entry.number}</span>
+                <span style={{ fontSize: 9, color: "#ccc", flex: 1 }}>{entry.title}</span>
+                <span style={{ fontSize: 7, color: "#555" }}>{entry.threshold} disc.</span>
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("Title", entry.title, (v) => updateCatalog("researchLog", idx, "title", v))}
+                  {renderField("Threshold", entry.threshold, (v) => updateCatalog("researchLog", idx, "threshold", parseInt(v) || 0), { type: "number" })}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontSize: 8, color: "#888", width: 55, flexShrink: 0, textAlign: "right", paddingTop: 2 }}>Text</span>
+                    <textarea value={entry.text.join("\n")} onChange={(e) => updateCatalog("researchLog", idx, "text", e.target.value.split("\n"))}
+                      style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 4px", resize: "vertical", minHeight: 48, fontFamily: "monospace", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+        {/* ── FIELD MOVES ── */}
+        {subTab === "moves" && catalog.fieldMoveAwards
+          .map((fm, idx) => ({ fm, idx }))
+          .map(({ fm, idx }) => (
+            <div key={idx} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 9, color: "#ccc" }}>{fm.moveName}</span>
+                <span style={{ fontSize: 7, color: "#555" }}>{fm.badgeId} {"→"} {fm.pokemonId}</span>
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("Move", fm.moveName, (v) => updateCatalog("fieldMoveAwards", idx, "moveName", v))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontSize: 8, color: "#888", width: 55, flexShrink: 0, textAlign: "right" }}>Badge</span>
+                    <select value={fm.badgeId} onChange={(e) => updateCatalog("fieldMoveAwards", idx, "badgeId", e.target.value)}
+                      style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }}>
+                      {catalog.badges.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.id})</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontSize: 8, color: "#888", width: 55, flexShrink: 0, textAlign: "right" }}>Pokemon</span>
+                    <select value={fm.pokemonId} onChange={(e) => updateCatalog("fieldMoveAwards", idx, "pokemonId", e.target.value)}
+                      style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }}>
+                      {catalog.party.map((p) => <option key={p.id} value={p.id}>{p.nickname} ({p.id})</option>)}
+                    </select>
+                  </div>
+                  {renderField("Message", fm.learnMessage, (v) => updateCatalog("fieldMoveAwards", idx, "learnMessage", v))}
+                </div>
+              )}
+            </div>
+          ))}
+      </div>
     </div>
   );
 }
@@ -658,7 +988,13 @@ function Minimap() {
 
 /** Map selector dropdown */
 function MapSelector() {
-  const [currentMap, setCurrentMap] = useState("mauville");
+  const dispatch = useEditorDispatch();
+  const [currentMap, setCurrentMap] = useState(() => {
+    if (typeof localStorage !== "undefined") {
+      return localStorage.getItem("editor_current_map") || "mauville";
+    }
+    return "mauville";
+  });
   const maps = [
     { id: "mauville", label: "Overworld (140x120)" },
     { id: "pokecenter", label: "Pokemon Center (14x9)" },
@@ -666,37 +1002,50 @@ function MapSelector() {
     { id: "gym", label: "Gym (10x21)" },
   ];
 
+  // Helper: load entities for a map into both React state and Phaser
+  const loadMapEntities = async (mapId: string) => {
+    try {
+      const r = await fetch("/api/editor/data");
+      const data = await r.json();
+      if (mapId === "mauville") {
+        if (data.entities) {
+          dispatch({ type: "LOAD_DATA", entities: data.entities });
+        }
+      } else {
+        const interior = data.interiors?.[mapId];
+        if (interior) {
+          const entities = [
+            ...interior.npcs,
+            ...interior.exitWarps.map((w: any) => ({ ...w, type: "warp" })),
+            ...interior.pcTiles.map((p: any) => ({ ...p, type: "special" })),
+            ...(interior.switches || []),
+          ];
+          dispatch({ type: "LOAD_DATA", entities });
+        }
+      }
+    } catch {}
+  };
+
+  // On mount, if persisted map isn't default, switch to it after scene is ready
+  useEffect(() => {
+    if (currentMap === "mauville") return;
+    const switchToSaved = () => {
+      emitEditorEvent(SWITCH_MAP, { mapId: currentMap });
+      loadMapEntities(currentMap);
+    };
+    const unsub = onEditorEvent(VIEWPORT_READY, switchToSaved);
+    return unsub;
+  }, []);
+
   return (
     <select
       value={currentMap}
       onChange={async (e) => {
         const mapId = e.target.value;
         setCurrentMap(mapId);
+        localStorage.setItem("editor_current_map", mapId);
         emitEditorEvent(SWITCH_MAP, { mapId });
-        // Load interior entities if switching to interior
-        if (mapId !== "mauville") {
-          try {
-            const r = await fetch("/api/editor/data");
-            const data = await r.json();
-            const interior = data.interiors?.[mapId];
-            if (interior) {
-              const entities = [
-                ...interior.npcs,
-                ...interior.exitWarps.map((w: any) => ({ ...w, type: "warp" })),
-                ...interior.pcTiles.map((p: any) => ({ ...p, type: "special" })),
-                ...(interior.switches || []),
-              ];
-              emitEditorEvent("editor:refresh-entities", { entities });
-            }
-          } catch {}
-        } else {
-          // Switch back to overworld: reload main entities
-          try {
-            const r = await fetch("/api/editor/data");
-            const data = await r.json();
-            if (data.entities) emitEditorEvent("editor:refresh-entities", { entities: data.entities });
-          } catch {}
-        }
+        await loadMapEntities(mapId);
       }}
       style={{
         position: "absolute", top: 6, right: 10, zIndex: 10,
@@ -934,7 +1283,7 @@ function RightPanel() {
 
   if (!selected) {
     return (
-      <div style={{ width: 300, background: "#1e1e30", borderLeft: "1px solid #2a2a40", padding: 12, color: "#555", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", height: "100%", background: "#1e1e30", padding: 12, color: "#555", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
         Click an entity to inspect
       </div>
     );
@@ -947,7 +1296,7 @@ function RightPanel() {
   };
 
   return (
-    <div style={{ width: 300, background: "#1e1e30", borderLeft: "1px solid #2a2a40", overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ width: "100%", height: "100%", background: "#1e1e30", overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #2a2a40", paddingBottom: 4 }}>
         <span style={{
           background: typeColors[selected.type] || "#888", color: "#fff", fontSize: 8,
@@ -978,13 +1327,28 @@ function RightPanel() {
           <PropField label="Range Y" value={selected.movementRangeY} type="number"
             onChange={(v) => updateField("movementRangeY", Number(v), selected.movementRangeY)} />
         )}
-        {selected.spriteKey && (
-          <PropField label="Sprite" value={selected.spriteKey} disabled />
+        {selected.spriteKey !== undefined && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>Sprite</span>
+            <div style={{ flex: 1, display: "flex", gap: 4, alignItems: "center" }}>
+              <SpritePreview spriteKey={selected.spriteKey} size={20} />
+              <select value={selected.spriteKey} onChange={(e) => updateField("spriteKey", e.target.value, selected.spriteKey)}
+                style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 9, padding: "2px 4px" }}>
+                {(state.availableSprites?.npcs || FALLBACK_NPC_SPRITES).map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
         )}
       </PropSection>
 
       {(selected.dialog && selected.dialog.length > 0) && (
         <PropSection title={`DIALOG (${selected.dialog.length} slides)`} color="#4a9eed">
+          {selected.hasDialogFn && (
+            <div style={{ background: "#1a2a1a", border: "1px solid #2a4a2a", borderRadius: 4, padding: "4px 8px", marginBottom: 6, fontSize: 9 }}>
+              <span style={{ color: "#f59e0b" }}>Dynamic NPC</span>
+              <span style={{ color: "#888" }}> — also has dialogFn (live API). These are the offline fallback lines.</span>
+            </div>
+          )}
           {selected.dialog.map((line, i) => {
             const pages = Math.ceil(line.length / 105) || 1; // ~35 chars x 3 lines per page
             return (
@@ -1082,8 +1446,16 @@ function RightPanel() {
 
       {selected.autoGive && (
         <PropSection title="AUTO-GIVE" color="#4a9eed">
-          <PropField label="Item" value={selected.autoGive.itemId}
-            onChange={(v) => updateField("autoGive", { ...selected.autoGive, itemId: v }, selected.autoGive)} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>Item</span>
+            <select value={selected.autoGive.itemId || ""} onChange={(e) => updateField("autoGive", { ...selected.autoGive, itemId: e.target.value }, selected.autoGive)}
+              style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px" }}>
+              <option value="">-- select --</option>
+              {state.catalog?.itemDefinitions.map((it) => (
+                <option key={it.id} value={it.id}>{it.name} [{it.pocket}]</option>
+              ))}
+            </select>
+          </div>
           {selected.autoGive.asideX != null && (
             <>
               <PropField label="Aside X" value={selected.autoGive.asideX} type="number"
@@ -1118,8 +1490,16 @@ function RightPanel() {
 
       {selected.type === "hidden-item" && (
         <PropSection title="HIDDEN ITEM" color="#ec4899">
-          <PropField label="Item" value={selected.itemId}
-            onChange={(v) => updateField("itemId", v, selected.itemId)} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>Item</span>
+            <select value={selected.itemId || ""} onChange={(e) => updateField("itemId", e.target.value, selected.itemId)}
+              style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px" }}>
+              <option value="">-- select --</option>
+              {state.catalog?.itemDefinitions.map((it) => (
+                <option key={it.id} value={it.id}>{it.name} [{it.pocket}]</option>
+              ))}
+            </select>
+          </div>
           <PropField label="Map" value={selected.map} disabled />
           <PropField label="Difficulty" value={selected.difficulty} type="select"
             options={["easy", "medium", "hard"]}
@@ -1136,7 +1516,7 @@ function RightPanel() {
         </PropSection>
       )}
 
-      {selected.hasDialogFn && (
+      {selected.hasDialogFn && (!selected.dialog || selected.dialog.length === 0) && (
         <div style={{ background: "#2a1a1a", borderRadius: 5, padding: "4px 8px", fontSize: 9, color: "#f59e0b" }}>
           ⚠ Has dynamic dialogFn — edit in source code
         </div>
@@ -1579,6 +1959,10 @@ function EditorInner() {
     if (typeof localStorage === "undefined") return false;
     return !localStorage.getItem("editor_onboarding_done");
   });
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [leftWidth, setLeftWidth] = useState(220);
+  const [rightWidth, setRightWidth] = useState(300);
 
   // Load data on mount
   useEffect(() => {
@@ -1587,6 +1971,12 @@ function EditorInner() {
       .then((data) => {
         if (data.entities) {
           dispatch({ type: "LOAD_DATA", entities: data.entities });
+          if (data.catalog) {
+            dispatch({ type: "LOAD_CATALOG", catalog: data.catalog });
+          }
+          if (data.availableSprites) {
+            dispatch({ type: "LOAD_SPRITES", sprites: data.availableSprites });
+          }
         } else {
           dispatch({ type: "SET_ERROR", error: data.error || "No entities in response" });
         }
@@ -1632,20 +2022,14 @@ function EditorInner() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const inTextInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+
+      // Ctrl/Cmd shortcuts always work (even in text inputs)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "z") { e.preventDefault(); dispatch({ type: "REDO" }); return; }
       if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); dispatch({ type: "UNDO" }); }
       if ((e.metaKey || e.ctrlKey) && e.key === "y") { e.preventDefault(); dispatch({ type: "REDO" }); }
       if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); window.dispatchEvent(new CustomEvent("editor:trigger-save")); }
-      if (e.key === "Escape") { dispatch({ type: "DESELECT" }); setContextMenu(null); }
-      // Tool switching: 1=Select, 2=Move, 3=Stamp, 4=Eraser
-      if (e.key === "1" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "select" });
-      if (e.key === "2" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "move" });
-      if (e.key === "3" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "stamp" });
-      if (e.key === "4" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eraser" });
-      if (e.key === "5" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eyedropper" });
-      if (e.key === "?" || (e.shiftKey && e.key === "/")) setShowShortcuts((p) => !p);
-      // Ctrl+D: duplicate selected entity
-      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "d" && !inTextInput) {
         e.preventDefault();
         if (state.selectedEntityId) {
           const entity = state.entities.find((ent) => ent.id === state.selectedEntityId);
@@ -1655,6 +2039,17 @@ function EditorInner() {
           }
         }
       }
+
+      // Skip non-modifier shortcuts when typing in text fields
+      if (inTextInput) return;
+
+      if (e.key === "Escape") { dispatch({ type: "DESELECT" }); setContextMenu(null); }
+      if (e.key === "1") dispatch({ type: "SET_TOOL", tool: "select" });
+      if (e.key === "2") dispatch({ type: "SET_TOOL", tool: "move" });
+      if (e.key === "3") dispatch({ type: "SET_TOOL", tool: "stamp" });
+      if (e.key === "4") dispatch({ type: "SET_TOOL", tool: "eraser" });
+      if (e.key === "5") dispatch({ type: "SET_TOOL", tool: "eyedropper" });
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) setShowShortcuts((p) => !p);
       if (e.key === "Delete" || e.key === "Backspace") {
         if (state.selectedEntityId) {
           setDeleteConfirm(state.selectedEntityId);
@@ -1690,12 +2085,88 @@ function EditorInner() {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <Toolbar />
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        <LeftPanel />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Left panel with collapse toggle */}
+        {!leftCollapsed ? (
+          <>
+            <div style={{ width: leftWidth, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+              <LeftPanel />
+            </div>
+            {/* Drag handle */}
+            <div
+              style={{ width: 4, cursor: "col-resize", background: "#2a2a40", flexShrink: 0 }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startW = leftWidth;
+                const onMove = (ev: MouseEvent) => { ev.preventDefault(); setLeftWidth(Math.max(140, Math.min(400, startW + ev.clientX - startX))); };
+                const onUp = () => { document.body.style.userSelect = ""; window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+                document.body.style.userSelect = "none";
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+            />
+          </>
+        ) : (
+          <div onClick={() => setLeftCollapsed(false)}
+            style={{ width: 20, background: "#1e1e30", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #2a2a40", flexShrink: 0 }}>
+            <span style={{ fontSize: 10, color: "#888", writingMode: "vertical-lr" }}>Panel</span>
+          </div>
+        )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minWidth: 0, overflow: "hidden" }}>
+          {/* Collapse toggles overlay */}
+          <div style={{ position: "absolute", top: 4, left: 4, zIndex: 20, display: "flex", gap: 2 }}>
+            <span onClick={() => setLeftCollapsed(!leftCollapsed)} title={leftCollapsed ? "Show left panel" : "Hide left panel"}
+              style={{ fontSize: 10, color: "#666", cursor: "pointer", background: "#1a1a2e", border: "1px solid #333", borderRadius: 2, padding: "1px 4px" }}>
+              {leftCollapsed ? "▸" : "◂"}
+            </span>
+            <span onClick={() => setRightCollapsed(!rightCollapsed)} title={rightCollapsed ? "Show right panel" : "Hide right panel"}
+              style={{ fontSize: 10, color: "#666", cursor: "pointer", background: "#1a1a2e", border: "1px solid #333", borderRadius: 2, padding: "1px 4px" }}>
+              {rightCollapsed ? "◂" : "▸"}
+            </span>
+          </div>
           <Viewport />
           <BottomPanel />
         </div>
-        <RightPanel />
+        {/* Right panel with collapse toggle */}
+        {!rightCollapsed ? (
+          <>
+            <div
+              style={{ width: 6, cursor: "col-resize", background: "#2a2a40", flexShrink: 0 }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#4a4a6a"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#2a2a40"; }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startW = rightWidth;
+                const el = e.currentTarget as HTMLElement;
+                el.style.background = "#6a6a8a";
+                const onMove = (ev: MouseEvent) => {
+                  ev.preventDefault();
+                  setRightWidth(Math.max(180, Math.min(600, startW + (startX - ev.clientX))));
+                };
+                const onUp = () => {
+                  el.style.background = "#2a2a40";
+                  document.body.style.userSelect = "";
+                  document.body.style.cursor = "";
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                };
+                document.body.style.userSelect = "none";
+                document.body.style.cursor = "col-resize";
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+            />
+            <div style={{ width: rightWidth, minWidth: 0, flexShrink: 0, overflow: "hidden" }}>
+              <RightPanel />
+            </div>
+          </>
+        ) : (
+          <div onClick={() => setRightCollapsed(false)}
+            style={{ width: 20, background: "#1e1e30", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderLeft: "1px solid #2a2a40", flexShrink: 0 }}>
+            <span style={{ fontSize: 10, color: "#888", writingMode: "vertical-lr" }}>Props</span>
+          </div>
+        )}
       </div>
       <StatusBar />
       {contextMenu && (

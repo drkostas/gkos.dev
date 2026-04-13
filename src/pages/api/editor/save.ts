@@ -23,6 +23,7 @@ interface TilePaint {
 interface SaveRequest {
   changes: SaveChange[];
   tilePaints?: TilePaint[];
+  catalog?: any;
   dryRun?: boolean;
 }
 
@@ -184,13 +185,26 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Build source map from editor data
+    // Build source map from editor data (overworld + interior entities)
     for (const entity of editorData.entities) {
       if (entity.sourceFile) {
         entitySourceMap.set(entity.id, {
           file: entity.sourceFile,
           hasOffset: entity.sourceOffset === true,
         });
+      }
+    }
+    // Also map interior entities
+    if (editorData.interiors) {
+      for (const [, interior] of Object.entries(editorData.interiors as Record<string, any>)) {
+        for (const npc of (interior.npcs || [])) {
+          if (npc.sourceFile) {
+            entitySourceMap.set(npc.id, {
+              file: npc.sourceFile,
+              hasOffset: false,
+            });
+          }
+        }
       }
     }
 
@@ -220,7 +234,14 @@ export const POST: APIRoute = async ({ request }) => {
       switch (change.field) {
         case "x":
         case "y": {
-          const entity = editorData.entities.find((e: any) => e.id === change.entityId);
+          // Search both overworld and interior entities
+          let entity = editorData.entities.find((e: any) => e.id === change.entityId);
+          if (!entity && editorData.interiors) {
+            for (const interior of Object.values(editorData.interiors as Record<string, any>)) {
+              entity = (interior.npcs || []).find((e: any) => e.id === change.entityId);
+              if (entity) break;
+            }
+          }
           if (entity) {
             const newX = change.field === "x" ? change.newValue : entity.x;
             const newY = change.field === "y" ? change.newValue : entity.y;
@@ -276,6 +297,107 @@ export const POST: APIRoute = async ({ request }) => {
         }
       } catch (e: any) {
         console.error("Failed to save tile paints:", e.message);
+      }
+    }
+
+    // Apply catalog changes — patch item definitions, pokedex, etc.
+    let catalogPatched = 0;
+    if (body.catalog) {
+      const dataRoot = resolve(process.cwd(), "src/game/data");
+      const systemsRoot = resolve(process.cwd(), "src/game/systems");
+
+      // Helper: replace a field value within a block found by an anchor pattern
+      function patchFieldInBlock(content: string, anchorPattern: RegExp, fieldPattern: RegExp, replacement: string): string {
+        const anchorMatch = anchorPattern.exec(content);
+        if (!anchorMatch) return content;
+        const searchStart = anchorMatch.index;
+        const region = content.substring(searchStart, searchStart + 2000);
+        const fieldMatch = fieldPattern.exec(region);
+        if (!fieldMatch) return content;
+        const absStart = searchStart + fieldMatch.index;
+        const absEnd = absStart + fieldMatch[0].length;
+        return content.substring(0, absStart) + replacement + content.substring(absEnd);
+      }
+
+      // Patch ITEM_DEFINITIONS — update name, pocket, description, url for each item
+      if (body.catalog.itemDefinitions) {
+        const filePath = resolve(dataRoot, "itemDefinitions.ts");
+        let content = readFileSync(filePath, "utf-8");
+        for (const item of body.catalog.itemDefinitions) {
+          const anchor = new RegExp(`id:\\s*"${item.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`);
+          if (!anchor.test(content)) continue;
+          // Patch name
+          content = patchFieldInBlock(content, anchor, /name:\s*"[^"]*"/, `name: "${item.name}"`);
+          // Patch pocket
+          content = patchFieldInBlock(content, anchor, /pocket:\s*"[^"]*"/, `pocket: "${item.pocket}"`);
+          // Patch url (if exists)
+          if (item.url) {
+            content = patchFieldInBlock(content, anchor, /url:\s*"[^"]*"/, `url: "${item.url}"`);
+          }
+          catalogPatched++;
+        }
+        if (!body.dryRun) writeFileSync(filePath, content, "utf-8");
+      }
+
+      // Patch POKEDEX — update name, description, url, types, status for each entry
+      if (body.catalog.pokedex) {
+        const filePath = resolve(dataRoot, "pokemon.ts");
+        let content = readFileSync(filePath, "utf-8");
+        for (const entry of body.catalog.pokedex) {
+          const anchor = new RegExp(`number:\\s*${entry.number},\\s*name:\\s*"`);
+          if (!anchor.test(content)) continue;
+          content = patchFieldInBlock(content, anchor, /name:\s*"[^"]*"/, `name: "${entry.name}"`);
+          content = patchFieldInBlock(content, anchor, /description:\s*"[^"]*"/, `description: "${entry.description}"`);
+          if (entry.url) {
+            content = patchFieldInBlock(content, anchor, /url:\s*"[^"]*"/, `url: "${entry.url}"`);
+          }
+          content = patchFieldInBlock(content, anchor, /status:\s*"[^"]*"/, `status: "${entry.status}"`);
+          catalogPatched++;
+        }
+        if (!body.dryRun) writeFileSync(filePath, content, "utf-8");
+      }
+
+      // Patch STEP_MILESTONES — update steps, itemId, tm, description
+      if (body.catalog.stepMilestones) {
+        const filePath = resolve(systemsRoot, "StepMilestones.ts");
+        let content = readFileSync(filePath, "utf-8");
+        for (const tm of body.catalog.stepMilestones) {
+          const anchor = new RegExp(`itemId:\\s*"${tm.itemId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`);
+          if (!anchor.test(content)) continue;
+          content = patchFieldInBlock(content, anchor, /steps:\s*\d+/, `steps: ${tm.steps}`);
+          content = patchFieldInBlock(content, anchor, /tm:\s*"[^"]*"/, `tm: "${tm.tm}"`);
+          content = patchFieldInBlock(content, anchor, /description:\s*"[^"]*"/, `description: "${tm.description}"`);
+          catalogPatched++;
+        }
+        if (!body.dryRun) writeFileSync(filePath, content, "utf-8");
+      }
+
+      // Patch BADGES — update name, hint
+      if (body.catalog.badges) {
+        const filePath = resolve(systemsRoot, "BadgeMilestones.ts");
+        let content = readFileSync(filePath, "utf-8");
+        for (const badge of body.catalog.badges) {
+          const anchor = new RegExp(`id:\\s*"${badge.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`);
+          if (!anchor.test(content)) continue;
+          content = patchFieldInBlock(content, anchor, /name:\s*"[^"]*"/, `name: "${badge.name}"`);
+          content = patchFieldInBlock(content, anchor, /hint:\s*"[^"]*"/, `hint: "${badge.hint}"`);
+          catalogPatched++;
+        }
+        if (!body.dryRun) writeFileSync(filePath, content, "utf-8");
+      }
+
+      // Patch RESEARCH LOG — update title, threshold
+      if (body.catalog.researchLog) {
+        const filePath = resolve(dataRoot, "researchLog.ts");
+        let content = readFileSync(filePath, "utf-8");
+        for (const entry of body.catalog.researchLog) {
+          const anchor = new RegExp(`number:\\s*${entry.number},`);
+          if (!anchor.test(content)) continue;
+          content = patchFieldInBlock(content, anchor, /title:\s*"[^"]*"/, `title: "${entry.title}"`);
+          content = patchFieldInBlock(content, anchor, /threshold:\s*\d+/, `threshold: ${entry.threshold}`);
+          catalogPatched++;
+        }
+        if (!body.dryRun) writeFileSync(filePath, content, "utf-8");
       }
     }
 
