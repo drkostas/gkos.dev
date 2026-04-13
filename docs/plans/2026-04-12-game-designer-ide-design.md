@@ -2059,7 +2059,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Fallback: "[loading...]" then actual value
   - Verification: inserting `{{ github.followers }}` shows the resolved count
 
-- [ ] **P2-06** Create conditional template block editor
+- [x] **P2-06** Create conditional template block editor
   - Visual editor for `{{#if}}...{{else}}...{{/if}}`
   - Condition expression editor
   - Two branch editors with colored backgrounds
@@ -2133,7 +2133,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Modifies mauville.json data
   - Verification: paint a tile, see it update on viewport, undo reverts it
 
-- [ ] **P4-02** Implement block copy/paste
+- [x] **P4-02** Implement block copy/paste
   - Shift+drag to select rectangular region
   - Region highlighted with dashed blue border
   - Selected block follows cursor as ghost stamp
@@ -2141,7 +2141,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Escape to exit stamp mode
   - Verification: select a 3x3 block, stamp it elsewhere
 
-- [ ] **P4-03** Implement Ctrl+click multi-tile selection
+- [x] **P4-03** Implement Ctrl+click multi-tile selection
   - Ctrl+click adds individual tiles to selection
   - Non-rectangular brush shape
   - Stamp places all selected tiles at relative positions
@@ -2248,7 +2248,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Uses `GYM_TILE_SWAP` data from `gym-puzzle.ts`
   - Verification: pressing a switch visually toggles barrier tiles
 
-- [ ] **P6-07** Gym puzzle path solving
+- [x] **P6-07** Gym puzzle path solving
   - "Solve Puzzle" button: highlights the path from entrance to KOSTAS
   - Shows minimum switch presses needed
   - Read-only — puzzle data is complex and stays source-edited

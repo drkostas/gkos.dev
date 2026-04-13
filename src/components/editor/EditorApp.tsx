@@ -1045,6 +1045,11 @@ function RightPanel() {
             <span onClick={() => {
               window.dispatchEvent(new CustomEvent("editor:preview-dialog", { detail: { lines: selected.dialog, speaker: selected.speakerName } }));
             }} style={{ fontSize: 9, color: "#8b5cf6", cursor: "pointer" }}>Preview Dialog</span>
+            <span onClick={() => {
+              const template = "{{#if badges.count > 4}}You're doing great!{{else}}Keep collecting badges!{{/if}}";
+              const newDialog = [...(selected.dialog || []), template];
+              updateField("dialog", newDialog, selected.dialog);
+            }} style={{ fontSize: 9, color: "#06b6d4", cursor: "pointer" }}>+ Condition Block</span>
           </div>
           {selected.speakerName && (
             <PropField label="Speaker" value={selected.speakerName}

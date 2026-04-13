@@ -101,6 +101,11 @@ export class EditorScene extends Phaser.Scene {
   private unsubscribers: (() => void)[] = [];
   private selectedTileGid: number = 0;
   private currentTool: string = "select";
+  // Block copy/paste state
+  private blockSelection: { startX: number; startY: number; endX: number; endY: number; tiles: number[][] } | null = null;
+  private blockSelectionGraphics: Phaser.GameObjects.Graphics | null = null;
+  private isShiftDragging: boolean = false;
+  private shiftDragStart: { x: number; y: number } | null = null;
 
   constructor() {
     super({ key: "EditorScene" });
@@ -231,6 +236,13 @@ export class EditorScene extends Phaser.Scene {
         const tileX = Math.floor(worldX / TILE_SIZE);
         const tileY = Math.floor(worldY / TILE_SIZE);
 
+        // Shift+drag: start block selection for copy/paste
+        if (this.input.keyboard?.checkDown(this.input.keyboard.addKey("SHIFT")) && this.tilemap) {
+          this.isShiftDragging = true;
+          this.shiftDragStart = { x: tileX, y: tileY };
+          return;
+        }
+
         // Ctrl+click: toggle collision on this tile
         if (this.input.keyboard?.checkDown(this.input.keyboard.addKey("CTRL")) && this.tilemap) {
           const idx = tileY * MAP_WIDTH + tileX;
@@ -249,10 +261,23 @@ export class EditorScene extends Phaser.Scene {
           return;
         }
 
-        // Stamp tool: paint tile
-        if (this.currentTool === "stamp" && this.selectedTileGid > 0 && this.tilemap) {
-          const tile = this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
-          if (tile) {
+        // Stamp tool: paste block or paint single tile
+        if (this.currentTool === "stamp" && this.tilemap) {
+          if (this.blockSelection && this.blockSelection.tiles.length > 0) {
+            // Paste copied block at cursor position
+            const { tiles } = this.blockSelection;
+            for (let dy = 0; dy < tiles.length; dy++) {
+              for (let dx = 0; dx < tiles[dy].length; dx++) {
+                if (tiles[dy][dx] > 0) {
+                  this.tilemap.putTileAt(tiles[dy][dx], tileX + dx, tileY + dy, false, "Ground");
+                }
+              }
+            }
+            emitEditorEvent("editor:block-pasted", { x: tileX, y: tileY, w: tiles[0].length, h: tiles.length });
+            return;
+          }
+          if (this.selectedTileGid > 0) {
+            this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
             emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
           }
           return;
@@ -319,6 +344,25 @@ export class EditorScene extends Phaser.Scene {
 
     // Pointer move
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      // Block selection drag
+      if (this.isShiftDragging && this.shiftDragStart) {
+        const endX = Math.floor(pointer.worldX / TILE_SIZE);
+        const endY = Math.floor(pointer.worldY / TILE_SIZE);
+        // Draw selection rectangle
+        if (this.blockSelectionGraphics) this.blockSelectionGraphics.destroy();
+        this.blockSelectionGraphics = this.add.graphics();
+        this.blockSelectionGraphics.setDepth(500);
+        const sx = Math.min(this.shiftDragStart.x, endX);
+        const sy = Math.min(this.shiftDragStart.y, endY);
+        const w = Math.abs(endX - this.shiftDragStart.x) + 1;
+        const h = Math.abs(endY - this.shiftDragStart.y) + 1;
+        this.blockSelectionGraphics.lineStyle(2, 0x4a9eed, 0.8);
+        this.blockSelectionGraphics.strokeRect(sx * TILE_SIZE, sy * TILE_SIZE, w * TILE_SIZE, h * TILE_SIZE);
+        this.blockSelectionGraphics.fillStyle(0x4a9eed, 0.1);
+        this.blockSelectionGraphics.fillRect(sx * TILE_SIZE, sy * TILE_SIZE, w * TILE_SIZE, h * TILE_SIZE);
+        return;
+      }
+
       // Panning (left-click drag, middle-click drag, or space+drag)
       if (this.isPanning) {
         const dx = this.panStart.x - pointer.x;
@@ -363,6 +407,39 @@ export class EditorScene extends Phaser.Scene {
       } else {
         this.hideTooltip();
         emitEditorEvent(ENTITY_HOVERED, null);
+      }
+    });
+
+    // Handle block selection end
+    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      if (this.isShiftDragging && this.shiftDragStart && this.tilemap) {
+        const endX = Math.floor(p.worldX / TILE_SIZE);
+        const endY = Math.floor(p.worldY / TILE_SIZE);
+        const sx = Math.min(this.shiftDragStart.x, endX);
+        const sy = Math.min(this.shiftDragStart.y, endY);
+        const w = Math.abs(endX - this.shiftDragStart.x) + 1;
+        const h = Math.abs(endY - this.shiftDragStart.y) + 1;
+
+        // Capture tile GIDs in the selected region
+        const tiles: number[][] = [];
+        for (let dy = 0; dy < h; dy++) {
+          const row: number[] = [];
+          for (let dx = 0; dx < w; dx++) {
+            const tile = this.tilemap.getTileAt(sx + dx, sy + dy, false, "Ground");
+            row.push(tile?.index || 0);
+          }
+          tiles.push(row);
+        }
+
+        this.blockSelection = { startX: sx, startY: sy, endX: sx + w - 1, endY: sy + h - 1, tiles };
+        this.isShiftDragging = false;
+        this.shiftDragStart = null;
+
+        // Auto-switch to stamp tool for pasting
+        this.currentTool = "stamp";
+        emitEditorEvent("editor:set-tool", { tool: "stamp" });
+        emitEditorEvent("editor:block-copied", { width: w, height: h, tileCount: w * h });
+        return;
       }
     });
 
