@@ -231,6 +231,24 @@ export class EditorScene extends Phaser.Scene {
         const tileX = Math.floor(worldX / TILE_SIZE);
         const tileY = Math.floor(worldY / TILE_SIZE);
 
+        // Ctrl+click: toggle collision on this tile
+        if (this.input.keyboard?.checkDown(this.input.keyboard.addKey("CTRL")) && this.tilemap) {
+          const idx = tileY * MAP_WIDTH + tileX;
+          if (idx >= 0 && idx < this.collisionLayerData.length) {
+            const wasBlocked = this.collisionLayerData[idx] > 0;
+            this.collisionLayerData[idx] = wasBlocked ? 0 : 1;
+            // Update the collision layer in tilemap
+            const collLayer = this.tilemap.getLayer("Collision");
+            if (collLayer) {
+              this.tilemap.putTileAt(wasBlocked ? 0 : 1, tileX, tileY, false, "Collision");
+            }
+            // Re-render collision overlay if visible
+            if (this.collisionVisible) this.renderCollisionOverlay();
+            emitEditorEvent("editor:collision-toggle", { x: tileX, y: tileY, blocked: !wasBlocked });
+          }
+          return;
+        }
+
         // Stamp tool: paint tile
         if (this.currentTool === "stamp" && this.selectedTileGid > 0 && this.tilemap) {
           const tile = this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
