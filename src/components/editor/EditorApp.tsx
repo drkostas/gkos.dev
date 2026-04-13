@@ -1264,6 +1264,58 @@ function PropSection({ title, color, children }: { title: string; color: string;
 }
 
 /** Right panel — Properties inspector */
+/** Custom sprite picker with visual previews */
+function SpritePicker({ value, onChange, sprites }: { value: string; onChange: (v: string) => void; sprites: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filtered = sprites.filter((s) => !search || s.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div style={{ position: "relative" }}>
+      {/* Current selection — clickable to open */}
+      <div onClick={() => setOpen(!open)}
+        style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 6px", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 4, cursor: "pointer" }}>
+        <SpritePreview spriteKey={value} size={32} />
+        <span style={{ fontSize: 10, color: "#ccc", flex: 1 }}>{value}</span>
+        <span style={{ fontSize: 8, color: "#666" }}>{open ? "▲" : "▼"}</span>
+      </div>
+      {/* Dropdown */}
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 998 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
+            background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 6,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.6)", maxHeight: 300, display: "flex", flexDirection: "column",
+          }}>
+            <input type="text" placeholder="Search sprites..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
+              style={{ margin: 6, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "4px 8px", outline: "none" }} />
+            <div style={{ flex: 1, overflowY: "auto", padding: "0 4px 4px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3 }}>
+                {filtered.map((s) => (
+                  <div key={s} onClick={() => { onChange(s); setOpen(false); setSearch(""); }}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                      padding: 4, borderRadius: 4, cursor: "pointer",
+                      background: s === value ? "#1e3a5f" : "transparent",
+                      border: s === value ? "1px solid #4a9eed" : "1px solid transparent",
+                    }}
+                    onMouseEnter={(e) => { if (s !== value) (e.currentTarget as HTMLElement).style.background = "#2a2a40"; }}
+                    onMouseLeave={(e) => { if (s !== value) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                  >
+                    <SpritePreview spriteKey={s} size={32} />
+                    <span style={{ fontSize: 7, color: s === value ? "#fff" : "#888", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{s}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** KOSTAS dialog branch editor — shows all state-machine branches */
 function KostasDialogEditor() {
   const state = useEditorState();
@@ -1380,15 +1432,13 @@ function RightPanel() {
             onChange={(v) => updateField("movementRangeY", Number(v), selected.movementRangeY)} />
         )}
         {selected.spriteKey !== undefined && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-            <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>Sprite</span>
-            <div style={{ flex: 1, display: "flex", gap: 4, alignItems: "center" }}>
-              <SpritePreview spriteKey={selected.spriteKey} size={20} />
-              <select value={selected.spriteKey} onChange={(e) => updateField("spriteKey", e.target.value, selected.spriteKey)}
-                style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 9, padding: "2px 4px" }}>
-                {(state.availableSprites?.npcs || FALLBACK_NPC_SPRITES).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+          <div style={{ marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#888", marginBottom: 2, display: "block" }}>Sprite</span>
+            <SpritePicker
+              value={selected.spriteKey}
+              onChange={(v) => updateField("spriteKey", v, selected.spriteKey)}
+              sprites={state.availableSprites?.npcs || FALLBACK_NPC_SPRITES}
+            />
           </div>
         )}
       </PropSection>
