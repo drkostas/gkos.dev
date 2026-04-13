@@ -658,9 +658,33 @@ function MapSelector() {
   return (
     <select
       value={currentMap}
-      onChange={(e) => {
-        setCurrentMap(e.target.value);
-        emitEditorEvent(SWITCH_MAP, { mapId: e.target.value });
+      onChange={async (e) => {
+        const mapId = e.target.value;
+        setCurrentMap(mapId);
+        emitEditorEvent(SWITCH_MAP, { mapId });
+        // Load interior entities if switching to interior
+        if (mapId !== "mauville") {
+          try {
+            const r = await fetch("/api/editor/data");
+            const data = await r.json();
+            const interior = data.interiors?.[mapId];
+            if (interior) {
+              const entities = [
+                ...interior.npcs,
+                ...interior.exitWarps.map((w: any) => ({ ...w, type: "warp" })),
+                ...interior.pcTiles.map((p: any) => ({ ...p, type: "special" })),
+              ];
+              emitEditorEvent("editor:refresh-entities", { entities });
+            }
+          } catch {}
+        } else {
+          // Switch back to overworld: reload main entities
+          try {
+            const r = await fetch("/api/editor/data");
+            const data = await r.json();
+            if (data.entities) emitEditorEvent("editor:refresh-entities", { entities: data.entities });
+          } catch {}
+        }
       }}
       style={{
         position: "absolute", top: 6, right: 10, zIndex: 10,
