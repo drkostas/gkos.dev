@@ -2297,7 +2297,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Batch copy/paste: Ctrl+C/V
   - Verification: select 3 NPCs, batch change movement to STATIONARY
 
-- [ ] **P7-06** Sound preview
+- [x] **P7-06** Sound preview
   - Zone properties: BGM "Play" button
   - NPC autoGive: pickup jingle preview
   - Pokemon: discovery sound preview

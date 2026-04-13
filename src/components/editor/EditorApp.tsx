@@ -1209,6 +1209,22 @@ function DebugLauncherTab() {
           ))}
         </div>
       </div>
+      <div style={{ marginTop: 4 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: "#8b5cf6", marginBottom: 4 }}>SOUND PREVIEW</div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {["mauville", "route110", "route111", "gym", "pokecenter", "mart"].map((track) => (
+            <span key={track} onClick={() => {
+              const ext = ["mauville", "route110"].includes(track) ? "mp3" : "ogg";
+              const audio = new Audio(`/game/audio/bgm/mus_${track}.${ext}`);
+              audio.volume = 0.3;
+              audio.play().catch(() => {});
+              setTimeout(() => audio.pause(), 10000); // Stop after 10s
+            }} style={{ fontSize: 8, color: "#4a9eed", cursor: "pointer", background: "#161628", padding: "2px 6px", borderRadius: 3 }}>
+              {track}
+            </span>
+          ))}
+        </div>
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "center" }}>
         <button onClick={() => launchGame()} style={{
           background: "#22c55e", color: "#000", border: "none", borderRadius: 4, padding: "6px 16px",
