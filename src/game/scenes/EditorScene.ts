@@ -132,7 +132,7 @@ export class EditorScene extends Phaser.Scene {
     if (this.textures.exists("mauville_foreground")) {
       this.foregroundImage = this.add.image(0, 0, "mauville_foreground");
       this.foregroundImage.setOrigin(0, 0);
-      this.foregroundImage.setAlpha(0.85);
+      this.foregroundImage.setAlpha(1.0);
       this.foregroundImage.setDepth(100);
       this.foregroundImage.setVisible(this.foregroundVisible);
     }
@@ -408,6 +408,12 @@ export class EditorScene extends Phaser.Scene {
 
     const container = this.add.container(worldX, worldY);
     container.setDepth(200);
+
+    // Dark background circle for visibility on any tile
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.5);
+    bg.fillCircle(0, 0, 8);
+    container.add(bg);
 
     // Draw shape based on type
     const shape = this.add.graphics();
