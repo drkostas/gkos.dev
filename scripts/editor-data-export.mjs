@@ -321,6 +321,73 @@ const allEntities = [
   ...gates,
 ];
 
+// ── Extract interior data ────────────────────────────────────────
+const interiorsText = readFileSync(resolve(ROOT, "src/game/data/interiors.ts"), "utf-8");
+function extractInteriors(text) {
+  const interiors = {};
+  // Extract each interior block
+  for (const key of ["pokecenter", "mart", "gym"]) {
+    const start = text.indexOf(`${key}: {`);
+    if (start === -1) continue;
+
+    const npcs = [];
+    const exitWarps = [];
+    const pcTiles = [];
+
+    // Extract NPCs by finding id: "..." patterns
+    const blockStart = start;
+    const blockEnd = Math.min(text.indexOf("\n  },", blockStart + 100) + 5, text.length);
+    const block = text.substring(blockStart, blockEnd > blockStart ? blockEnd : blockStart + 3000);
+
+    // NPC extraction
+    const npcRe = /id:\s*"([^"]+)"[\s\S]*?position:\s*\{\s*x:\s*(\d+)\s*,\s*y:\s*(\d+)\s*\}[\s\S]*?facingDirection:\s*"([^"]+)"/g;
+    let m;
+    const npcBlock = block.substring(block.indexOf("npcs:"));
+    while ((m = npcRe.exec(npcBlock)) !== null) {
+      npcs.push({
+        type: "npc",
+        id: m[1],
+        x: parseInt(m[2], 10),
+        y: parseInt(m[3], 10),
+        facingDirection: m[4],
+        sourceFile: "interiors.ts",
+        interior: key,
+      });
+    }
+
+    // Exit warp tiles
+    const warpRe = /exitWarpTiles:\s*\[([\s\S]*?)\]/;
+    const warpMatch = warpRe.exec(block);
+    if (warpMatch) {
+      const coordRe = /x:\s*(\d+)\s*,\s*y:\s*(\d+)/g;
+      let wm;
+      let wi = 0;
+      while ((wm = coordRe.exec(warpMatch[1])) !== null) {
+        exitWarps.push({ type: "warp", id: `${key}_exit_${wi}`, x: parseInt(wm[1], 10), y: parseInt(wm[2], 10), interior: key });
+        wi++;
+      }
+    }
+
+    // PC tiles
+    const pcRe = /pcTiles:\s*\[([\s\S]*?)\]/;
+    const pcMatch = pcRe.exec(block);
+    if (pcMatch) {
+      const coordRe = /x:\s*(\d+)\s*,\s*y:\s*(\d+)/g;
+      let pm;
+      let pi = 0;
+      while ((pm = coordRe.exec(pcMatch[1])) !== null) {
+        pcTiles.push({ type: "special", id: `${key}_pc_${pi}`, x: parseInt(pm[1], 10), y: parseInt(pm[2], 10), specialType: "pc", interior: key });
+        pi++;
+      }
+    }
+
+    interiors[key] = { npcs, exitWarps, pcTiles };
+  }
+  return interiors;
+}
+
+const interiorData = extractInteriors(interiorsText);
+
 const data = {
   generatedAt: new Date().toISOString(),
   entityCount: allEntities.length,
@@ -335,6 +402,7 @@ const data = {
     gate: gates.length,
   },
   entities: allEntities,
+  interiors: interiorData,
   mapSize: { width: 140, height: 120 },
   spawn: { x: 72, y: 58 },
   mauvilleOrigin: { x: 50, y: 50 },

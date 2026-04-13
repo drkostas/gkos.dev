@@ -2223,20 +2223,20 @@ Every implementation task, organized by phase. Each task is concrete, independen
     - Adjusts camera bounds to interior dimensions
   - Verification: selecting "Pokemon Center" renders the 14x9 pokecenter map
 
-- [ ] **P6-03** Render interior NPCs
+- [x] **P6-03** Render interior NPCs
   - Load interior NPCs from editor data
   - Same marker system as overworld
   - Properties panel adapts to InteriorNPC fields (no movement behavior, no ephemeral)
   - Verification: pokecenter NPCs (nurse, old man, researcher) appear on map
 
-- [ ] **P6-04** Render interior special tiles
+- [x] **P6-04** Render interior special tiles
   - Exit warp tiles: purple squares
   - PC tiles: cyan squares
   - Questionnaire tiles: yellow squares
   - Click to inspect in properties panel
   - Verification: pokecenter shows purple exit tiles and cyan PC tile
 
-- [ ] **P6-05** Save interior changes
+- [x] **P6-05** Save interior changes
   - Save endpoint handles `src/game/data/interiors.ts` patches
   - Regex finds `INTERIORS.{key}.npcs` array and patches within it
   - Verification: edit pokecenter NPC dialog, save, verify interiors.ts changed
