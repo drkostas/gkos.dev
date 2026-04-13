@@ -103,6 +103,7 @@ export class InteriorScene extends Phaser.Scene {
   private npcSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   /** Original facing directions for NPCs (to restore after interaction). */
   private npcOriginalFacing: Map<string, Direction> = new Map();
+  private npcBehaviorTimers: Phaser.Time.TimerEvent[] = [];
 
   /**
    * Blocked walk-in-place state (OG Emerald behavior).
@@ -531,10 +532,9 @@ export class InteriorScene extends Phaser.Scene {
       // Nurse and old_man sprites have fewer than 9 frames —
       // skip walkingAnimationMapping for them to avoid wrong frame refs.
       const isStandardSprite = !["nurse", "old_man"].includes(npc.spriteKey);
-      // AutoGive trainers need a non-zero speed so grid-engine can
-      // animate the moveTo walk to the aside position after the
-      // player collects their item. Non-trainer NPCs stay stationary.
-      const npcSpeed = npc.autoGive ? WALK_SPEED : 0;
+      // NPCs with movement behavior or autoGive need speed > 0.
+      const hasMovement = npc.movementBehavior && npc.movementBehavior !== "stationary";
+      const npcSpeed = (npc.autoGive || hasMovement) ? WALK_SPEED : 0;
 
       characters.push({
         id: npc.id,
@@ -581,6 +581,34 @@ export class InteriorScene extends Phaser.Scene {
 
     // ── Grid Engine ──────────────────────────────────────────
     this.gridEngine.create(map, { characters });
+
+    // ── NPC movement behaviors ──────────────────────────────
+    for (const npc of def.npcs) {
+      const behavior = npc.movementBehavior;
+      if (!behavior || behavior === "stationary") continue;
+
+      const timer = this.time.addEvent({
+        delay: 2000 + Math.random() * 2000,
+        loop: false,
+        callback: () => {
+          if (this.dialogSystem?.active) return;
+          if (this.gridEngine.isMoving(npc.id)) return;
+
+          if (behavior === "look_around") {
+            const dirs = [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT];
+            this.gridEngine.turnTowards(npc.id, dirs[Math.floor(Math.random() * 4)]);
+          } else if (behavior === "wander_left_right" || behavior === "wander_up_down" || behavior === "wander_area") {
+            const dirs = behavior === "wander_left_right" ? [Direction.LEFT, Direction.RIGHT]
+              : behavior === "wander_up_down" ? [Direction.UP, Direction.DOWN]
+              : [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT];
+            this.gridEngine.move(npc.id, dirs[Math.floor(Math.random() * dirs.length)]);
+          }
+
+          timer.reset({ delay: 2000 + Math.random() * 2000, loop: false, callback: timer.callback, callbackScope: timer.callbackScope });
+        },
+      });
+      this.npcBehaviorTimers.push(timer);
+    }
 
     // ── Gym puzzle initialization ────────────────────────────
     if (def.key === "gym") {
@@ -1745,6 +1773,8 @@ export class InteriorScene extends Phaser.Scene {
   shutdown(): void {
     this.dialogSystem?.destroy();
     this.destroyDebugOverlay();
+    for (const t of this.npcBehaviorTimers) t.destroy();
+    this.npcBehaviorTimers = [];
     this.npcSprites.clear();
     this.npcOriginalFacing.clear();
     this.gymBeams = [];

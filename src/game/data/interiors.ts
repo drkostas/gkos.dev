@@ -85,6 +85,8 @@ export interface InteriorNPC {
   spriteKey: string;
   position: { x: number; y: number };
   facingDirection: "up" | "down" | "left" | "right";
+  /** Movement behavior — defaults to stationary if omitted. */
+  movementBehavior?: string;
   dialog: string[];
   speakerName: string;
   /**
@@ -356,9 +358,10 @@ export const INTERIORS: Record<string, InteriorDef> = {
     npcs: [
       {
         id: "gym_kostas",
-        spriteKey: "boy_3",
+        spriteKey: "prof_birch",
         position: { x: 5, y: 2 },
         facingDirection: "down",
+        movementBehavior: "look_around",
         speakerName: "KOSTAS",
         // Editable dialog text for each state-machine branch.
         // dialogFn reads from KOSTAS_DIALOG at runtime.
