@@ -381,7 +381,17 @@ function extractInteriors(text) {
       }
     }
 
-    interiors[key] = { npcs, exitWarps, pcTiles };
+    // Add gym switches
+    const switches = [];
+    if (key === "gym") {
+      switches.push(
+        { type: "special", id: "gym_switch_1", x: 0, y: 15, specialType: "switch", interior: "gym" },
+        { type: "special", id: "gym_switch_2", x: 4, y: 12, specialType: "switch", interior: "gym" },
+        { type: "special", id: "gym_switch_3", x: 3, y: 9, specialType: "switch", interior: "gym" },
+        { type: "special", id: "gym_switch_4", x: 8, y: 9, specialType: "switch", interior: "gym" },
+      );
+    }
+    interiors[key] = { npcs, exitWarps, pcTiles, switches };
   }
   return interiors;
 }

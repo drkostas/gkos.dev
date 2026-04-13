@@ -2241,7 +2241,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Regex finds `INTERIORS.{key}.npcs` array and patches within it
   - Verification: edit pokecenter NPC dialog, save, verify interiors.ts changed
 
-- [ ] **P6-06** Gym puzzle visualization
+- [x] **P6-06** Gym puzzle visualization
   - When gym interior selected: show switch tiles (orange), barrier tiles (green/red)
   - "Press" button simulates switch toggle
   - Barrier tiles toggle between blocking/passable states
