@@ -782,10 +782,82 @@ function RightPanel() {
   );
 }
 
+/** Debug launcher — launch game from a specific state */
+function DebugLauncherTab() {
+  const state = useEditorState();
+  const [playerName, setPlayerName] = useState("RED");
+  const [badges, setBadges] = useState(0);
+  const [steps, setSteps] = useState(0);
+
+  const launchGame = (spawnX?: number, spawnY?: number) => {
+    const debugSave = {
+      playerName,
+      badges: Array.from({ length: badges }, (_, i) => `badge_${i}`),
+      steps,
+      spawnOverride: spawnX !== undefined ? { x: spawnX, y: spawnY } : undefined,
+    };
+    localStorage.setItem("__editor_debug_save", JSON.stringify(debugSave));
+    window.open("/explore", "_blank");
+  };
+
+  const selected = state.entities.find((e) => e.id === state.selectedEntityId);
+
+  return (
+    <div style={{ padding: "6px 10px", display: "flex", gap: 16 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: "#8b5cf6", marginBottom: 4 }}>PLAYER STATE</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 8, color: "#666", marginBottom: 2 }}>Name</div>
+            <input value={playerName} onChange={(e) => setPlayerName(e.target.value)}
+              style={{ width: "100%", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ width: 60 }}>
+            <div style={{ fontSize: 8, color: "#666", marginBottom: 2 }}>Badges</div>
+            <input type="number" min={0} max={8} value={badges} onChange={(e) => setBadges(Number(e.target.value))}
+              style={{ width: "100%", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ width: 60 }}>
+            <div style={{ fontSize: 8, color: "#666", marginBottom: 2 }}>Steps</div>
+            <input type="number" min={0} value={steps} onChange={(e) => setSteps(Number(e.target.value))}
+              style={{ width: "100%", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px", boxSizing: "border-box" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+          {[
+            { label: "Fresh Start", b: 0, s: 0 },
+            { label: "Mid-game", b: 4, s: 500 },
+            { label: "Near Champion", b: 7, s: 2000 },
+            { label: "All Badges", b: 8, s: 5000 },
+          ].map((preset) => (
+            <span key={preset.label} onClick={() => { setBadges(preset.b); setSteps(preset.s); }}
+              style={{ fontSize: 8, color: "#4a9eed", cursor: "pointer", background: "#161628", padding: "2px 6px", borderRadius: 3 }}>
+              {preset.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "center" }}>
+        <button onClick={() => launchGame()} style={{
+          background: "#22c55e", color: "#000", border: "none", borderRadius: 4, padding: "6px 16px",
+          fontSize: 10, fontWeight: 700, cursor: "pointer",
+        }}>LAUNCH GAME</button>
+        {selected && (
+          <button onClick={() => launchGame(selected.x, selected.y)} style={{
+            background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 4, padding: "4px 12px",
+            fontSize: 9, cursor: "pointer",
+          }}>PLAY FROM ({selected.x}, {selected.y})</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Bottom panel — Problems with validation */
 function BottomPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
+  const [bottomTab, setBottomTab] = useState<"problems" | "debug">("problems");
   const [problems, setProblems] = useState<{ severity: "error" | "warning" | "info"; message: string; entityId?: string }[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
 
@@ -855,38 +927,55 @@ function BottomPanel() {
 
   return (
     <div style={{ height: 140, background: "#1e1e30", borderTop: "1px solid #2a2a40", flexShrink: 0, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 10px", flexShrink: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: "#ef4444" }}>PROBLEMS</div>
-        {errors > 0 && <span style={{ fontSize: 9, color: "#ef4444", background: "#2a1a1a", padding: "1px 5px", borderRadius: 8 }}>{errors} errors</span>}
-        {warnings > 0 && <span style={{ fontSize: 9, color: "#f59e0b", background: "#2a2a1a", padding: "1px 5px", borderRadius: 8 }}>{warnings} warnings</span>}
-        <div style={{ flex: 1 }} />
-        <span onClick={runValidation} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>Refresh</span>
-        <span onClick={runAnalyzer} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>
-          {analyzing ? "Analyzing..." : "Run Analyzer"}
-        </span>
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 10px", minHeight: 0 }}>
-        {problems.map((p, i) => (
-          <div
-            key={i}
-            onClick={() => {
-              if (p.entityId) {
-                dispatch({ type: "SELECT_ENTITY", id: p.entityId });
-                const entity = state.entities.find((e) => e.id === p.entityId);
-                if (entity) emitEditorEvent(JUMP_TO_TILE, { x: entity.x, y: entity.y });
-              }
-            }}
-            style={{
-              fontSize: 10, padding: "2px 0", cursor: p.entityId ? "pointer" : "default",
-              color: p.severity === "error" ? "#ef4444" : p.severity === "warning" ? "#f59e0b" : "#22c55e",
-              display: "flex", gap: 4,
-            }}
-          >
-            <span>{p.severity === "error" ? "✗" : p.severity === "warning" ? "⚠" : "✓"}</span>
-            <span>{p.message}</span>
+      {/* Tab bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0, borderBottom: "1px solid #2a2a40" }}>
+        {(["problems", "debug"] as const).map((tab) => (
+          <div key={tab} onClick={() => setBottomTab(tab)} style={{
+            padding: "4px 12px", fontSize: 10, fontWeight: 600, cursor: "pointer",
+            color: bottomTab === tab ? (tab === "problems" ? "#ef4444" : "#8b5cf6") : "#666",
+            borderBottom: bottomTab === tab ? `2px solid ${tab === "problems" ? "#ef4444" : "#8b5cf6"}` : "2px solid transparent",
+          }}>
+            {tab === "problems" ? "PROBLEMS" : "DEBUG LAUNCHER"}
+            {tab === "problems" && errors > 0 && <span style={{ fontSize: 8, color: "#ef4444", background: "#2a1a1a", padding: "0 4px", borderRadius: 8, marginLeft: 4 }}>{errors}</span>}
           </div>
         ))}
+        <div style={{ flex: 1 }} />
+        {bottomTab === "problems" && (
+          <>
+            <span onClick={runValidation} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer", padding: "4px 6px" }}>Refresh</span>
+            <span onClick={runAnalyzer} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer", padding: "4px 6px" }}>
+              {analyzing ? "Analyzing..." : "Run Analyzer"}
+            </span>
+          </>
+        )}
       </div>
+      {/* Problems tab content */}
+      {bottomTab === "problems" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px", minHeight: 0 }}>
+          {problems.map((p, i) => (
+            <div
+              key={i}
+              onClick={() => {
+                if (p.entityId) {
+                  dispatch({ type: "SELECT_ENTITY", id: p.entityId });
+                  const entity = state.entities.find((e) => e.id === p.entityId);
+                  if (entity) emitEditorEvent(JUMP_TO_TILE, { x: entity.x, y: entity.y });
+                }
+              }}
+              style={{
+                fontSize: 10, padding: "2px 0", cursor: p.entityId ? "pointer" : "default",
+                color: p.severity === "error" ? "#ef4444" : p.severity === "warning" ? "#f59e0b" : "#22c55e",
+                display: "flex", gap: 4,
+              }}
+            >
+              <span>{p.severity === "error" ? "✗" : p.severity === "warning" ? "⚠" : "✓"}</span>
+              <span>{p.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Debug launcher tab content */}
+      {bottomTab === "debug" && <DebugLauncherTab />}
     </div>
   );
 }
