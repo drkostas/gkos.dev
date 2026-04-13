@@ -2273,7 +2273,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Asset library filtered in sync
   - Verification: typing "spotify" highlights the spotify NPC
 
-- [ ] **P7-03** Filter dropdowns
+- [x] **P7-03** Filter dropdowns
   - Zone filter: All / per-zone
   - Type filter: All / NPC / Pokemon / Sign / Item / Gate / Warp
   - Movement filter: All / per-behavior
