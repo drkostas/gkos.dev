@@ -19,6 +19,7 @@ import {
   JUMP_TO_TILE,
   REFRESH_ENTITIES,
   SWITCH_MAP,
+  SET_TOOL,
 } from "../editor/EditorEvents";
 
 const TILE_SIZE = 16;
@@ -98,6 +99,8 @@ export class EditorScene extends Phaser.Scene {
   private foregroundVisible: boolean = true;
   private hoverTooltip: Phaser.GameObjects.Container | null = null;
   private unsubscribers: (() => void)[] = [];
+  private selectedTileGid: number = 0;
+  private currentTool: string = "select";
 
   constructor() {
     super({ key: "EditorScene" });
@@ -221,12 +224,41 @@ export class EditorScene extends Phaser.Scene {
       // Right-click (handled by interaction for context menu)
       if (pointer.rightButtonDown()) return;
 
-      // Left-click: check for entity click first, then start pan if no entity hit
+      // Left-click: tool-dependent behavior
       if (pointer.leftButtonDown()) {
         const worldX = pointer.worldX;
         const worldY = pointer.worldY;
         const tileX = Math.floor(worldX / TILE_SIZE);
         const tileY = Math.floor(worldY / TILE_SIZE);
+
+        // Stamp tool: paint tile
+        if (this.currentTool === "stamp" && this.selectedTileGid > 0 && this.tilemap) {
+          const tile = this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
+          if (tile) {
+            emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
+          }
+          return;
+        }
+
+        // Eyedropper tool: pick tile GID
+        if (this.currentTool === "eyedropper" && this.tilemap) {
+          const tile = this.tilemap.getTileAt(tileX, tileY, false, "Ground");
+          if (tile) {
+            this.selectedTileGid = tile.index;
+            emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: tileX, y: tileY });
+            // Auto-switch to stamp tool after picking
+            this.currentTool = "stamp";
+            emitEditorEvent(SET_TOOL, { tool: "stamp" });
+          }
+          return;
+        }
+
+        // Eraser tool: clear tile
+        if (this.currentTool === "eraser" && this.tilemap) {
+          this.tilemap.putTileAt(0, tileX, tileY, false, "Ground");
+          emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
+          return;
+        }
 
         // Check for entity hit
         let hitEntity: EntityMarker | null = null;
@@ -410,6 +442,12 @@ export class EditorScene extends Phaser.Scene {
       }),
       onEditorEvent(SWITCH_MAP, (detail: { mapId: string }) => {
         this.switchMap(detail.mapId);
+      }),
+      onEditorEvent(SET_TOOL, (detail: { tool: string }) => {
+        this.currentTool = detail.tool;
+      }),
+      onEditorEvent("editor:select-tile-gid", (detail: { gid: number }) => {
+        this.selectedTileGid = detail.gid;
       }),
     );
   }

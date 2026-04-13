@@ -2124,7 +2124,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
 
 ### Phase 4: Tile & Collision Editing
 
-- [ ] **P4-01** Implement tile painting with Stamp tool
+- [x] **P4-01** Implement tile painting with Stamp tool
   - Select Stamp tool (shortcut `3`)
   - Click tile palette to select tile GID
   - Click viewport to paint tile on Ground layer
@@ -2154,13 +2154,13 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Modifies mauville.json Collision layer data
   - Verification: toggle a tile's collision, see red overlay change
 
-- [ ] **P4-05** Implement Eraser tool
+- [x] **P4-05** Implement Eraser tool
   - Select Eraser tool (shortcut `4`)
   - Click on viewport to clear tile to empty (GID 0)
   - Works on both Ground and Collision layers (Ctrl for collision)
   - Verification: eraser clears a painted tile
 
-- [ ] **P4-06** Implement Eyedropper tool
+- [x] **P4-06** Implement Eyedropper tool
   - Select Eyedropper tool (shortcut `5`)
   - Click on viewport to pick the tile GID under cursor
   - Auto-switches to Stamp tool with picked tile selected
