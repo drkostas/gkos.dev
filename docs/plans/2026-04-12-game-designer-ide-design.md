@@ -2201,7 +2201,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Deleted entities: red strikethrough
   - Verification: all change types displayed correctly
 
-- [ ] **P5-05** Create undo history viewer
+- [x] **P5-05** Create undo history viewer
   - Edit > Show History
   - Timeline: vertical list of all actions
   - Click to revert to any point
