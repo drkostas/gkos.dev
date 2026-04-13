@@ -13,8 +13,16 @@ interface SaveChange {
   newValue: any;
 }
 
+interface TilePaint {
+  layer: "Ground" | "Collision";
+  x: number;
+  y: number;
+  gid: number;
+}
+
 interface SaveRequest {
   changes: SaveChange[];
+  tilePaints?: TilePaint[];
   dryRun?: boolean;
 }
 
@@ -244,6 +252,30 @@ export const POST: APIRoute = async ({ request }) => {
         results.push({ entityId: change.entityId, field: change.field, status: "applied", message: "OK" });
       } else {
         results.push({ entityId: change.entityId, field: change.field, status: "error", message: "Pattern not found in source" });
+      }
+    }
+
+    // Apply tile paints to mauville.json
+    let tilesModified = 0;
+    if (body.tilePaints && body.tilePaints.length > 0) {
+      const mapPath = resolve(process.cwd(), "public/game/maps/mauville.json");
+      try {
+        const mapData = JSON.parse(readFileSync(mapPath, "utf-8"));
+        for (const paint of body.tilePaints) {
+          const layer = mapData.layers.find((l: any) => l.name === paint.layer);
+          if (layer && layer.data) {
+            const idx = paint.y * mapData.width + paint.x;
+            if (idx >= 0 && idx < layer.data.length) {
+              layer.data[idx] = paint.gid;
+              tilesModified++;
+            }
+          }
+        }
+        if (!body.dryRun && tilesModified > 0) {
+          writeFileSync(mapPath, JSON.stringify(mapData), "utf-8");
+        }
+      } catch (e: any) {
+        console.error("Failed to save tile paints:", e.message);
       }
     }
 

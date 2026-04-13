@@ -2147,7 +2147,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Stamp places all selected tiles at relative positions
   - Verification: select scattered tiles, stamp as group
 
-- [ ] **P4-04** Implement collision layer editing
+- [x] **P4-04** Implement collision layer editing
   - Ctrl+click on collision overlay toggles walkable/blocked
   - Collision brush: 1x1, 2x2, 3x3 (toolbar selector)
   - Click paints collision ON, right-click paints collision OFF
@@ -2166,7 +2166,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Auto-switches to Stamp tool with picked tile selected
   - Verification: eyedrop a tile, stamp tool activated with that tile
 
-- [ ] **P4-07** Save tilemap changes
+- [x] **P4-07** Save tilemap changes
   - Save endpoint extended to handle mauville.json writes
   - Writes modified Ground and Collision layer data arrays
   - Verification: paint tiles, save, verify mauville.json file changed
