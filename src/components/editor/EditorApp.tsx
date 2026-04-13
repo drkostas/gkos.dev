@@ -782,6 +782,60 @@ function RightPanel() {
   );
 }
 
+/** Checkpoints tab — save/restore entity state snapshots */
+function CheckpointsTab() {
+  const state = useEditorState();
+  const dispatch = useEditorDispatch();
+  const [checkpoints, setCheckpoints] = useState<{ name: string; time: string; count: number; data: any[] }[]>(() => {
+    try {
+      const saved = localStorage.getItem("editor_checkpoints");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const saveCheckpoint = () => {
+    const name = `Checkpoint ${checkpoints.length + 1}`;
+    const cp = { name, time: new Date().toLocaleTimeString(), count: state.entities.length, data: JSON.parse(JSON.stringify(state.entities)) };
+    const next = [cp, ...checkpoints].slice(0, 20);
+    setCheckpoints(next);
+    localStorage.setItem("editor_checkpoints", JSON.stringify(next));
+  };
+
+  const restoreCheckpoint = (index: number) => {
+    dispatch({ type: "LOAD_DATA", entities: checkpoints[index].data });
+  };
+
+  const deleteCheckpoint = (index: number) => {
+    const next = checkpoints.filter((_, i) => i !== index);
+    setCheckpoints(next);
+    localStorage.setItem("editor_checkpoints", JSON.stringify(next));
+  };
+
+  return (
+    <div style={{ padding: "6px 10px", display: "flex", gap: 8, flex: 1 }}>
+      <div>
+        <button onClick={saveCheckpoint} style={{
+          background: "#4a9eed", color: "#fff", border: "none", borderRadius: 4,
+          padding: "4px 12px", fontSize: 9, fontWeight: 700, cursor: "pointer", marginBottom: 4,
+        }}>Save Checkpoint</button>
+        <div style={{ fontSize: 8, color: "#666" }}>{state.entities.length} entities, {state.undoStack.length} changes</div>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {checkpoints.length === 0 && <div style={{ fontSize: 9, color: "#555" }}>No checkpoints saved</div>}
+        {checkpoints.map((cp, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontSize: 9 }}>
+            <span style={{ color: "#ccc" }}>{cp.name}</span>
+            <span style={{ color: "#555" }}>{cp.time}</span>
+            <span style={{ color: "#666" }}>({cp.count})</span>
+            <span onClick={() => restoreCheckpoint(i)} style={{ color: "#22c55e", cursor: "pointer" }}>Restore</span>
+            <span onClick={() => deleteCheckpoint(i)} style={{ color: "#ef4444", cursor: "pointer" }}>×</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Debug launcher — launch game from a specific state */
 function DebugLauncherTab() {
   const state = useEditorState();
@@ -857,7 +911,7 @@ function DebugLauncherTab() {
 function BottomPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
-  const [bottomTab, setBottomTab] = useState<"problems" | "debug">("problems");
+  const [bottomTab, setBottomTab] = useState<"problems" | "debug" | "checkpoints">("problems");
   const [problems, setProblems] = useState<{ severity: "error" | "warning" | "info"; message: string; entityId?: string }[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
 
@@ -929,16 +983,20 @@ function BottomPanel() {
     <div style={{ height: 140, background: "#1e1e30", borderTop: "1px solid #2a2a40", flexShrink: 0, display: "flex", flexDirection: "column" }}>
       {/* Tab bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0, borderBottom: "1px solid #2a2a40" }}>
-        {(["problems", "debug"] as const).map((tab) => (
-          <div key={tab} onClick={() => setBottomTab(tab)} style={{
-            padding: "4px 12px", fontSize: 10, fontWeight: 600, cursor: "pointer",
-            color: bottomTab === tab ? (tab === "problems" ? "#ef4444" : "#8b5cf6") : "#666",
-            borderBottom: bottomTab === tab ? `2px solid ${tab === "problems" ? "#ef4444" : "#8b5cf6"}` : "2px solid transparent",
-          }}>
-            {tab === "problems" ? "PROBLEMS" : "DEBUG LAUNCHER"}
-            {tab === "problems" && errors > 0 && <span style={{ fontSize: 8, color: "#ef4444", background: "#2a1a1a", padding: "0 4px", borderRadius: 8, marginLeft: 4 }}>{errors}</span>}
-          </div>
-        ))}
+        {(["problems", "debug", "checkpoints"] as const).map((tab) => {
+          const colors: Record<string, string> = { problems: "#ef4444", debug: "#8b5cf6", checkpoints: "#4a9eed" };
+          const labels: Record<string, string> = { problems: "PROBLEMS", debug: "DEBUG", checkpoints: "CHECKPOINTS" };
+          return (
+            <div key={tab} onClick={() => setBottomTab(tab)} style={{
+              padding: "4px 12px", fontSize: 10, fontWeight: 600, cursor: "pointer",
+              color: bottomTab === tab ? colors[tab] : "#666",
+              borderBottom: bottomTab === tab ? `2px solid ${colors[tab]}` : "2px solid transparent",
+            }}>
+              {labels[tab]}
+              {tab === "problems" && errors > 0 && <span style={{ fontSize: 8, color: "#ef4444", background: "#2a1a1a", padding: "0 4px", borderRadius: 8, marginLeft: 4 }}>{errors}</span>}
+            </div>
+          );
+        })}
         <div style={{ flex: 1 }} />
         {bottomTab === "problems" && (
           <>
@@ -976,6 +1034,8 @@ function BottomPanel() {
       )}
       {/* Debug launcher tab content */}
       {bottomTab === "debug" && <DebugLauncherTab />}
+      {/* Checkpoints tab content */}
+      {bottomTab === "checkpoints" && <CheckpointsTab />}
     </div>
   );
 }
