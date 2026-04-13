@@ -18,11 +18,29 @@ import {
   REMOVE_ENTITY_MARKER,
   JUMP_TO_TILE,
   REFRESH_ENTITIES,
+  SWITCH_MAP,
 } from "../editor/EditorEvents";
 
 const TILE_SIZE = 16;
-const MAP_WIDTH = 140;
-const MAP_HEIGHT = 120;
+let MAP_WIDTH = 140;
+let MAP_HEIGHT = 120;
+
+interface MapConfig {
+  key: string;
+  mapJson: string;
+  tilesetName: string;
+  tilesetImage: string;
+  foreground?: string;
+  width: number;
+  height: number;
+}
+
+const MAP_CONFIGS: Record<string, MapConfig> = {
+  mauville: { key: "mauville-map", mapJson: "/game/maps/mauville.json", tilesetName: "mauville_bottom", tilesetImage: "/game/tilesets/mauville_bottom.png", foreground: "/game/maps/mauville_foreground.png", width: 140, height: 120 },
+  pokecenter: { key: "pokecenter-map", mapJson: "/game/maps/pokecenter.json", tilesetName: "pokecenter_bottom", tilesetImage: "/game/tilesets/pokecenter_bottom.png", width: 14, height: 9 },
+  mart: { key: "mart-map", mapJson: "/game/maps/mart.json", tilesetName: "mart_bottom", tilesetImage: "/game/tilesets/mart_bottom.png", width: 11, height: 8 },
+  gym: { key: "gym-map", mapJson: "/game/maps/gym.json", tilesetName: "gym_bottom", tilesetImage: "/game/tilesets/gym_bottom.png", width: 10, height: 21 },
+};
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 6;
 const ZOOM_SPEED = 0.08; // smooth zoom per scroll tick
@@ -81,11 +99,15 @@ export class EditorScene extends Phaser.Scene {
     super({ key: "EditorScene" });
   }
 
+  private currentMapId: string = "mauville";
+
   preload(): void {
-    // Tilemap and tileset
-    this.load.tilemapTiledJSON("mauville-map", "/game/maps/mauville.json");
-    this.load.image("mauville_bottom", "/game/tilesets/mauville_bottom.png");
-    this.load.image("mauville_foreground", "/game/maps/mauville_foreground.png");
+    // Preload all map configs
+    for (const [, cfg] of Object.entries(MAP_CONFIGS)) {
+      this.load.tilemapTiledJSON(cfg.key, cfg.mapJson);
+      this.load.image(cfg.tilesetName, cfg.tilesetImage);
+      if (cfg.foreground) this.load.image(cfg.tilesetName + "_fg", cfg.foreground);
+    }
 
     // NPC spritesheets (144x32, 9 frames of 16x32)
     const npcSprites = [
@@ -382,7 +404,61 @@ export class EditorScene extends Phaser.Scene {
       onEditorEvent(REFRESH_ENTITIES, (detail: { entities: any[] }) => {
         this.refreshAllMarkers(detail.entities);
       }),
+      onEditorEvent(SWITCH_MAP, (detail: { mapId: string }) => {
+        this.switchMap(detail.mapId);
+      }),
     );
+  }
+
+  /** Switch to a different map (overworld or interior) */
+  private switchMap(mapId: string): void {
+    const cfg = MAP_CONFIGS[mapId];
+    if (!cfg) return;
+
+    this.currentMapId = mapId;
+    MAP_WIDTH = cfg.width;
+    MAP_HEIGHT = cfg.height;
+
+    // Destroy existing tilemap layers
+    if (this.groundLayer) { this.groundLayer.destroy(); this.groundLayer = null; }
+    if (this.foregroundImage) { this.foregroundImage.destroy(); this.foregroundImage = null; }
+    if (this.collisionOverlay) { this.collisionOverlay.destroy(); this.collisionOverlay = null; }
+    if (this.gridGraphics) { this.gridGraphics.destroy(); this.gridGraphics = null; }
+
+    // Create new tilemap
+    this.tilemap = this.make.tilemap({ key: cfg.key });
+    const tileset = this.tilemap.addTilesetImage(cfg.tilesetName, cfg.tilesetName);
+    if (tileset) {
+      this.groundLayer = this.tilemap.createLayer("Ground", tileset, 0, 0);
+      const collLayer = this.tilemap.getLayer("Collision");
+      if (collLayer) {
+        this.collisionLayerData = collLayer.data.flat().map((t) => t.index);
+      }
+    }
+
+    // Foreground for this map
+    const fgKey = cfg.tilesetName + "_fg";
+    if (cfg.foreground && this.textures.exists(fgKey)) {
+      this.foregroundImage = this.add.image(0, 0, fgKey);
+      this.foregroundImage.setOrigin(0, 0);
+      this.foregroundImage.setAlpha(1.0);
+      this.foregroundImage.setDepth(100);
+      this.foregroundImage.setVisible(this.foregroundVisible);
+    }
+
+    // Update camera bounds
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
+    cam.centerOn((MAP_WIDTH * TILE_SIZE) / 2, (MAP_HEIGHT * TILE_SIZE) / 2);
+
+    // Reset zoom for small maps
+    if (MAP_WIDTH < 30) {
+      this.currentZoom = 3;
+      cam.setZoom(3);
+    }
+
+    // Clear entity markers (will be refreshed by React)
+    this.refreshAllMarkers([]);
   }
 
   update(): void {

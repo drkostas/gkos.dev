@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { EditorProvider, useEditorState, useEditorDispatch } from "./state/EditorContext";
 import type { EditorEntity } from "./state/editorTypes";
 import EditorViewport from "./EditorViewport";
-import { emitEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE } from "../../game/editor/EditorEvents";
+import { emitEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE, SWITCH_MAP } from "../../game/editor/EditorEvents";
 
 /** Dropdown menu item */
 function MenuItem({ label, shortcut, onClick, disabled }: { label: string; shortcut?: string; onClick?: () => void; disabled?: boolean }) {
@@ -523,7 +523,7 @@ function MapSelector() {
       value={currentMap}
       onChange={(e) => {
         setCurrentMap(e.target.value);
-        // TODO: emit event to EditorScene to switch maps
+        emitEditorEvent(SWITCH_MAP, { mapId: e.target.value });
       }}
       style={{
         position: "absolute", top: 6, right: 10, zIndex: 10,
