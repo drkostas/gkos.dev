@@ -1937,7 +1937,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Generate unique id
   - Verification: drag a Pokemon from library to viewport, see new entity created
 
-- [ ] **P1F-03** Implement delete mechanisms
+- [x] **P1F-03** Implement delete mechanisms
   - Trash zone: bottom-right corner during drag
   - Right-click > Delete: confirmation dialog
   - Keyboard Delete/Backspace: confirmation dialog
