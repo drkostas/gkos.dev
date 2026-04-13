@@ -193,7 +193,7 @@ const MOVE_VALUE_TO_ENUM: Record<string, string> = {
   look_around: "LOOK_AROUND",
 };
 
-/** Apply a movementBehavior patch */
+/** Apply a movementBehavior patch — handles overworld (enum) and interior (insert if missing) */
 function patchMovementBehavior(
   content: string,
   entityId: string,
@@ -204,17 +204,48 @@ function patchMovementBehavior(
   if (!idMatch) return { content, applied: false };
 
   const searchRegion = content.substring(idMatch.index, idMatch.index + 500);
-  const movPattern = /movementBehavior:\s*MovementBehavior\.\w+/;
-  const movMatch = movPattern.exec(searchRegion);
-  if (movMatch) {
+
+  // Try overworld format: MovementBehavior.ENUM_KEY
+  const enumPattern = /movementBehavior:\s*MovementBehavior\.\w+/;
+  const enumMatch = enumPattern.exec(searchRegion);
+  if (enumMatch) {
     const enumKey = MOVE_VALUE_TO_ENUM[newBehavior] || "STATIONARY";
-    const fullStart = idMatch.index + movMatch.index;
-    const fullEnd = fullStart + movMatch[0].length;
+    const fullStart = idMatch.index + enumMatch.index;
+    const fullEnd = fullStart + enumMatch[0].length;
     return {
       content: content.substring(0, fullStart) + `movementBehavior: MovementBehavior.${enumKey}` + content.substring(fullEnd),
       applied: true,
     };
   }
+
+  // Try interior format: movementBehavior: "value" (string literal)
+  const strPattern = /movementBehavior:\s*"[^"]*"/;
+  const strMatch = strPattern.exec(searchRegion);
+  if (strMatch) {
+    const fullStart = idMatch.index + strMatch.index;
+    const fullEnd = fullStart + strMatch[0].length;
+    return {
+      content: content.substring(0, fullStart) + `movementBehavior: "${newBehavior}"` + content.substring(fullEnd),
+      applied: true,
+    };
+  }
+
+  // Field doesn't exist yet — insert after facingDirection line
+  const facingPattern = /facingDirection:\s*(?:"[^"]*"|Direction\.\w+)\s*,/;
+  const facingMatch = facingPattern.exec(searchRegion);
+  if (facingMatch) {
+    const insertPos = idMatch.index + facingMatch.index + facingMatch[0].length;
+    // Detect indentation from the facingDirection line start
+    const facingAbsStart = idMatch.index + facingMatch.index;
+    const lineStart = content.lastIndexOf("\n", facingAbsStart) + 1;
+    const indent = content.substring(lineStart, facingAbsStart).match(/^(\s*)/)?.[1] || "        ";
+    const insertion = `\n${indent}movementBehavior: "${newBehavior}",`;
+    return {
+      content: content.substring(0, insertPos) + insertion + content.substring(insertPos),
+      applied: true,
+    };
+  }
+
   return { content, applied: false };
 }
 
@@ -525,7 +556,7 @@ export const POST: APIRoute = async ({ request }) => {
     const errors = results.filter((r) => r.status === "error").length;
 
     return new Response(JSON.stringify({
-      success: errors === 0,
+      success: applied > 0 || errors === 0,
       message: body.dryRun
         ? `Dry run: ${applied} would be applied, ${skipped} skipped, ${errors} errors`
         : `Saved: ${applied} applied, ${skipped} skipped, ${errors} errors`,
