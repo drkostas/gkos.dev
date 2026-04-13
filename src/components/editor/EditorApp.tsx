@@ -684,6 +684,7 @@ function MapSelector() {
                 ...interior.npcs,
                 ...interior.exitWarps.map((w: any) => ({ ...w, type: "warp" })),
                 ...interior.pcTiles.map((p: any) => ({ ...p, type: "special" })),
+                ...(interior.switches || []),
               ];
               emitEditorEvent("editor:refresh-entities", { entities });
             }
