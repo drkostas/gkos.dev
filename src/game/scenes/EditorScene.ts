@@ -23,8 +23,10 @@ import {
 const TILE_SIZE = 16;
 const MAP_WIDTH = 140;
 const MAP_HEIGHT = 120;
-const ZOOM_STEPS = [0.5, 0.75, 1, 1.5, 2, 3, 4];
-const DEFAULT_ZOOM_INDEX = 3; // 1.5x
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 6;
+const ZOOM_SPEED = 0.08; // smooth zoom per scroll tick
+const DEFAULT_ZOOM = 1.5;
 
 interface EntityMarker {
   id: string;
@@ -52,7 +54,7 @@ const TYPE_COLORS: Record<string, number> = {
 export class EditorScene extends Phaser.Scene {
   private markers: Map<string, EntityMarker> = new Map();
   private selectedId: string | null = null;
-  private zoomIndex: number = DEFAULT_ZOOM_INDEX;
+  private currentZoom: number = DEFAULT_ZOOM;
   private isPanning: boolean = false;
   private panMoved: boolean = false;
   private panStart: { x: number; y: number } = { x: 0, y: 0 };
@@ -138,7 +140,7 @@ export class EditorScene extends Phaser.Scene {
     // Camera setup
     const cam = this.cameras.main;
     cam.setBounds(0, 0, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
-    cam.setZoom(ZOOM_STEPS[this.zoomIndex]);
+    cam.setZoom(this.currentZoom);
     cam.centerOn((MAP_WIDTH * TILE_SIZE) / 2, (MAP_HEIGHT * TILE_SIZE) / 2);
 
     // Coordinate display
@@ -173,16 +175,11 @@ export class EditorScene extends Phaser.Scene {
       this.spaceDown = false;
     });
 
-    // Scroll wheel zoom — Phaser wheel callback: (pointer, gameObjects, deltaX, deltaY, deltaZ)
+    // Scroll wheel zoom — smooth continuous zoom
     this.input.on("wheel", (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
-      if (deltaY > 0) {
-        // Scroll down → zoom out
-        this.zoomIndex = Math.max(0, this.zoomIndex - 1);
-      } else if (deltaY < 0) {
-        // Scroll up → zoom in
-        this.zoomIndex = Math.min(ZOOM_STEPS.length - 1, this.zoomIndex + 1);
-      }
-      cam.setZoom(ZOOM_STEPS[this.zoomIndex]);
+      const factor = deltaY > 0 ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
+      this.currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.currentZoom * factor));
+      cam.setZoom(this.currentZoom);
     });
 
     // Pointer down
@@ -291,6 +288,16 @@ export class EditorScene extends Phaser.Scene {
         this.hideTooltip();
         emitEditorEvent(ENTITY_HOVERED, null);
       }
+    });
+
+    // Pointer up outside (pointer leaves canvas while dragging)
+    this.input.on("pointerupoutside", () => {
+      this.isPanning = false;
+      this.panMoved = false;
+      if (this.dragTimer) { clearTimeout(this.dragTimer); this.dragTimer = null; }
+      this.isDragging = false;
+      this.dragEntityId = null;
+      this.clearDragGhost();
     });
 
     // Pointer up
