@@ -2320,7 +2320,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - File > Export > Entity CSV: positions + types + ids
   - Verification: each export produces correct output file
 
-- [ ] **P7-09** Guided onboarding
+- [x] **P7-09** Guided onboarding
   - First launch detection (localStorage flag)
   - 3-step overlay with arrows
   - "Got it!" dismissal per step

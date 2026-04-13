@@ -1391,6 +1391,10 @@ function EditorInner() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (typeof localStorage === "undefined") return false;
+    return !localStorage.getItem("editor_onboarding_done");
+  });
 
   // Load data on mount
   useEffect(() => {
@@ -1506,6 +1510,38 @@ function EditorInner() {
           entityId={contextMenu.entityId}
           onClose={() => setContextMenu(null)}
         />
+      )}
+      {showOnboarding && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9998 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 9999,
+            background: "#1a1a30", border: "1px solid #8b5cf6", borderRadius: 12, padding: 24,
+            width: 420, boxShadow: "0 8px 32px rgba(139,92,246,0.3)",
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#8b5cf6", marginBottom: 12 }}>Welcome to the World Designer IDE</div>
+            <div style={{ fontSize: 11, color: "#ccc", lineHeight: 1.8, marginBottom: 16 }}>
+              <div><b>1.</b> <span style={{ color: "#4a9eed" }}>Navigate:</span> Left-drag to pan, scroll to zoom, click minimap to jump</div>
+              <div><b>2.</b> <span style={{ color: "#22c55e" }}>Edit:</span> Click entities to select, edit properties in the right panel</div>
+              <div><b>3.</b> <span style={{ color: "#f59e0b" }}>Save:</span> Ctrl+S saves changes to TypeScript source files</div>
+              <div style={{ marginTop: 8, color: "#888", fontSize: 10 }}>
+                Press <b>?</b> anytime for keyboard shortcuts. Use the toolbar tools (1-5) for Select, Move, Stamp, Eraser, Eyedropper.
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={{ fontSize: 9, color: "#666", cursor: "pointer" }}>
+                <input type="checkbox" onChange={(e) => {
+                  if (e.target.checked) localStorage.setItem("editor_onboarding_done", "1");
+                }} style={{ marginRight: 4 }} />
+                Don't show again
+              </label>
+              <button onClick={() => { setShowOnboarding(false); localStorage.setItem("editor_onboarding_done", "1"); }} style={{
+                background: "#8b5cf6", color: "#fff", border: "none", borderRadius: 6,
+                padding: "8px 24px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+              }}>Got it!</button>
+            </div>
+          </div>
+        </>
       )}
       {showShortcuts && (
         <>
