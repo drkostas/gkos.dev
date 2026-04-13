@@ -1449,7 +1449,7 @@ function RightPanel() {
           onChange={(v) => updateField("facingDirection", v, selected.facingDirection)} />
         {selected.movementBehavior !== undefined && (
           <PropField label="Movement" value={selected.movementBehavior} type="select"
-            options={["STATIONARY", "WANDER", "FACE_RANDOM", "PATROL_H", "PATROL_V", "LOOK_AROUND"]}
+            options={["stationary", "look_around", "wander_left_right", "wander_up_down", "wander_area", "pace_horizontal", "pace_vertical", "run_horizontal", "run_vertical"]}
             onChange={(v) => updateField("movementBehavior", v, selected.movementBehavior)} />
         )}
         {selected.movementRangeX !== undefined && (

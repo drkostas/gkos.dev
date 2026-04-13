@@ -19,6 +19,15 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 
+// Map MovementBehavior enum keys to their actual string values
+const MOVE_ENUM_MAP = {
+  STATIONARY: "stationary", WANDER_LEFT_RIGHT: "wander_left_right",
+  WANDER_UP_DOWN: "wander_up_down", WANDER_AREA: "wander_area",
+  PACE_HORIZONTAL: "pace_horizontal", PACE_VERTICAL: "pace_vertical",
+  RUN_HORIZONTAL: "run_horizontal", RUN_VERTICAL: "run_vertical",
+  LOOK_AROUND: "look_around",
+};
+
 // ── Utility: slice an array body from TS source ──────────────────
 function sliceArrayBody(text, arrayName) {
   const re = new RegExp(`(?:const|export const)\\s+${arrayName}[^=]*=\\s*\\[`);
@@ -165,7 +174,7 @@ function extractFullNpcs(body, applyOffset, sourceFile) {
       x, y,
       spriteKey: spriteM?.[1] || "unknown",
       facingDirection: facingM?.[1]?.toLowerCase() || "down",
-      movementBehavior: movM?.[1] || "STATIONARY",
+      movementBehavior: MOVE_ENUM_MAP[movM?.[1]] || "stationary",
       movementRangeX: rxM ? parseInt(rxM[1], 10) : 0,
       movementRangeY: ryM ? parseInt(ryM[1], 10) : 0,
       dialog,
@@ -653,7 +662,7 @@ function extractInteriors(text) {
         y: parseInt(posM[2], 10),
         facingDirection: facingM?.[1] || "down",
         spriteKey: spriteM?.[1] || undefined,
-        movementBehavior: movM?.[1] || "STATIONARY",
+        movementBehavior: MOVE_ENUM_MAP[movM?.[1]] || "stationary",
         movementRangeX: rxM ? parseInt(rxM[1], 10) : 0,
         movementRangeY: ryM ? parseInt(ryM[1], 10) : 0,
         speakerName: speakerM?.[1] || "",

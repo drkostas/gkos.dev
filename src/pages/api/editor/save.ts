@@ -184,6 +184,40 @@ function patchSpriteKey(
   };
 }
 
+/** Map editor movement values back to enum keys for overworld source files */
+const MOVE_VALUE_TO_ENUM: Record<string, string> = {
+  stationary: "STATIONARY", wander_left_right: "WANDER_LEFT_RIGHT",
+  wander_up_down: "WANDER_UP_DOWN", wander_area: "WANDER_AREA",
+  pace_horizontal: "PACE_HORIZONTAL", pace_vertical: "PACE_VERTICAL",
+  run_horizontal: "RUN_HORIZONTAL", run_vertical: "RUN_VERTICAL",
+  look_around: "LOOK_AROUND",
+};
+
+/** Apply a movementBehavior patch */
+function patchMovementBehavior(
+  content: string,
+  entityId: string,
+  newBehavior: string,
+): { content: string; applied: boolean } {
+  const idPattern = new RegExp(`id:\\s*["']${entityId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`);
+  const idMatch = idPattern.exec(content);
+  if (!idMatch) return { content, applied: false };
+
+  const searchRegion = content.substring(idMatch.index, idMatch.index + 500);
+  const movPattern = /movementBehavior:\s*MovementBehavior\.\w+/;
+  const movMatch = movPattern.exec(searchRegion);
+  if (movMatch) {
+    const enumKey = MOVE_VALUE_TO_ENUM[newBehavior] || "STATIONARY";
+    const fullStart = idMatch.index + movMatch.index;
+    const fullEnd = fullStart + movMatch[0].length;
+    return {
+      content: content.substring(0, fullStart) + `movementBehavior: MovementBehavior.${enumKey}` + content.substring(fullEnd),
+      applied: true,
+    };
+  }
+  return { content, applied: false };
+}
+
 /** Apply a sign text patch */
 function patchSignText(
   content: string,
@@ -331,6 +365,12 @@ export const POST: APIRoute = async ({ request }) => {
         }
         case "spriteKey": {
           const result = patchSpriteKey(content, change.entityId, change.newValue);
+          content = result.content;
+          applied = result.applied;
+          break;
+        }
+        case "movementBehavior": {
+          const result = patchMovementBehavior(content, change.entityId, change.newValue);
           content = result.content;
           applied = result.applied;
           break;
