@@ -133,6 +133,7 @@ function Toolbar() {
         <MenuItem label={`${state.layers.foreground ? "✓ " : "  "}Foreground`} onClick={() => toggleLayer("foreground")} />
         <MenuItem label={`${state.layers.entities ? "✓ " : "  "}Entity Markers`} onClick={() => toggleLayer("entities")} />
         <MenuItem label={`${state.layers.zones ? "✓ " : "  "}Zone Boundaries`} onClick={() => toggleLayer("zones")} />
+        <MenuItem label={`${state.layers.movement ? "✓ " : "  "}Movement Ranges`} onClick={() => toggleLayer("movement")} />
         <MenuSep />
         <MenuItem label="Zoom In" shortcut="Scroll ↑" disabled />
         <MenuItem label="Zoom Out" shortcut="Scroll ↓" disabled />

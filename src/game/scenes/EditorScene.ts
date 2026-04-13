@@ -52,6 +52,8 @@ interface EntityMarker {
   x: number;
   y: number;
   spriteKey?: string;
+  movementRangeX?: number;
+  movementRangeY?: number;
   container: Phaser.GameObjects.Container;
   shape: Phaser.GameObjects.Graphics;
   sprite?: Phaser.GameObjects.Sprite;
@@ -85,8 +87,10 @@ export class EditorScene extends Phaser.Scene {
   private coordText!: Phaser.GameObjects.Text;
   private gridGraphics: Phaser.GameObjects.Graphics | null = null;
   private collisionOverlay: Phaser.GameObjects.Graphics | null = null;
+  private movementGraphics: Phaser.GameObjects.Graphics | null = null;
   private gridVisible: boolean = false;
   private collisionVisible: boolean = false;
+  private movementVisible: boolean = false;
   private tilemap: Phaser.Tilemaps.Tilemap | null = null;
   private groundLayer: Phaser.Tilemaps.TilemapLayer | null = null;
   private collisionLayerData: number[] = [];
@@ -485,7 +489,7 @@ export class EditorScene extends Phaser.Scene {
 
   // --- Entity Marker Management ---
 
-  addMarker(entity: { id: string; type: string; x: number; y: number; spriteKey?: string; iconKey?: string; speciesName?: string }): void {
+  addMarker(entity: { id: string; type: string; x: number; y: number; spriteKey?: string; iconKey?: string; speciesName?: string; movementRangeX?: number; movementRangeY?: number }): void {
     if (this.markers.has(entity.id)) return;
 
     const worldX = entity.x * TILE_SIZE + TILE_SIZE / 2;
@@ -533,6 +537,8 @@ export class EditorScene extends Phaser.Scene {
       x: entity.x,
       y: entity.y,
       spriteKey: entity.spriteKey,
+      movementRangeX: entity.movementRangeX,
+      movementRangeY: entity.movementRangeY,
       container,
       shape,
       sprite,
@@ -682,6 +688,35 @@ export class EditorScene extends Phaser.Scene {
           marker.container.setVisible(visible);
         }
         break;
+      case "movement":
+        this.movementVisible = visible;
+        this.renderMovementRanges();
+        break;
+    }
+  }
+
+  private renderMovementRanges(): void {
+    if (this.movementGraphics) {
+      this.movementGraphics.destroy();
+      this.movementGraphics = null;
+    }
+    if (!this.movementVisible) return;
+
+    this.movementGraphics = this.add.graphics();
+    this.movementGraphics.setDepth(150);
+
+    for (const marker of this.markers.values()) {
+      const rangeX = marker.movementRangeX || 0;
+      const rangeY = marker.movementRangeY || 0;
+      if (rangeX === 0 && rangeY === 0) continue;
+
+      const cx = marker.x * TILE_SIZE + TILE_SIZE / 2;
+      const cy = marker.y * TILE_SIZE + TILE_SIZE / 2;
+      const rx = rangeX * TILE_SIZE;
+      const ry = rangeY * TILE_SIZE;
+
+      this.movementGraphics.lineStyle(1, 0x4a9eed, 0.4);
+      this.movementGraphics.strokeRect(cx - rx, cy - ry, rx * 2, ry * 2);
     }
   }
 
