@@ -133,6 +133,8 @@ function Toolbar() {
           }
         }} />
         <MenuSep />
+        <MenuItem label="Show History" onClick={() => window.dispatchEvent(new CustomEvent("editor:show-history"))} disabled={state.undoStack.length === 0} />
+        <MenuSep />
         <MenuItem label="Duplicate Selected" shortcut="⌘D" disabled={!state.selectedEntityId} onClick={() => {
           if (state.selectedEntityId) {
             const e = state.entities.find((x) => x.id === state.selectedEntityId);
@@ -1376,6 +1378,7 @@ function EditorInner() {
   const dispatch = useEditorDispatch();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string | null } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -1389,6 +1392,13 @@ function EditorInner() {
         }
       })
       .catch((e) => dispatch({ type: "SET_ERROR", error: e.message }));
+  }, []);
+
+  // Listen for show-history event from Edit menu
+  useEffect(() => {
+    const handler = () => setShowHistory(true);
+    window.addEventListener("editor:show-history", handler);
+    return () => window.removeEventListener("editor:show-history", handler);
   }, []);
 
   // Listen for right-click context menu from Phaser
@@ -1483,6 +1493,42 @@ function EditorInner() {
           entityId={contextMenu.entityId}
           onClose={() => setContextMenu(null)}
         />
+      )}
+      {showHistory && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9998 }} onClick={() => setShowHistory(false)} />
+          <div style={{
+            position: "fixed", top: "10%", left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+            background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 8, padding: 16,
+            width: 400, maxHeight: "70vh", display: "flex", flexDirection: "column",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>Undo History ({state.undoStack.length} actions)</span>
+              <span onClick={() => setShowHistory(false)} style={{ cursor: "pointer", color: "#666" }}>×</span>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+              {state.undoStack.length === 0 && <div style={{ fontSize: 11, color: "#555", padding: 8 }}>No actions recorded</div>}
+              {[...state.undoStack].reverse().map((entry, i) => {
+                const a = entry.action;
+                let desc: string = a.type;
+                if (a.type === "MOVE_ENTITY") desc = `Move ${a.id} → (${a.x}, ${a.y})`;
+                if (a.type === "UPDATE_FIELD") desc = `${a.id}.${a.field} = ${JSON.stringify(a.value).substring(0, 30)}`;
+                if (a.type === "DELETE_ENTITY") desc = `Delete ${a.id}`;
+                if (a.type === "ADD_ENTITY") desc = `Add ${a.entity.id}`;
+                return (
+                  <div key={i} style={{
+                    padding: "4px 8px", fontSize: 10, borderBottom: "1px solid #2a2a40",
+                    color: i === 0 ? "#fff" : "#888",
+                  }}>
+                    <span style={{ color: "#4a9eed", marginRight: 4 }}>#{state.undoStack.length - i}</span>
+                    {desc}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
       )}
       {deleteConfirm && (() => {
         const entity = state.entities.find((e) => e.id === deleteConfirm);
