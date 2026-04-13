@@ -9,7 +9,7 @@ A Pokemon World Designer IDE — a local-only dev tool at `/editor` route that l
 ## Ralph Loop Prompt Location  
 `docs/plans/2026-04-12-ide-ralph-loop-prompt.md` — copy text after line 5 into /ralph-loop.
 
-## Current Progress: P0 + P1A-P1E + P1G COMPLETE
+## Current Progress: P0 + P1A-P1G + P2 (partial) COMPLETE — 12 commits
 
 ### COMPLETED:
 - P0-01: `scripts/editor-data-export.mjs` — WORKING, extracts 119 entities
