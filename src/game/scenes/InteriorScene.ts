@@ -260,6 +260,18 @@ export class InteriorScene extends Phaser.Scene {
       }
     }
 
+    // Preload NPC sprites that aren't already in the texture cache.
+    // BootScene loads a hardcoded subset; if an NPC uses a different sprite
+    // (e.g. via editor sprite swap), we need to load it here.
+    for (const npc of def.npcs) {
+      if (npc.spriteKey && !this.textures.exists(npc.spriteKey)) {
+        this.load.spritesheet(npc.spriteKey, `/game/sprites/emerald/${npc.spriteKey}.png`, {
+          frameWidth: 16,
+          frameHeight: 32,
+        });
+      }
+    }
+
     // Preload questionnaire tile icons (e.g. the letter on the mart desk).
     if (def.questionnaireTiles) {
       for (const q of def.questionnaireTiles) {
