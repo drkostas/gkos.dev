@@ -1595,6 +1595,26 @@ function RightPanel() {
                 onChange={(v) => updateField("autoGive", { ...selected.autoGive, asideY: Number(v) }, selected.autoGive)} />
             </>
           )}
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 9, color: "#888", marginBottom: 3 }}>Cleared Dialog (after giving item)</div>
+            {(selected.autoGive.clearedDialog || []).map((line: string, i: number) => (
+              <div key={i} style={{ display: "flex", gap: 4, marginBottom: 3 }}>
+                <textarea value={line} onChange={(e) => {
+                  const d = [...(selected.autoGive.clearedDialog || [])];
+                  d[i] = e.target.value;
+                  updateField("autoGive", { ...selected.autoGive, clearedDialog: d }, selected.autoGive);
+                }} style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "4px 6px", resize: "vertical", minHeight: 24, fontFamily: "monospace" }} />
+                <span onClick={() => {
+                  const d = (selected.autoGive.clearedDialog || []).filter((_: any, j: number) => j !== i);
+                  updateField("autoGive", { ...selected.autoGive, clearedDialog: d }, selected.autoGive);
+                }} style={{ color: "#ef4444", cursor: "pointer", fontSize: 11, flexShrink: 0 }}>×</span>
+              </div>
+            ))}
+            <span onClick={() => {
+              const d = [...(selected.autoGive.clearedDialog || []), ""];
+              updateField("autoGive", { ...selected.autoGive, clearedDialog: d }, selected.autoGive);
+            }} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>+ Add line</span>
+          </div>
         </PropSection>
       )}
 
