@@ -201,7 +201,33 @@ function Toolbar() {
         </div>
       ))}
       <div style={{ flex: 1 }} />
-      <div style={{ display: "flex", gap: 4, fontSize: 9, color: "#555" }}>
+      {/* Global search */}
+      <input
+        type="text"
+        placeholder="Search map... (Ctrl+F)"
+        style={{
+          width: 150, background: "#161628", border: "1px solid #2a2a40", borderRadius: 3,
+          color: "#ccc", fontSize: 10, padding: "3px 8px", outline: "none",
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            const query = (e.target as HTMLInputElement).value.toLowerCase();
+            if (!query) return;
+            const match = state.entities.find((ent) =>
+              ent.id.toLowerCase().includes(query) ||
+              ent.dialog?.some((d) => d.toLowerCase().includes(query)) ||
+              ent.text?.some((t) => t.toLowerCase().includes(query)) ||
+              ent.speakerName?.toLowerCase().includes(query) ||
+              ent.spriteKey?.toLowerCase().includes(query),
+            );
+            if (match) {
+              dispatch({ type: "SELECT_ENTITY", id: match.id });
+              emitEditorEvent(JUMP_TO_TILE, { x: match.x, y: match.y });
+            }
+          }
+        }}
+      />
+      <div style={{ display: "flex", gap: 4, fontSize: 9, color: "#555", marginLeft: 6 }}>
         <span onClick={handleUndo} title="Undo (⌘Z)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Z</span>
         <span onClick={handleRedo} title="Redo (⌘Y)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Y</span>
         <span onClick={handleSave} title="Save (⌘S)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘S</span>
@@ -482,11 +508,40 @@ function Minimap() {
   );
 }
 
+/** Map selector dropdown */
+function MapSelector() {
+  const [currentMap, setCurrentMap] = useState("mauville");
+  const maps = [
+    { id: "mauville", label: "Overworld (140x120)" },
+    { id: "pokecenter", label: "Pokemon Center (14x9)" },
+    { id: "mart", label: "Mart (11x8)" },
+    { id: "gym", label: "Gym (10x21)" },
+  ];
+
+  return (
+    <select
+      value={currentMap}
+      onChange={(e) => {
+        setCurrentMap(e.target.value);
+        // TODO: emit event to EditorScene to switch maps
+      }}
+      style={{
+        position: "absolute", top: 6, right: 10, zIndex: 10,
+        background: "#1a1a30", color: "#ccc", border: "1px solid #3a3a50",
+        borderRadius: 4, padding: "3px 8px", fontSize: 10, cursor: "pointer",
+      }}
+    >
+      {maps.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+    </select>
+  );
+}
+
 /** Center viewport — Phaser tilemap + minimap overlay */
 function Viewport() {
   return (
     <div style={{ flex: 1, position: "relative", minHeight: 0, display: "flex", flexDirection: "column" }}>
       <EditorViewport />
+      <MapSelector />
       <Minimap />
     </div>
   );
