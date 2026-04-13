@@ -54,6 +54,7 @@ export class EditorScene extends Phaser.Scene {
   private selectedId: string | null = null;
   private zoomIndex: number = DEFAULT_ZOOM_INDEX;
   private isPanning: boolean = false;
+  private panMoved: boolean = false;
   private panStart: { x: number; y: number } = { x: 0, y: 0 };
   private camStart: { x: number; y: number } = { x: 0, y: 0 };
   private spaceDown: boolean = false;
@@ -70,7 +71,7 @@ export class EditorScene extends Phaser.Scene {
   private groundLayer: Phaser.Tilemaps.TilemapLayer | null = null;
   private collisionLayerData: number[] = [];
   private foregroundImage: Phaser.GameObjects.Image | null = null;
-  private foregroundVisible: boolean = false;
+  private foregroundVisible: boolean = true;
   private hoverTooltip: Phaser.GameObjects.Container | null = null;
   private unsubscribers: (() => void)[] = [];
 
@@ -99,7 +100,17 @@ export class EditorScene extends Phaser.Scene {
       });
     }
 
-    // Pokemon icons not individually loaded — markers use colored shapes
+    // Pokemon icon sprites (from /game/sprites/pokemon/icons/)
+    const pokemonIcons = [
+      "absol", "aggron", "altaria", "banette", "blaziken", "breloom",
+      "camerupt", "claydol", "delcatty", "flygon", "glalie", "kirlia",
+      "kyogre", "lairon", "latias", "manectric", "mawile", "medicham",
+      "pelipper", "plusle", "sableye", "salamence", "seviper", "shedinja",
+      "solrock", "swellow", "torkoal", "trapinch", "vibrava", "volbeat", "wailord",
+    ];
+    for (const name of pokemonIcons) {
+      this.load.image(`pkmn_icon_${name}`, `/game/sprites/pokemon/icons/${name}.png`);
+    }
   }
 
   create(): void {
@@ -119,7 +130,7 @@ export class EditorScene extends Phaser.Scene {
     if (this.textures.exists("mauville_foreground")) {
       this.foregroundImage = this.add.image(0, 0, "mauville_foreground");
       this.foregroundImage.setOrigin(0, 0);
-      this.foregroundImage.setAlpha(0.5);
+      this.foregroundImage.setAlpha(0.85);
       this.foregroundImage.setDepth(100);
       this.foregroundImage.setVisible(this.foregroundVisible);
     }
@@ -162,11 +173,13 @@ export class EditorScene extends Phaser.Scene {
       this.spaceDown = false;
     });
 
-    // Scroll wheel zoom
-    this.input.on("wheel", (_p: any, _gx: any, _gy: any, _gz: any, deltaY: number) => {
+    // Scroll wheel zoom — Phaser wheel callback: (pointer, gameObjects, deltaX, deltaY, deltaZ)
+    this.input.on("wheel", (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
       if (deltaY > 0) {
+        // Scroll down → zoom out
         this.zoomIndex = Math.max(0, this.zoomIndex - 1);
-      } else {
+      } else if (deltaY < 0) {
+        // Scroll up → zoom in
         this.zoomIndex = Math.min(ZOOM_STEPS.length - 1, this.zoomIndex + 1);
       }
       cam.setZoom(ZOOM_STEPS[this.zoomIndex]);
@@ -185,7 +198,7 @@ export class EditorScene extends Phaser.Scene {
       // Right-click (handled by interaction for context menu)
       if (pointer.rightButtonDown()) return;
 
-      // Left-click: check for entity click
+      // Left-click: check for entity click first, then start pan if no entity hit
       if (pointer.leftButtonDown()) {
         const worldX = pointer.worldX;
         const worldY = pointer.worldY;
@@ -222,19 +235,22 @@ export class EditorScene extends Phaser.Scene {
             }, 200);
           }
         } else {
-          // Click empty tile
-          emitEditorEvent(TILE_CLICKED, { x: tileX, y: tileY });
-          emitEditorEvent(ENTITY_CLICKED, { entityId: null });
+          // No entity hit — start panning with left-click drag
+          this.isPanning = true;
+          this.panMoved = false;
+          this.panStart = { x: pointer.x, y: pointer.y };
+          this.camStart = { x: cam.scrollX, y: cam.scrollY };
         }
       }
     });
 
     // Pointer move
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      // Panning
+      // Panning (left-click drag, middle-click drag, or space+drag)
       if (this.isPanning) {
         const dx = this.panStart.x - pointer.x;
         const dy = this.panStart.y - pointer.y;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this.panMoved = true;
         cam.scrollX = this.camStart.x + dx / cam.zoom;
         cam.scrollY = this.camStart.y + dy / cam.zoom;
         return;
@@ -280,7 +296,16 @@ export class EditorScene extends Phaser.Scene {
     // Pointer up
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
       if (this.isPanning) {
+        const wasPanMove = this.panMoved;
         this.isPanning = false;
+        this.panMoved = false;
+        // If user just clicked without dragging, deselect
+        if (!wasPanMove) {
+          const tileX = Math.floor(pointer.worldX / TILE_SIZE);
+          const tileY = Math.floor(pointer.worldY / TILE_SIZE);
+          emitEditorEvent(TILE_CLICKED, { x: tileX, y: tileY });
+          emitEditorEvent(ENTITY_CLICKED, { entityId: null });
+        }
         return;
       }
 
@@ -367,7 +392,7 @@ export class EditorScene extends Phaser.Scene {
 
   // --- Entity Marker Management ---
 
-  addMarker(entity: { id: string; type: string; x: number; y: number; spriteKey?: string }): void {
+  addMarker(entity: { id: string; type: string; x: number; y: number; spriteKey?: string; iconKey?: string; speciesName?: string }): void {
     if (this.markers.has(entity.id)) return;
 
     const worldX = entity.x * TILE_SIZE + TILE_SIZE / 2;
@@ -384,12 +409,23 @@ export class EditorScene extends Phaser.Scene {
 
     // Add sprite thumbnail if available
     let sprite: Phaser.GameObjects.Sprite | undefined;
-    const spriteTexKey = entity.spriteKey ? `npc_${entity.spriteKey}` : undefined;
-    if (spriteTexKey && this.textures.exists(spriteTexKey)) {
-      sprite = this.add.sprite(0, -4, spriteTexKey, 0);
-      sprite.setScale(0.9);
-      sprite.setAlpha(0.85);
-      container.add(sprite);
+
+    // Pokemon icons for wild-pokemon entities
+    if (entity.type === "wild-pokemon" && entity.iconKey && this.textures.exists(entity.iconKey)) {
+      const icon = this.add.image(0, -2, entity.iconKey);
+      icon.setScale(0.5);
+      icon.setAlpha(0.9);
+      container.add(icon);
+    }
+    // NPC sprites
+    else {
+      const spriteTexKey = entity.spriteKey ? `npc_${entity.spriteKey}` : undefined;
+      if (spriteTexKey && this.textures.exists(spriteTexKey)) {
+        sprite = this.add.sprite(0, -4, spriteTexKey, 0);
+        sprite.setScale(0.9);
+        sprite.setAlpha(0.85);
+        container.add(sprite);
+      }
     }
 
     const marker: EntityMarker = {
