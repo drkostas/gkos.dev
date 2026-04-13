@@ -308,6 +308,7 @@ function LeftPanel() {
   const dispatch = useEditorDispatch();
   const [activeTab, setActiveTab] = useState<"entities" | "sprites" | "tiles">("entities");
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [filterZone, setFilterZone] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const entityTypes = ["npc", "pokemon-npc", "pickup", "wild-pokemon", "sign", "hidden-item", "warp", "gate"] as const;
   const typeColors: Record<string, string> = {
@@ -316,8 +317,12 @@ function LeftPanel() {
     warp: "#8b5cf6", gate: "#dc2626",
   };
 
+  const getZone = (x: number, y: number) =>
+    x >= 50 && x < 90 && y >= 50 && y < 70 ? "Mauville" : x < 50 ? "Route 117" : x >= 90 ? "Route 118" : y < 50 ? "Route 111" : "Route 110";
+
   const filtered = state.entities.filter((e) => {
     if (filterType && e.type !== filterType) return false;
+    if (filterZone && getZone(e.x, e.y) !== filterZone) return false;
     if (searchQuery && !e.id.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
@@ -388,6 +393,17 @@ function LeftPanel() {
                 </div>
               );
             })}
+          </div>
+          {/* Zone filter */}
+          <div style={{ display: "flex", gap: 2, padding: "2px 6px", flexWrap: "wrap" }}>
+            {["Mauville", "Route 117", "Route 118", "Route 111", "Route 110"].map((z) => (
+              <span key={z} onClick={() => setFilterZone(filterZone === z ? null : z)}
+                style={{
+                  fontSize: 8, padding: "1px 4px", borderRadius: 3, cursor: "pointer",
+                  background: filterZone === z ? "#1e3a5f" : "#161628",
+                  color: filterZone === z ? "#fff" : "#666",
+                }}>{z}</span>
+            ))}
           </div>
           <div style={{ height: 1, background: "#2a2a40", margin: "2px 8px", flexShrink: 0 }} />
           <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1, padding: "4px 8px", flexShrink: 0 }}>
