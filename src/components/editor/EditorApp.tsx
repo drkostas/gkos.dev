@@ -1323,10 +1323,16 @@ function EditorInner() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "z") { e.preventDefault(); dispatch({ type: "REDO" }); return; }
       if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); dispatch({ type: "UNDO" }); }
       if ((e.metaKey || e.ctrlKey) && e.key === "y") { e.preventDefault(); dispatch({ type: "REDO" }); }
       if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); window.dispatchEvent(new CustomEvent("editor:trigger-save")); }
       if (e.key === "Escape") { dispatch({ type: "DESELECT" }); setContextMenu(null); }
+      // Tool switching: 1=Select, 2=Move, 3=Stamp, 4=Eraser
+      if (e.key === "1" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "select" });
+      if (e.key === "2" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "move" });
+      if (e.key === "3" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "stamp" });
+      if (e.key === "4" && !e.metaKey && !e.ctrlKey) dispatch({ type: "SET_TOOL", tool: "eraser" });
       if (e.key === "Delete" || e.key === "Backspace") {
         if (state.selectedEntityId) {
           const entity = state.entities.find((e) => e.id === state.selectedEntityId);
