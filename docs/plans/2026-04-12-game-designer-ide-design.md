@@ -1886,7 +1886,7 @@ Every implementation task, organized by phase. Each task is concrete, independen
   - Joins Party dropdown (optional)
   - Verification: changing pokedex number auto-fills species info
 
-- [ ] **P1D-08** Create `src/components/editor/panels/RelationshipsSection.tsx`
+- [x] **P1D-08** Create `src/components/editor/panels/RelationshipsSection.tsx`
   - Zone: auto-detected, shown as badge
   - Distance from spawn: BFS distance
   - Badge contribution: which badge(s) this entity counts toward

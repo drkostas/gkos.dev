@@ -968,6 +968,36 @@ function RightPanel() {
         <PropField label="File" value={selected.sourceFile} disabled />
         {selected.sourceOffset && <div style={{ fontSize: 9, color: "#666", paddingLeft: 76 }}>Has +50 offset</div>}
       </PropSection>
+
+      <PropSection title="RELATIONSHIPS" color="#06b6d4">
+        {(() => {
+          // Compute zone from position
+          const x = selected.x; const y = selected.y;
+          const zone = x >= 50 && x < 90 && y >= 50 && y < 70 ? "Mauville City"
+            : x < 50 ? "Route 117" : x >= 90 ? "Route 118"
+            : y < 50 ? "Route 111" : y >= 70 ? "Route 110" : "Unknown";
+          // Compute badge contribution
+          const badges: string[] = [];
+          if (selected.autoGive) badges.push("CONNECTED (key item)");
+          if (selected.pokemon) badges.push("POKEDEX (encounter)");
+          if (selected.type === "npc" && selected.dialog?.some(d => d.length > 50)) badges.push("BLOGGER (potential)");
+
+          // Count same-type entities
+          const sameType = state.entities.filter(e => e.type === selected.type).length;
+
+          return (
+            <>
+              <div style={{ fontSize: 10, color: "#ccc", padding: "0 0 2px" }}>Zone: <span style={{ color: "#4a9eed" }}>{zone}</span></div>
+              <div style={{ fontSize: 10, color: "#ccc" }}>Same type: {sameType} total</div>
+              {badges.length > 0 && (
+                <div style={{ fontSize: 10, color: "#ccc", marginTop: 2 }}>
+                  Contributes to: {badges.map((b, i) => <span key={i} style={{ color: "#f59e0b", fontSize: 9 }}>{i > 0 ? ", " : ""}{b}</span>)}
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </PropSection>
     </div>
   );
 }
