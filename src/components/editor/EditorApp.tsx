@@ -614,31 +614,74 @@ function RightPanel() {
       </PropSection>
 
       {(selected.dialog && selected.dialog.length > 0) && (
-        <PropSection title={`DIALOG (${selected.dialog.length} lines)`} color="#4a9eed">
-          {selected.dialog.map((line, i) => (
-            <div key={i} style={{ marginBottom: 3 }}>
-              <textarea
-                value={line}
-                onChange={(e) => {
-                  const newDialog = [...selected.dialog!];
-                  newDialog[i] = e.target.value;
-                  updateField("dialog", newDialog, selected.dialog);
-                }}
-                style={{
-                  width: "100%", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3,
-                  color: "#ccc", fontSize: 10, padding: "3px 5px", outline: "none", resize: "vertical",
-                  fontFamily: "monospace", minHeight: 24, boxSizing: "border-box",
-                }}
-              />
-            </div>
-          ))}
+        <PropSection title={`DIALOG (${selected.dialog.length} slides)`} color="#4a9eed">
+          {selected.dialog.map((line, i) => {
+            const pages = Math.ceil(line.length / 105) || 1; // ~35 chars x 3 lines per page
+            return (
+              <div key={i} style={{
+                marginBottom: 4, background: "#0d0d1a", border: "1px solid #2a2a40",
+                borderRadius: 4, overflow: "hidden",
+              }}>
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "3px 6px", background: "#161628", borderBottom: "1px solid #2a2a40",
+                }}>
+                  <span style={{ fontSize: 8, color: "#666" }}>Slide {i + 1}</span>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    {pages > 1 && <span style={{ fontSize: 8, color: "#f59e0b" }}>{pages} pages</span>}
+                    {i > 0 && (
+                      <span onClick={() => {
+                        const d = [...selected.dialog!];
+                        [d[i - 1], d[i]] = [d[i], d[i - 1]];
+                        updateField("dialog", d, selected.dialog);
+                      }} style={{ fontSize: 10, cursor: "pointer", color: "#666" }} title="Move up">↑</span>
+                    )}
+                    {i < (selected.dialog?.length || 0) - 1 && (
+                      <span onClick={() => {
+                        const d = [...selected.dialog!];
+                        [d[i], d[i + 1]] = [d[i + 1], d[i]];
+                        updateField("dialog", d, selected.dialog);
+                      }} style={{ fontSize: 10, cursor: "pointer", color: "#666" }} title="Move down">↓</span>
+                    )}
+                    <span onClick={() => {
+                      const d = selected.dialog!.filter((_, j) => j !== i);
+                      updateField("dialog", d, selected.dialog);
+                    }} style={{ fontSize: 10, cursor: "pointer", color: "#ef4444" }} title="Delete slide">×</span>
+                  </div>
+                </div>
+                <textarea
+                  value={line}
+                  onChange={(e) => {
+                    const newDialog = [...selected.dialog!];
+                    newDialog[i] = e.target.value;
+                    updateField("dialog", newDialog, selected.dialog);
+                  }}
+                  placeholder="Enter dialog text... Use {{ }} for templates"
+                  style={{
+                    width: "100%", background: "transparent", border: "none",
+                    color: "#ccc", fontSize: 10, padding: "4px 6px", outline: "none", resize: "vertical",
+                    fontFamily: "monospace", minHeight: 32, boxSizing: "border-box",
+                  }}
+                />
+                {line.includes("{{") && (
+                  <div style={{ padding: "2px 6px 3px", fontSize: 8, color: "#06b6d4", background: "#0d1a2a" }}>
+                    Template: {line.match(/\{\{[^}]+\}\}/g)?.join(", ")}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           <div
             onClick={() => {
               const newDialog = [...(selected.dialog || []), ""];
               updateField("dialog", newDialog, selected.dialog);
             }}
-            style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer", marginTop: 2 }}
-          >+ Add line</div>
+            style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer", marginTop: 2, padding: "2px 0" }}
+          >+ Add slide</div>
+          {selected.speakerName && (
+            <PropField label="Speaker" value={selected.speakerName}
+              onChange={(v) => updateField("speakerName", v, selected.speakerName)} />
+          )}
         </PropSection>
       )}
 
