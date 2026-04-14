@@ -2454,6 +2454,26 @@ function EditorInner() {
     selected: Array<{ x: number; y: number; layer: string; mapId: string }>;
   } | null>(null);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number; gid: number; hasTopSprite: boolean; screenX: number; screenY: number } | null>(null);
+  /** Shadow of the Phaser stamp block state. null = no block. */
+  const [blockStatus, setBlockStatus] = useState<{ width: number; height: number } | null>(null);
+
+  // Listen for stamp block state changes (copy, rotate, flip, clear).
+  useEffect(() => {
+    const onBlock = (e: Event) => {
+      const d = (e as CustomEvent).detail as { width: number; height: number } | null;
+      setBlockStatus(d);
+    };
+    const onCopied = (e: Event) => {
+      const d = (e as CustomEvent).detail as { width: number; height: number };
+      setBlockStatus({ width: d.width, height: d.height });
+    };
+    window.addEventListener("editor:block-status", onBlock);
+    window.addEventListener("editor:block-copied", onCopied);
+    return () => {
+      window.removeEventListener("editor:block-status", onBlock);
+      window.removeEventListener("editor:block-copied", onCopied);
+    };
+  }, []);
 
   // Load data on mount
   useEffect(() => {
@@ -2638,7 +2658,40 @@ function EditorInner() {
       // Skip non-modifier shortcuts when typing in text fields
       if (inTextInput) return;
 
-      if (e.key === "Escape") { dispatch({ type: "DESELECT" }); setContextMenu(null); }
+      if (e.key === "Escape") {
+        // Tiered Esc — pops one level of UI/selection per press so the user
+        // can unwind without blowing away everything at once. First match
+        // wins; stop after handling.
+        // Level 1: any modal/popup/overlay
+        if (dialogPreview) { setDialogPreview(null); return; }
+        if (deleteConfirm) { setDeleteConfirm(null); return; }
+        if (showShortcuts) { setShowShortcuts(false); return; }
+        if (showHistory) { setShowHistory(false); return; }
+        if (showRelationships) { setShowRelationships(false); return; }
+        if (tintPopup) {
+          setTintPopup(null);
+          emitEditorEvent("editor:tint-close", {});
+          return;
+        }
+        if (contextMenu) { setContextMenu(null); return; }
+        // Level 2: copied stamp block (tells Phaser to drop it)
+        if (blockStatus) {
+          emitEditorEvent("editor:clear-block-selection", {});
+          return;
+        }
+        // Level 3: multi-entity selection → reduce to primary selection
+        if (state.selectedEntityIds.length > 0) {
+          for (const id of state.selectedEntityIds) {
+            dispatch({ type: "TOGGLE_SELECT", id });
+          }
+          return;
+        }
+        // Level 4: single entity selection → full deselect
+        if (state.selectedEntityId) {
+          dispatch({ type: "DESELECT" });
+          return;
+        }
+      }
       if (e.key === "1") dispatch({ type: "SET_TOOL", tool: "select" });
       if (e.key === "2") dispatch({ type: "SET_TOOL", tool: "move" });
       if (e.key === "3") dispatch({ type: "SET_TOOL", tool: "stamp" });
@@ -2653,7 +2706,11 @@ function EditorInner() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [state.selectedEntityId, state.entities]);
+  }, [
+    state.selectedEntityId, state.selectedEntityIds, state.entities,
+    blockStatus, tintPopup, contextMenu, deleteConfirm,
+    showShortcuts, showHistory, showRelationships, dialogPreview,
+  ]);
 
   if (state.loading) {
     return (
@@ -3001,6 +3058,30 @@ function EditorInner() {
           </>
         );
       })()}
+
+      {/* Stamp block status HUD — sits in the top-left of the viewport and
+          shows dimensions plus keyboard hints for rotate/flip. Hidden when
+          no block is copied. */}
+      {blockStatus && (
+        <div style={{
+          position: "fixed",
+          left: 240, top: 48, zIndex: 9996,
+          background: "rgba(20, 20, 30, 0.85)",
+          color: "#4a9eed",
+          fontFamily: "monospace",
+          fontSize: 11,
+          padding: "4px 8px",
+          borderRadius: 4,
+          border: "1px solid #3a3a50",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}>
+          <span style={{ fontWeight: 700 }}>Stamp block: {blockStatus.width}×{blockStatus.height}</span>
+          <span style={{ color: "#888", marginLeft: 10, fontSize: 10 }}>
+            R = rotate · F = flip X · ⇧F = flip Y · Esc = clear
+          </span>
+        </div>
+      )}
 
       {/* Tile Tint popup */}
       {/* Hovered tile coordinate badge — follows the cursor, always visible */}

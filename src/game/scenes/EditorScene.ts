@@ -134,6 +134,15 @@ export class EditorScene extends Phaser.Scene {
   private blockSelectionGraphics: Phaser.GameObjects.Graphics | null = null;
   private isShiftDragging: boolean = false;
   private shiftDragStart: { x: number; y: number } | null = null;
+  /**
+   * Drag-paint state. In stamp (with single-GID) or eraser mode, left-drag
+   * continuously paints/erases every tile crossed. Without this, long
+   * stretches of fence/path require one click per tile.
+   */
+  private isDragPainting: boolean = false;
+  private dragPaintMode: "paint" | "erase" | null = null;
+  /** Deduped set of "x,y" keys visited during the current drag-paint. */
+  private dragPaintVisited: Set<string> = new Set();
 
   constructor() {
     super({ key: "EditorScene" });
@@ -343,11 +352,13 @@ export class EditorScene extends Phaser.Scene {
           this.panMoved = false;
         };
 
-        // Stamp tool: paste block or paint single tile
+        // Stamp tool: block paste uses deferred single-click; single-GID
+        // stamp paints immediately and tracks drag so the user can draw
+        // lines of fences without clicking every tile.
         if (this.currentTool === "stamp" && this.tilemap) {
-          deferToolClick(() => {
-            if (this.blockSelection && this.blockSelection.tiles.length > 0) {
-              const { tiles } = this.blockSelection;
+          if (this.blockSelection && this.blockSelection.tiles.length > 0) {
+            deferToolClick(() => {
+              const { tiles } = this.blockSelection!;
               for (let dy = 0; dy < tiles.length; dy++) {
                 for (let dx = 0; dx < tiles[dy].length; dx++) {
                   if (tiles[dy][dx] > 0) {
@@ -356,13 +367,18 @@ export class EditorScene extends Phaser.Scene {
                 }
               }
               emitEditorEvent("editor:block-pasted", { x: tileX, y: tileY, w: tiles[0].length, h: tiles.length });
-              return;
-            }
-            if (this.selectedTileGid > 0) {
-              this.tilemap!.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
-              emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
-            }
-          });
+            });
+            return;
+          }
+          if (this.selectedTileGid > 0) {
+            // Paint the starting tile immediately and enter drag-paint mode.
+            this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
+            emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
+            this.isDragPainting = true;
+            this.dragPaintMode = "paint";
+            this.dragPaintVisited.clear();
+            this.dragPaintVisited.add(`${tileX},${tileY}`);
+          }
           return;
         }
 
@@ -381,12 +397,15 @@ export class EditorScene extends Phaser.Scene {
           return;
         }
 
-        // Eraser tool: clear tile
+        // Eraser tool: clear starting tile immediately and enter drag-erase
+        // so the user can wipe a path by holding the mouse and dragging.
         if (this.currentTool === "eraser" && this.tilemap) {
-          deferToolClick(() => {
-            this.tilemap!.putTileAt(0, tileX, tileY, false, "Ground");
-            emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
-          });
+          this.tilemap.putTileAt(0, tileX, tileY, false, "Ground");
+          emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
+          this.isDragPainting = true;
+          this.dragPaintMode = "erase";
+          this.dragPaintVisited.clear();
+          this.dragPaintVisited.add(`${tileX},${tileY}`);
           return;
         }
 
@@ -472,6 +491,27 @@ export class EditorScene extends Phaser.Scene {
         this.blockSelectionGraphics.strokeRect(sx * TILE_SIZE, sy * TILE_SIZE, w * TILE_SIZE, h * TILE_SIZE);
         this.blockSelectionGraphics.fillStyle(0x4a9eed, 0.1);
         this.blockSelectionGraphics.fillRect(sx * TILE_SIZE, sy * TILE_SIZE, w * TILE_SIZE, h * TILE_SIZE);
+        return;
+      }
+
+      // Drag-paint (stamp single-GID or eraser): paint every new tile the
+      // pointer crosses, deduped via a visited set so we don't thrash the
+      // same tile. Runs before the pan-threshold check below so drag in
+      // these tools paints instead of panning.
+      if (this.isDragPainting && this.tilemap) {
+        const tx = Math.floor(pointer.worldX / TILE_SIZE);
+        const ty = Math.floor(pointer.worldY / TILE_SIZE);
+        const key = `${tx},${ty}`;
+        if (!this.dragPaintVisited.has(key)) {
+          this.dragPaintVisited.add(key);
+          if (this.dragPaintMode === "paint" && this.selectedTileGid > 0) {
+            this.tilemap.putTileAt(this.selectedTileGid, tx, ty, false, "Ground");
+            emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: this.selectedTileGid });
+          } else if (this.dragPaintMode === "erase") {
+            this.tilemap.putTileAt(0, tx, ty, false, "Ground");
+            emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: 0 });
+          }
+        }
         return;
       }
 
@@ -565,7 +605,14 @@ export class EditorScene extends Phaser.Scene {
         this.currentTool = "stamp";
         emitEditorEvent("editor:set-tool", { tool: "stamp" });
         emitEditorEvent("editor:block-copied", { width: w, height: h, tileCount: w * h });
+        this.emitBlockStatus();
         return;
+      }
+      // End drag-paint (stamp/eraser continuous drag)
+      if (this.isDragPainting) {
+        this.isDragPainting = false;
+        this.dragPaintMode = null;
+        this.dragPaintVisited.clear();
       }
     });
 
@@ -578,6 +625,10 @@ export class EditorScene extends Phaser.Scene {
       this.clearDragGhost();
       // Cancel any deferred click — leaving the canvas means user changed mind
       this.pendingClickAction = null;
+      // End drag-paint if active
+      this.isDragPainting = false;
+      this.dragPaintMode = null;
+      this.dragPaintVisited.clear();
     });
 
     // Pointer up
@@ -636,6 +687,67 @@ export class EditorScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-DOWN", () => {
       if (!this.selectedId) cam.scrollY += 32 / cam.zoom;
     });
+
+    // R rotates the copied stamp block 90° CW. F flips horizontally,
+    // Shift+F flips vertically. No-op when no block is selected, or when
+    // the user is typing in a text field (don't steal keystrokes).
+    const isTypingInField = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    };
+    this.input.keyboard?.on("keydown-R", () => {
+      if (!this.blockSelection || isTypingInField()) return;
+      this.blockSelection.tiles = EditorScene.rotateBlock90(this.blockSelection.tiles);
+      this.emitBlockStatus();
+    });
+    this.input.keyboard?.on("keydown-F", (event: KeyboardEvent) => {
+      if (!this.blockSelection || isTypingInField()) return;
+      if (event.shiftKey) {
+        this.blockSelection.tiles = EditorScene.flipBlockY(this.blockSelection.tiles);
+      } else {
+        this.blockSelection.tiles = EditorScene.flipBlockX(this.blockSelection.tiles);
+      }
+      this.emitBlockStatus();
+    });
+  }
+
+  /** Rotate a tile grid 90° clockwise. */
+  private static rotateBlock90(m: number[][]): number[][] {
+    const h = m.length;
+    const w = m[0]?.length ?? 0;
+    const out: number[][] = [];
+    for (let y = 0; y < w; y++) {
+      const row: number[] = new Array(h);
+      for (let x = 0; x < h; x++) row[x] = m[h - 1 - x][y];
+      out.push(row);
+    }
+    return out;
+  }
+
+  /** Mirror a tile grid along its vertical axis (left ↔ right). */
+  private static flipBlockX(m: number[][]): number[][] {
+    return m.map((row) => [...row].reverse());
+  }
+
+  /** Mirror a tile grid along its horizontal axis (top ↔ bottom). */
+  private static flipBlockY(m: number[][]): number[][] {
+    return [...m].reverse();
+  }
+
+  /**
+   * Notify the React side that the stamp block dimensions/orientation
+   * changed so the status HUD can refresh.
+   */
+  private emitBlockStatus(): void {
+    if (!this.blockSelection) {
+      emitEditorEvent("editor:block-status", null);
+      return;
+    }
+    const rows = this.blockSelection.tiles;
+    emitEditorEvent("editor:block-status", {
+      width: rows[0]?.length ?? 0,
+      height: rows.length,
+    });
   }
 
   private setupEventListeners(): void {
@@ -682,6 +794,15 @@ export class EditorScene extends Phaser.Scene {
       }),
       onEditorEvent("editor:refresh-tints", () => {
         this.refreshAllTints();
+      }),
+      // Esc clears the copied stamp block. Also clears the blue outline.
+      onEditorEvent("editor:clear-block-selection", () => {
+        this.blockSelection = null;
+        if (this.blockSelectionGraphics) {
+          this.blockSelectionGraphics.destroy();
+          this.blockSelectionGraphics = null;
+        }
+        this.emitBlockStatus();
       }),
       onEditorEvent("editor:select-tile-gid", (detail: { gid: number }) => {
         this.selectedTileGid = detail.gid;
