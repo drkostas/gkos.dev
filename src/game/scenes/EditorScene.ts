@@ -539,9 +539,12 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
-      // Double-click on a tile → open the tint popup for it.
+      // Double-click on a tile — acts as a plain "select this tile" so
+      // the right-sidebar tile inspector refreshes. Tint editing lives
+      // in the inspector now, not in a popup.
       if (isDouble && this.tilemap) {
-        this.openTintForTile(tileX, tileY, pointer.x, pointer.y);
+        this.lastClickedTile = { x: tileX, y: tileY };
+        emitEditorEvent("editor:tile-selected", { x: tileX, y: tileY });
         return;
       }
 
@@ -931,11 +934,22 @@ export class EditorScene extends Phaser.Scene {
       if (isTypingInField()) return;
       this.toggleCollisionAtLastTile();
     });
+    // Direct event — the React side can't reliably fire Phaser's
+    // keyboard listeners, so the sidebar's collision checkbox dispatches
+    // this instead. Accepts an explicit (x, y) or uses lastClickedTile.
+    this.unsubscribers.push(
+      onEditorEvent("editor:toggle-collision", (detail: { x?: number; y?: number } | null) => {
+        if (detail && typeof detail.x === "number" && typeof detail.y === "number") {
+          this.toggleCollisionAt(detail.x, detail.y);
+        } else {
+          this.toggleCollisionAtLastTile();
+        }
+      }),
+    );
   }
 
   /** Toggle collision at the most-recently-clicked tile (hover if none). */
   private toggleCollisionAtLastTile(): void {
-    if (!this.tilemap) return;
     const pointer = this.input.activePointer;
     let x: number, y: number;
     if (this.lastClickedTile) {
@@ -944,13 +958,17 @@ export class EditorScene extends Phaser.Scene {
       x = Math.floor(pointer.worldX / TILE_SIZE);
       y = Math.floor(pointer.worldY / TILE_SIZE);
     } else return;
+    this.toggleCollisionAt(x, y);
+  }
+
+  /** Toggle collision at an explicit (x, y). */
+  private toggleCollisionAt(x: number, y: number): void {
+    if (!this.tilemap) return;
     if (x < 0 || x >= this.tilemap.width || y < 0 || y >= this.tilemap.height) return;
     const idx = y * this.tilemap.width + x;
     if (idx < 0 || idx >= this.collisionLayerData.length) return;
     const wasBlocked = this.collisionLayerData[idx] > 0;
     this.collisionLayerData[idx] = wasBlocked ? 0 : 1;
-    // Only write back to the Collision tilemap layer if one actually
-    // exists (interior maps don't always have one).
     if (this.tilemap.getLayer("Collision")) {
       this.tilemap.putTileAt(wasBlocked ? 0 : 1, x, y, false, "Collision");
     }
@@ -1492,6 +1510,29 @@ export class EditorScene extends Phaser.Scene {
       }),
       // Esc clears the copied stamp block. Also clears the blue outline
       // and the cursor-follow ghost.
+      onEditorEvent("editor:copy-single-tile", (detail: { x: number; y: number }) => {
+        if (!this.tilemap || !detail) return;
+        const t = this.tilemap.getTileAt(detail.x, detail.y, false, "Ground");
+        const gid = t?.index ?? 0;
+        const decorSprite = this.topSprites.find((s) => {
+          const sx = Math.floor((s.x as number) / TILE_SIZE);
+          const sy = Math.floor((s.y as number) / TILE_SIZE);
+          return sx === detail.x && sy === detail.y;
+        });
+        const decor: BlockDecor | null = decorSprite ? {
+          textureKey: decorSprite.texture.key,
+          frameKey: String(decorSprite.frame.name),
+          depth: decorSprite.depth as number,
+        } : null;
+        this.blockSelection = {
+          startX: detail.x, startY: detail.y,
+          endX: detail.x, endY: detail.y,
+          tiles: [[gid]],
+          decor: [[decor]],
+        };
+        emitEditorEvent("editor:block-copied", { width: 1, height: 1, tileCount: 1 });
+        this.emitBlockStatus();
+      }),
       onEditorEvent("editor:clear-block-selection", () => {
         this.blockSelection = null;
         if (this.blockSelectionGraphics) {

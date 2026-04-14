@@ -1813,36 +1813,13 @@ function KostasDialogEditor() {
  */
 function TileInspector() {
   const state = useEditorState();
-  const [tile, setTile] = useState<{ x: number; y: number } | null>(null);
+  const dispatch = useEditorDispatch();
+  const [tile, setTile] = useState<{ x: number; y: number; layer: "ground" | "top" } | null>(null);
   const [gid, setGid] = useState<number>(0);
   const [blocked, setBlocked] = useState<boolean>(false);
   const [hasTopSprite, setHasTopSprite] = useState<boolean>(false);
 
-  // Listen for the scene's tile-selected event (fired on plain click).
-  useEffect(() => {
-    const onTile = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { x: number; y: number } | null;
-      if (!detail) return;
-      setTile({ x: detail.x, y: detail.y });
-      refresh(detail.x, detail.y);
-    };
-    window.addEventListener("editor:tile-selected", onTile);
-    // Also re-read after collision-toggle events so the checkbox stays in sync
-    const onCol = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { x: number; y: number; blocked: boolean };
-      setTile((prev) => {
-        if (prev && prev.x === detail.x && prev.y === detail.y) setBlocked(detail.blocked);
-        return prev;
-      });
-    };
-    window.addEventListener("editor:collision-toggle", onCol);
-    return () => {
-      window.removeEventListener("editor:tile-selected", onTile);
-      window.removeEventListener("editor:collision-toggle", onCol);
-    };
-  }, []);
-
-  const refresh = (x: number, y: number) => {
+  const refresh = (x: number, y: number, layer?: "ground" | "top") => {
     const g = (window as any).__EDITOR_GAME__;
     const s = g?.scene?.getScene("EditorScene");
     if (!s || !s.tilemap) return;
@@ -1850,29 +1827,85 @@ function TileInspector() {
     setGid(t?.index ?? 0);
     const idx = y * s.tilemap.width + x;
     setBlocked((s.collisionLayerData?.[idx] ?? 0) > 0);
-    setHasTopSprite(
-      (s.topSprites ?? []).some((sp: any) =>
-        Math.floor(sp.x / 16) === x && Math.floor(sp.y / 16) === y,
-      ),
+    const hts = (s.topSprites ?? []).some((sp: any) =>
+      Math.floor(sp.x / 16) === x && Math.floor(sp.y / 16) === y,
     );
+    setHasTopSprite(hts);
+    setTile({ x, y, layer: layer ?? (hts ? "top" : "ground") });
   };
+
+  useEffect(() => {
+    const onTile = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { x: number; y: number } | null;
+      if (!detail) return;
+      refresh(detail.x, detail.y);
+    };
+    const onCol = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { x: number; y: number; blocked: boolean };
+      setTile((prev) => {
+        if (prev && prev.x === detail.x && prev.y === detail.y) setBlocked(detail.blocked);
+        return prev;
+      });
+    };
+    window.addEventListener("editor:tile-selected", onTile);
+    window.addEventListener("editor:collision-toggle", onCol);
+    return () => {
+      window.removeEventListener("editor:tile-selected", onTile);
+      window.removeEventListener("editor:collision-toggle", onCol);
+    };
+  }, []);
 
   const toggleCollision = () => {
     if (!tile) return;
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
-    // Re-read after a frame so the checkbox reflects the new state
-    setTimeout(() => refresh(tile.x, tile.y), 30);
+    // Direct scene event — dispatching a fake KeyboardEvent to window
+    // doesn't reliably reach Phaser's keyboard plugin, which is why the
+    // old checkbox only worked the first time.
+    emitEditorEvent("editor:toggle-collision", { x: tile.x, y: tile.y });
   };
 
-  const tintCount = Object.keys(state.tileTints).filter((k) => {
-    if (!tile) return false;
-    return k.endsWith(`:${tile.x},${tile.y}`);
-  }).length;
+  // Tint lookup key format matches editorReducer: "{map}:{layer}:{x},{y}"
+  const mapId = typeof localStorage !== "undefined" ? (localStorage.getItem("editor_current_map") || "mauville") : "mauville";
+  const storageMapId = mapId === "mauville" ? "overworld" : mapId;
+  const tintKey = tile ? `${storageMapId}:${tile.layer}:${tile.x},${tile.y}` : "";
+  const tintEntry = tile ? state.tileTints[tintKey] : null;
+
+  // Resolve HSL adjustment for slider bindings
+  const adj = (() => {
+    if (!tintEntry) return { h: 0, s: 0, l: 0, a: 1, rot: 0, flipX: false, flipY: false };
+    if (tintEntry.presetId) {
+      const preset = state.catalog?.tintPresets?.find((p) => p.id === tintEntry.presetId);
+      const base = preset?.adjust ?? { h: 0, s: 0, l: 0, a: 1 };
+      return { h: base.h, s: base.s, l: base.l, a: base.a, rot: tintEntry.rot ?? 0, flipX: !!tintEntry.flipX, flipY: !!tintEntry.flipY };
+    }
+    return {
+      h: tintEntry.h ?? 0, s: tintEntry.s ?? 0, l: tintEntry.l ?? 0, a: tintEntry.a ?? 1,
+      rot: tintEntry.rot ?? 0, flipX: !!tintEntry.flipX, flipY: !!tintEntry.flipY,
+    };
+  })();
+
+  const applyAdj = (next: { h: number; s: number; l: number; a: number; rot?: number; flipX?: boolean; flipY?: boolean }) => {
+    if (!tile) return;
+    const isDefault = next.h === 0 && next.s === 0 && next.l === 0 && next.a === 1 && (next.rot ?? 0) === 0 && !next.flipX && !next.flipY;
+    if (isDefault) {
+      dispatch({ type: "SET_TILE_TINT", key: tintKey, entry: null });
+    } else {
+      const entry: any = { h: next.h, s: next.s, l: next.l, a: next.a };
+      if (next.rot) entry.rot = next.rot;
+      if (next.flipX) entry.flipX = true;
+      if (next.flipY) entry.flipY = true;
+      dispatch({ type: "SET_TILE_TINT", key: tintKey, entry });
+    }
+  };
+
+  const copyTileAsBlock = () => {
+    if (!tile) return;
+    emitEditorEvent("editor:copy-single-tile", { x: tile.x, y: tile.y });
+  };
 
   if (!tile) {
     return (
       <div style={{ width: "100%", height: "100%", background: "#1e1e30", padding: 12, color: "#555", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-        Click an entity to inspect it, or click a tile to edit collision / view GID.
+        Click an entity to inspect it, or click a tile to edit collision / tint / GID.
       </div>
     );
   }
@@ -1886,6 +1919,10 @@ function TileInspector() {
         <span style={{ fontSize: 11, fontWeight: 700, flex: 1, fontFamily: "monospace" }}>
           ({tile.x}, {tile.y})
         </span>
+        <button onClick={copyTileAsBlock}
+          style={{ fontSize: 9, background: "#1e3a5f", color: "#4a9eed", border: "1px solid #4a4a6a", borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontFamily: "monospace" }}>
+          Copy tile
+        </button>
       </div>
 
       <PropSection title="TILE DATA" color="#4a9eed">
@@ -1898,8 +1935,13 @@ function TileInspector() {
           <span style={{ color: hasTopSprite ? "#22c55e" : "#666" }}>{hasTopSprite ? "yes" : "no"}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, fontSize: 10 }}>
-          <span style={{ color: "#888", width: 70, textAlign: "right" }}>Tint entries</span>
-          <span style={{ color: tintCount > 0 ? "#a855f7" : "#666" }}>{tintCount}</span>
+          <span style={{ color: "#888", width: 70, textAlign: "right" }}>Layer</span>
+          <select value={tile.layer}
+            onChange={(e) => setTile({ x: tile.x, y: tile.y, layer: e.target.value as "ground" | "top" })}
+            style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px" }}>
+            <option value="ground">ground</option>
+            <option value="top" disabled={!hasTopSprite}>top {hasTopSprite ? "" : "(none)"}</option>
+          </select>
         </div>
       </PropSection>
 
@@ -1916,9 +1958,69 @@ function TileInspector() {
           </span>
         </label>
         <div style={{ fontSize: 9, color: "#666", marginTop: 4 }}>
-          Keyboard shortcut: <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 2, padding: "0 4px", fontFamily: "monospace" }}>C</kbd>
+          Shortcut: <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 2, padding: "0 4px", fontFamily: "monospace" }}>C</kbd>
         </div>
       </PropSection>
+
+      <PropSection title="TINT (HSL)" color="#a855f7">
+        {[
+          { label: "Hue", val: adj.h, min: -180, max: 180, step: 1, after: "°", key: "h" as const, def: 0 },
+          { label: "Sat", val: adj.s, min: -1, max: 1, step: 0.05, after: "", key: "s" as const, def: 0 },
+          { label: "Light", val: adj.l, min: -1, max: 1, step: 0.05, after: "", key: "l" as const, def: 0 },
+          { label: "Alpha", val: adj.a, min: 0, max: 1, step: 0.05, after: "", key: "a" as const, def: 1 },
+        ].map((row) => (
+          <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 45 }}>{row.label}</span>
+            <input type="range" min={row.min} max={row.max} step={row.step} value={row.val}
+              onChange={(e) => applyAdj({ ...adj, [row.key]: Number(e.target.value) })}
+              onDoubleClick={() => applyAdj({ ...adj, [row.key]: row.def })}
+              style={{ flex: 1, accentColor: "#a855f7" }} />
+            <span style={{ fontSize: 9, color: "#666", width: 40, textAlign: "right", fontFamily: "monospace" }}>
+              {row.val.toFixed(2)}{row.after}
+            </span>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+          <button onClick={() => applyAdj({ h: 0, s: 0, l: 0, a: 1 })}
+            style={{ fontSize: 9, background: "#2a2a40", color: "#aaa", border: "1px solid #3a3a50", borderRadius: 3, padding: "2px 8px", cursor: "pointer" }}>
+            Clear tint
+          </button>
+          {(state.catalog?.tintPresets ?? []).map((p) => (
+            <button key={p.id} onClick={() => applyAdj({ h: p.adjust.h, s: p.adjust.s, l: p.adjust.l, a: p.adjust.a })}
+              title={p.label}
+              style={{ fontSize: 9, background: "#1e1a30", color: "#a855f7", border: "1px solid #3a2a4a", borderRadius: 3, padding: "2px 8px", cursor: "pointer" }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </PropSection>
+
+      {hasTopSprite && (
+        <PropSection title="ROTATE / FLIP (top sprite only)" color="#f59e0b">
+          <div style={{ display: "flex", gap: 3, marginBottom: 4 }}>
+            {[0, 90, 180, 270].map((r) => (
+              <button key={r} onClick={() => applyAdj({ ...adj, rot: r })}
+                style={{
+                  flex: 1, fontSize: 9,
+                  background: adj.rot === r ? "#1e3a5f" : "#0d0d1a",
+                  color: adj.rot === r ? "#fff" : "#aaa",
+                  border: "1px solid " + (adj.rot === r ? "#4a9eed" : "#2a2a40"),
+                  borderRadius: 3, padding: "3px 0", cursor: "pointer",
+                }}>{r}°</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 3 }}>
+            <button onClick={() => applyAdj({ ...adj, flipX: !adj.flipX })}
+              style={{ flex: 1, fontSize: 9, background: adj.flipX ? "#1e3a5f" : "#0d0d1a", color: adj.flipX ? "#fff" : "#aaa", border: "1px solid #2a2a40", borderRadius: 3, padding: "3px 0", cursor: "pointer" }}>
+              Flip X
+            </button>
+            <button onClick={() => applyAdj({ ...adj, flipY: !adj.flipY })}
+              style={{ flex: 1, fontSize: 9, background: adj.flipY ? "#1e3a5f" : "#0d0d1a", color: adj.flipY ? "#fff" : "#aaa", border: "1px solid #2a2a40", borderRadius: 3, padding: "3px 0", cursor: "pointer" }}>
+              Flip Y
+            </button>
+          </div>
+        </PropSection>
+      )}
     </div>
   );
 }
@@ -3515,22 +3617,27 @@ function EditorInner() {
       .catch(() => {});
   }, []);
 
-  // Listen for tint-click events from EditorScene
+  // Listen for tint-click events from EditorScene. With the inline tint
+  // inspector in the right sidebar, the FIRST click in a tint multi-
+  // select just refreshes the inspector; only subsequent append clicks
+  // (shift+click / magic wand) keep the floating popup open for batch
+  // operations across several tiles at once.
   useEffect(() => {
     const onTintClick = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       const mapId = localStorage.getItem("editor_current_map") || "mauville";
       const storageMapId = mapId === "mauville" ? "overworld" : mapId;
       const tile = { x: detail.x, y: detail.y, layer: detail.layer, mapId: storageMapId };
+      // Every tint click also refreshes the inline inspector
+      emitEditorEvent("editor:tile-selected", { x: tile.x, y: tile.y });
+      if (!detail.append) return; // single-tile tint stays in the inspector
       setTintPopup((prev) => {
-        if (detail.append && prev) {
-          // Append to selection (dedupe by key)
+        if (prev) {
           const k = `${tile.mapId}:${tile.layer}:${tile.x},${tile.y}`;
           const existingKeys = new Set(prev.selected.map((t) => `${t.mapId}:${t.layer}:${t.x},${t.y}`));
           const selected = existingKeys.has(k) ? prev.selected : [...prev.selected, tile];
           return { ...prev, ...tile, screenX: detail.screenX, screenY: detail.screenY, selected };
         }
-        // Replace selection with just this tile
         return {
           ...tile,
           screenX: detail.screenX, screenY: detail.screenY,
