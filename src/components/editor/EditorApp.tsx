@@ -628,7 +628,7 @@ function LeftPanel() {
 }
 
 /** Data Manager sub-tabs */
-type DataSubTab = "items" | "tms" | "pokedex" | "party" | "badges" | "log" | "moves";
+type DataSubTab = "items" | "tms" | "pokedex" | "party" | "badges" | "log" | "moves" | "movement";
 const DATA_SUB_TABS: { id: DataSubTab; label: string }[] = [
   { id: "items", label: "Items" },
   { id: "tms", label: "TMs" },
@@ -637,6 +637,7 @@ const DATA_SUB_TABS: { id: DataSubTab; label: string }[] = [
   { id: "badges", label: "Badges" },
   { id: "log", label: "Log" },
   { id: "moves", label: "Moves" },
+  { id: "movement", label: "Movement" },
 ];
 
 const POCKET_COLORS: Record<string, string> = {
@@ -677,7 +678,7 @@ function DataManagerPanel() {
       {/* Sub-tab bar */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 1, padding: "4px 4px 2px", flexShrink: 0 }}>
         {DATA_SUB_TABS.map((t) => {
-          const count = catalog[t.id === "tms" ? "stepMilestones" : t.id === "log" ? "researchLog" : t.id === "moves" ? "fieldMoveAwards" : t.id === "items" ? "itemDefinitions" : t.id]?.length || 0;
+          const count = catalog[t.id === "tms" ? "stepMilestones" : t.id === "log" ? "researchLog" : t.id === "moves" ? "fieldMoveAwards" : t.id === "items" ? "itemDefinitions" : t.id === "movement" ? "movementPatterns" : t.id]?.length || 0;
           return (
             <span key={t.id} onClick={() => { setSubTab(t.id); setSearch(""); setExpandedIdx(null); }}
               style={{
@@ -921,6 +922,142 @@ function DataManagerPanel() {
               )}
             </div>
           ))}
+
+        {/* ── MOVEMENT PATTERNS ── */}
+        {subTab === "movement" && catalog.movementPatterns
+          .map((mp, idx) => ({ mp, idx }))
+          .filter(({ mp }) => !search || mp.label.toLowerCase().includes(search.toLowerCase()) || mp.id.toLowerCase().includes(search.toLowerCase()))
+          .map(({ mp, idx }) => (
+            <div key={mp.id} style={{ marginBottom: 2 }}>
+              <div onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 4px", cursor: "pointer", background: expandedIdx === idx ? "#1e2a3f" : "transparent", borderRadius: 3 }}>
+                <span style={{ fontSize: 7, padding: "0 3px", borderRadius: 3, background: mp.paceMode ? "#f59e0b" : "#3b82f6", color: "#fff", fontWeight: 700 }}>
+                  {mp.walkEnabled && mp.lookEnabled ? "W+L" : mp.walkEnabled ? "WALK" : mp.lookEnabled ? "LOOK" : "STILL"}
+                </span>
+                <span style={{ fontSize: 9, color: "#ccc", flex: 1 }}>{mp.label}</span>
+                <span style={{ fontSize: 7, color: "#555" }}>{mp.id}</span>
+              </div>
+              {expandedIdx === idx && (
+                <div style={{ padding: "4px 8px", background: "#0d0d1a", borderRadius: 3, margin: "2px 0" }}>
+                  {renderField("ID", mp.id, () => {}, { disabled: true })}
+                  {renderField("Label", mp.label, (v) => updateCatalog("movementPatterns", idx, "label", v))}
+
+                  {/* Look section */}
+                  <div style={{ borderTop: "1px solid #1a1a30", marginTop: 4, paddingTop: 4 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "#888", marginBottom: 3, cursor: "pointer" }}>
+                      <input type="checkbox" checked={mp.lookEnabled} onChange={(e) => updateCatalog("movementPatterns", idx, "lookEnabled", e.target.checked)} />
+                      <span style={{ color: "#4a9eed", fontWeight: 700 }}>Look Around</span>
+                    </label>
+                    {mp.lookEnabled && (
+                      <>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 2, marginLeft: 16 }}>
+                          <span style={{ fontSize: 8, color: "#888", width: 50, flexShrink: 0 }}>Dirs</span>
+                          {(["up", "down", "left", "right"] as const).map((d) => (
+                            <div key={d} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                              <span style={{ fontSize: 7, color: "#666" }}>{d[0].toUpperCase()}</span>
+                              <input type="number" min="0" step="0.5" value={mp.lookDirections[d]} onChange={(e) => {
+                                const newDirs = { ...mp.lookDirections, [d]: Number(e.target.value) };
+                                updateCatalog("movementPatterns", idx, "lookDirections", newDirs);
+                              }} style={{ width: 30, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 2, marginLeft: 16 }}>
+                          <span style={{ fontSize: 8, color: "#888", width: 50, flexShrink: 0 }}>Freq (ms)</span>
+                          <input type="number" value={mp.lookFrequencyMs[0]} onChange={(e) => updateCatalog("movementPatterns", idx, "lookFrequencyMs", [Number(e.target.value), mp.lookFrequencyMs[1]])}
+                            style={{ width: 50, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                          <span style={{ fontSize: 8, color: "#666" }}>→</span>
+                          <input type="number" value={mp.lookFrequencyMs[1]} onChange={(e) => updateCatalog("movementPatterns", idx, "lookFrequencyMs", [mp.lookFrequencyMs[0], Number(e.target.value)])}
+                            style={{ width: 50, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Walk section */}
+                  <div style={{ borderTop: "1px solid #1a1a30", marginTop: 4, paddingTop: 4 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "#888", marginBottom: 3, cursor: "pointer" }}>
+                      <input type="checkbox" checked={mp.walkEnabled} onChange={(e) => updateCatalog("movementPatterns", idx, "walkEnabled", e.target.checked)} />
+                      <span style={{ color: "#22c55e", fontWeight: 700 }}>Walk</span>
+                    </label>
+                    {mp.walkEnabled && (
+                      <>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 2, marginLeft: 16 }}>
+                          <span style={{ fontSize: 8, color: "#888", width: 50, flexShrink: 0 }}>Dirs</span>
+                          {(["up", "down", "left", "right"] as const).map((d) => (
+                            <div key={d} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                              <span style={{ fontSize: 7, color: "#666" }}>{d[0].toUpperCase()}</span>
+                              <input type="number" min="0" step="0.5" value={mp.walkDirections[d]} onChange={(e) => {
+                                const newDirs = { ...mp.walkDirections, [d]: Number(e.target.value) };
+                                updateCatalog("movementPatterns", idx, "walkDirections", newDirs);
+                              }} style={{ width: 30, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 2, marginLeft: 16 }}>
+                          <span style={{ fontSize: 8, color: "#888", width: 50, flexShrink: 0 }}>Steps</span>
+                          <input type="number" min="1" value={mp.walkStepsPerMove[0]} onChange={(e) => updateCatalog("movementPatterns", idx, "walkStepsPerMove", [Number(e.target.value), mp.walkStepsPerMove[1]])}
+                            style={{ width: 50, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                          <span style={{ fontSize: 8, color: "#666" }}>→</span>
+                          <input type="number" min="1" value={mp.walkStepsPerMove[1]} onChange={(e) => updateCatalog("movementPatterns", idx, "walkStepsPerMove", [mp.walkStepsPerMove[0], Number(e.target.value)])}
+                            style={{ width: 50, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                        </div>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 2, marginLeft: 16 }}>
+                          <span style={{ fontSize: 8, color: "#888", width: 50, flexShrink: 0 }}>Freq (ms)</span>
+                          <input type="number" value={mp.walkFrequencyMs[0]} onChange={(e) => updateCatalog("movementPatterns", idx, "walkFrequencyMs", [Number(e.target.value), mp.walkFrequencyMs[1]])}
+                            style={{ width: 50, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                          <span style={{ fontSize: 8, color: "#666" }}>→</span>
+                          <input type="number" value={mp.walkFrequencyMs[1]} onChange={(e) => updateCatalog("movementPatterns", idx, "walkFrequencyMs", [mp.walkFrequencyMs[0], Number(e.target.value)])}
+                            style={{ width: 50, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                        </div>
+                        {renderField("Speed", mp.walkSpeed, (v) => updateCatalog("movementPatterns", idx, "walkSpeed", Number(v)), { type: "number" })}
+                        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "#888", marginLeft: 16, cursor: "pointer" }}>
+                          <input type="checkbox" checked={mp.paceMode} onChange={(e) => updateCatalog("movementPatterns", idx, "paceMode", e.target.checked)} />
+                          <span>Pace Mode (bounce at boundary)</span>
+                        </label>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Range */}
+                  <div style={{ borderTop: "1px solid #1a1a30", marginTop: 4, paddingTop: 4 }}>
+                    <div style={{ fontSize: 9, color: "#f59e0b", fontWeight: 700, marginBottom: 3 }}>Range from Home</div>
+                    {renderField("Max X", mp.maxRangeX, (v) => updateCatalog("movementPatterns", idx, "maxRangeX", Number(v)), { type: "number" })}
+                    {renderField("Max Y", mp.maxRangeY, (v) => updateCatalog("movementPatterns", idx, "maxRangeY", Number(v)), { type: "number" })}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, paddingTop: 4, borderTop: "1px solid #1a1a30" }}>
+                    <span onClick={() => dispatch({ type: "DELETE_CATALOG_ENTRY", dataType: "movementPatterns", index: idx })}
+                      style={{ fontSize: 8, color: "#ef4444", cursor: "pointer" }}>Delete</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        {subTab === "movement" && (
+          <div onClick={() => {
+            const newId = `custom_${Date.now()}`;
+            dispatch({
+              type: "ADD_CATALOG_ENTRY",
+              dataType: "movementPatterns",
+              entry: {
+                id: newId,
+                label: "New Pattern",
+                lookEnabled: false,
+                lookDirections: { up: 0, down: 0, left: 0, right: 0 },
+                lookFrequencyMs: [2000, 4000],
+                walkEnabled: false,
+                walkDirections: { up: 0, down: 0, left: 0, right: 0 },
+                walkStepsPerMove: [1, 1],
+                walkFrequencyMs: [2000, 4000],
+                walkSpeed: 2,
+                maxRangeX: 0,
+                maxRangeY: 0,
+                paceMode: false,
+              },
+            });
+          }} style={{ fontSize: 10, color: "#4a9eed", cursor: "pointer", padding: "6px 8px", textAlign: "center" }}>+ Add Movement Pattern</div>
+        )}
       </div>
     </div>
   );
@@ -1448,17 +1585,19 @@ function RightPanel() {
           options={["up", "down", "left", "right"]}
           onChange={(v) => updateField("facingDirection", v, selected.facingDirection)} />
         {selected.movementBehavior !== undefined && (
-          <PropField label="Movement" value={selected.movementBehavior} type="select"
-            options={["stationary", "look_around", "wander_left_right", "wander_up_down", "wander_area", "pace_horizontal", "pace_vertical", "run_horizontal", "run_vertical"]}
-            onChange={(v) => updateField("movementBehavior", v, selected.movementBehavior)} />
-        )}
-        {selected.movementRangeX !== undefined && (
-          <PropField label="Range X" value={selected.movementRangeX} type="number"
-            onChange={(v) => updateField("movementRangeX", Number(v), selected.movementRangeX)} />
-        )}
-        {selected.movementRangeY !== undefined && (
-          <PropField label="Range Y" value={selected.movementRangeY} type="number"
-            onChange={(v) => updateField("movementRangeY", Number(v), selected.movementRangeY)} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>Movement</span>
+            <select value={selected.movementBehavior} onChange={(e) => updateField("movementBehavior", e.target.value, selected.movementBehavior)}
+              style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 4px" }}>
+              {(state.catalog?.movementPatterns || []).map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+              {/* Fallback: show current value if it's not in the catalog (legacy) */}
+              {selected.movementBehavior && !state.catalog?.movementPatterns?.some((p) => p.id === selected.movementBehavior) && (
+                <option value={selected.movementBehavior}>{selected.movementBehavior} (legacy)</option>
+              )}
+            </select>
+          </div>
         )}
         {selected.spriteKey !== undefined && (
           <div style={{ marginBottom: 3 }}>
@@ -1587,32 +1726,83 @@ function RightPanel() {
               ))}
             </select>
           </div>
-          {selected.autoGive.asideX != null && (
-            <>
+          {/* Aside movement chain — relative steps from home. Overrides asideX/Y when set. */}
+          <div style={{ marginTop: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+              <span style={{ fontSize: 9, color: "#888" }}>Aside Steps (after giving item, relative to home)</span>
+            </div>
+            {(selected.autoGive.asideSteps || []).map((step, i: number) => (
+              <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
+                <select value={step.dir} onChange={(e) => {
+                  const steps = [...(selected.autoGive!.asideSteps || [])];
+                  steps[i] = { ...steps[i], dir: e.target.value as any };
+                  updateField("autoGive", { ...selected.autoGive!, asideSteps: steps }, selected.autoGive);
+                }} style={{ background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }}>
+                  <option value="up">Up</option>
+                  <option value="down">Down</option>
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </select>
+                <input type="number" min="1" value={step.steps} onChange={(e) => {
+                  const steps = [...(selected.autoGive!.asideSteps || [])];
+                  steps[i] = { ...steps[i], steps: Number(e.target.value) };
+                  updateField("autoGive", { ...selected.autoGive!, asideSteps: steps }, selected.autoGive);
+                }} style={{ width: 50, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "1px 3px" }} />
+                <span style={{ fontSize: 8, color: "#666" }}>tiles</span>
+                <span onClick={() => {
+                  if (i > 0) {
+                    const steps = [...(selected.autoGive!.asideSteps || [])];
+                    [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]];
+                    updateField("autoGive", { ...selected.autoGive!, asideSteps: steps }, selected.autoGive);
+                  }
+                }} style={{ cursor: i > 0 ? "pointer" : "default", color: i > 0 ? "#4a9eed" : "#333", fontSize: 10 }} title="Move up">↑</span>
+                <span onClick={() => {
+                  const steps = selected.autoGive!.asideSteps || [];
+                  if (i < steps.length - 1) {
+                    const newSteps = [...steps];
+                    [newSteps[i], newSteps[i + 1]] = [newSteps[i + 1], newSteps[i]];
+                    updateField("autoGive", { ...selected.autoGive!, asideSteps: newSteps }, selected.autoGive);
+                  }
+                }} style={{ cursor: i < (selected.autoGive!.asideSteps!.length - 1) ? "pointer" : "default", color: i < (selected.autoGive!.asideSteps!.length - 1) ? "#4a9eed" : "#333", fontSize: 10 }} title="Move down">↓</span>
+                <span onClick={() => {
+                  const steps = (selected.autoGive!.asideSteps || []).filter((_, j) => j !== i);
+                  updateField("autoGive", { ...selected.autoGive!, asideSteps: steps }, selected.autoGive);
+                }} style={{ color: "#ef4444", cursor: "pointer", fontSize: 11, marginLeft: 4 }}>×</span>
+              </div>
+            ))}
+            <span onClick={() => {
+              const steps = [...(selected.autoGive!.asideSteps || []), { dir: "up" as const, steps: 1 }];
+              updateField("autoGive", { ...selected.autoGive!, asideSteps: steps }, selected.autoGive);
+            }} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>+ Add step</span>
+          </div>
+          {/* Fallback absolute position (visible if no asideSteps set) */}
+          {(!selected.autoGive.asideSteps || selected.autoGive.asideSteps.length === 0) && selected.autoGive.asideX != null && (
+            <div style={{ marginTop: 4, opacity: 0.7 }}>
+              <div style={{ fontSize: 8, color: "#666", marginBottom: 2 }}>(Absolute fallback — used only if no steps defined)</div>
               <PropField label="Aside X" value={selected.autoGive.asideX} type="number"
-                onChange={(v) => updateField("autoGive", { ...selected.autoGive, asideX: Number(v) }, selected.autoGive)} />
+                onChange={(v) => updateField("autoGive", { ...selected.autoGive!, asideX: Number(v) }, selected.autoGive)} />
               <PropField label="Aside Y" value={selected.autoGive.asideY} type="number"
-                onChange={(v) => updateField("autoGive", { ...selected.autoGive, asideY: Number(v) }, selected.autoGive)} />
-            </>
+                onChange={(v) => updateField("autoGive", { ...selected.autoGive!, asideY: Number(v) }, selected.autoGive)} />
+            </div>
           )}
           <div style={{ marginTop: 6 }}>
             <div style={{ fontSize: 9, color: "#888", marginBottom: 3 }}>Cleared Dialog (after giving item)</div>
             {(selected.autoGive.clearedDialog || []).map((line: string, i: number) => (
               <div key={i} style={{ display: "flex", gap: 4, marginBottom: 3 }}>
                 <textarea value={line} onChange={(e) => {
-                  const d = [...(selected.autoGive.clearedDialog || [])];
+                  const d = [...(selected.autoGive!.clearedDialog || [])];
                   d[i] = e.target.value;
-                  updateField("autoGive", { ...selected.autoGive, clearedDialog: d }, selected.autoGive);
+                  updateField("autoGive", { ...selected.autoGive!, clearedDialog: d }, selected.autoGive);
                 }} style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "4px 6px", resize: "vertical", minHeight: 24, fontFamily: "monospace" }} />
                 <span onClick={() => {
-                  const d = (selected.autoGive.clearedDialog || []).filter((_: any, j: number) => j !== i);
-                  updateField("autoGive", { ...selected.autoGive, clearedDialog: d }, selected.autoGive);
+                  const d = (selected.autoGive!.clearedDialog || []).filter((_: any, j: number) => j !== i);
+                  updateField("autoGive", { ...selected.autoGive!, clearedDialog: d }, selected.autoGive);
                 }} style={{ color: "#ef4444", cursor: "pointer", fontSize: 11, flexShrink: 0 }}>×</span>
               </div>
             ))}
             <span onClick={() => {
-              const d = [...(selected.autoGive.clearedDialog || []), ""];
-              updateField("autoGive", { ...selected.autoGive, clearedDialog: d }, selected.autoGive);
+              const d = [...(selected.autoGive!.clearedDialog || []), ""];
+              updateField("autoGive", { ...selected.autoGive!, clearedDialog: d }, selected.autoGive);
             }} style={{ fontSize: 9, color: "#4a9eed", cursor: "pointer" }}>+ Add line</span>
           </div>
         </PropSection>

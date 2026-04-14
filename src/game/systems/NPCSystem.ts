@@ -7,6 +7,12 @@ import {
   type EphemeralVisibleBehavior,
   type NPCDefinition,
 } from "@/game/types/npc";
+import {
+  getMovementPattern,
+  weightedRandomDirection,
+  randomIntInRange,
+  type MovementPattern,
+} from "@/game/data/movementPatterns";
 import { DialogSystem, wordWrap } from "@/game/systems/DialogSystem";
 import { isPickedUp, recordPickup } from "@/game/systems/PickupStore";
 import { sfx } from "@/game/systems/SoundManager";
@@ -43,12 +49,23 @@ function isRunBehavior(b: MovementBehavior): boolean {
 /** Resolve the effective speed for an NPC, honoring explicit overrides. */
 function resolveSpeed(npc: NPCDefinition): number {
   if (npc.speed != null) return npc.speed;
+  // Pattern-based speed
+  const pattern = getMovementPattern(npc.movementBehavior);
+  if (pattern && pattern.walkEnabled && pattern.walkSpeed > 0) return pattern.walkSpeed;
+  // Legacy fallback
   return isRunBehavior(npc.movementBehavior) ? RUN_SPEED : WALK_SPEED;
 }
 
 /** Resolve the effective tick interval for an NPC. */
 function resolveInterval(npc: NPCDefinition): { min: number; max: number } {
   if (npc.behaviorIntervalMs) return npc.behaviorIntervalMs;
+  // Pattern-based interval — prefer walk freq if walking, else look freq
+  const pattern = getMovementPattern(npc.movementBehavior);
+  if (pattern) {
+    const [min, max] = pattern.walkEnabled ? pattern.walkFrequencyMs : pattern.lookFrequencyMs;
+    if (min > 0) return { min, max };
+  }
+  // Legacy fallback
   if (isRunBehavior(npc.movementBehavior)) {
     return { min: RUN_BEHAVIOR_MIN_MS, max: RUN_BEHAVIOR_MAX_MS };
   }
@@ -922,11 +939,18 @@ export class NPCSystem {
   // ── End ephemeral lifecycle ──────────────────────────────────
 
   private startBehavior(npc: NPCDefinition): void {
-    if (
-      npc.movementBehavior === MovementBehavior.STATIONARY ||
-      !npc.animated
-    ) {
+    if (!npc.animated) {
       return; // No autonomous movement needed
+    }
+
+    // Pattern-based check: skip if neither look nor walk is enabled
+    const pattern = getMovementPattern(npc.movementBehavior);
+    if (pattern && !pattern.lookEnabled && !pattern.walkEnabled) {
+      return;
+    }
+    // Legacy stationary check
+    if (!pattern && npc.movementBehavior === MovementBehavior.STATIONARY) {
+      return;
     }
 
     const timer = this.scene.time.addEvent({
@@ -959,6 +983,14 @@ export class NPCSystem {
     // Don't move if the NPC is already moving
     if (this.gridEngine.isMoving(npc.id)) return;
 
+    // Pattern-based execution
+    const pattern = getMovementPattern(npc.movementBehavior);
+    if (pattern) {
+      this.executePattern(npc, pattern);
+      return;
+    }
+
+    // Legacy fallback (for any NPC whose movementBehavior isn't in the pattern registry)
     switch (npc.movementBehavior) {
       case MovementBehavior.WANDER_LEFT_RIGHT:
         this.wanderAxis(npc, "x");
@@ -981,6 +1013,92 @@ export class NPCSystem {
         this.lookAround(npc);
         break;
     }
+  }
+
+  /** Execute a named movement pattern: weighted random look/walk with range clamping. */
+  private executePattern(npc: NPCDefinition, pattern: MovementPattern): void {
+    // If both look and walk are enabled, flip a coin (weight by whether each has any directions)
+    const canLook = pattern.lookEnabled && (pattern.lookDirections.up + pattern.lookDirections.down + pattern.lookDirections.left + pattern.lookDirections.right) > 0;
+    const canWalk = pattern.walkEnabled && (pattern.walkDirections.up + pattern.walkDirections.down + pattern.walkDirections.left + pattern.walkDirections.right) > 0;
+
+    let doWalk = canWalk;
+    if (canLook && canWalk) doWalk = Math.random() < 0.5;
+    else if (canLook && !canWalk) doWalk = false;
+
+    if (doWalk) {
+      this.patternWalk(npc, pattern);
+    } else if (canLook) {
+      const dir = weightedRandomDirection(pattern.lookDirections);
+      if (dir) this.gridEngine.turnTowards(npc.id, this.stringToDirection(dir));
+    }
+  }
+
+  private stringToDirection(s: "up" | "down" | "left" | "right"): Direction {
+    switch (s) {
+      case "up": return Direction.UP;
+      case "down": return Direction.DOWN;
+      case "left": return Direction.LEFT;
+      case "right": return Direction.RIGHT;
+    }
+  }
+
+  /** Walk execution for a pattern — supports paceMode (bounce) and random walk (weighted). */
+  private patternWalk(npc: NPCDefinition, pattern: MovementPattern): void {
+    const home = this.homePositions.get(npc.id);
+    if (!home) return;
+    const pos = this.gridEngine.getPosition(npc.id);
+
+    if (pattern.paceMode) {
+      // Pick or reuse current pace direction
+      let dir = this.paceDirections.get(npc.id);
+      const valid = (d: Direction) => {
+        const axis = d === Direction.LEFT || d === Direction.RIGHT ? "x" : "y";
+        const delta = d === Direction.RIGHT || d === Direction.DOWN ? 1 : -1;
+        const range = axis === "x" ? pattern.maxRangeX : pattern.maxRangeY;
+        const cur = axis === "x" ? pos.x : pos.y;
+        const hc = axis === "x" ? home.x : home.y;
+        return Math.abs(cur + delta - hc) <= range;
+      };
+      if (!dir || !valid(dir)) {
+        const picked = weightedRandomDirection(pattern.walkDirections);
+        if (!picked) return;
+        dir = this.stringToDirection(picked);
+        this.paceDirections.set(npc.id, dir);
+      }
+      if (!valid(dir)) {
+        // Try opposite
+        const opp: Record<Direction, Direction> = {
+          [Direction.UP]: Direction.DOWN,
+          [Direction.DOWN]: Direction.UP,
+          [Direction.LEFT]: Direction.RIGHT,
+          [Direction.RIGHT]: Direction.LEFT,
+          [Direction.NONE]: Direction.NONE,
+          [Direction.UP_LEFT]: Direction.DOWN_RIGHT,
+          [Direction.UP_RIGHT]: Direction.DOWN_LEFT,
+          [Direction.DOWN_LEFT]: Direction.UP_RIGHT,
+          [Direction.DOWN_RIGHT]: Direction.UP_LEFT,
+        };
+        dir = opp[dir];
+        this.paceDirections.set(npc.id, dir);
+      }
+      this.gridEngine.move(npc.id, dir);
+      return;
+    }
+
+    // Random walk: try a weighted direction, clamped to range
+    const picked = weightedRandomDirection(pattern.walkDirections);
+    if (!picked) return;
+    const dir = this.stringToDirection(picked);
+    const axis = picked === "left" || picked === "right" ? "x" : "y";
+    const delta = picked === "right" || picked === "down" ? 1 : -1;
+    const range = axis === "x" ? pattern.maxRangeX : pattern.maxRangeY;
+    const cur = axis === "x" ? pos.x : pos.y;
+    const hc = axis === "x" ? home.x : home.y;
+    if (Math.abs(cur + delta - hc) <= range) {
+      this.gridEngine.move(npc.id, dir);
+    }
+    // Note: walkStepsPerMove is intentionally not used here — executeBehavior fires once per interval.
+    // Grid-engine's move() + movementStarted() could chain steps, but that's a future enhancement.
   }
 
   /** Random 1-tile step along a single axis, clamped to the range. */

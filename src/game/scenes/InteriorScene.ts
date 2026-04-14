@@ -15,6 +15,7 @@ import { HiddenItemSystem } from "@/game/systems/HiddenItemSystem";
 import { incrementStep } from "@/game/systems/StepStore";
 import { getSave, giveItem, updateSave } from "@/game/systems/GameSave";
 import { getItemDef } from "@/game/data/itemDefinitions";
+import { getMovementPattern, weightedRandomDirection } from "@/game/data/movementPatterns";
 import { isTrainerCleared, markTrainerCleared } from "@/game/systems/TrainerStore";
 import { checkBadges } from "@/game/systems/BadgeMilestones";
 import { INTERIORS, type InteriorDef, type InteriorNPC } from "@/game/data/interiors";
@@ -524,17 +525,32 @@ export class InteriorScene extends Phaser.Scene {
       // Cleared autoGive trainers spawn at their aside position so
       // the path stays clear across sessions. The original position
       // is only used before the player has collected from them.
-      const spawnPosition =
-        npc.autoGive && isTrainerCleared(npc.id)
-          ? { ...npc.autoGive.asidePosition }
-          : npc.position;
+      // If asideSteps is present, compute from relative deltas.
+      let spawnPosition = npc.position;
+      if (npc.autoGive && isTrainerCleared(npc.id)) {
+        if (npc.autoGive.asideSteps && npc.autoGive.asideSteps.length > 0) {
+          const p = { x: npc.position.x, y: npc.position.y };
+          for (const step of npc.autoGive.asideSteps) {
+            if (step.dir === "up") p.y -= step.steps;
+            else if (step.dir === "down") p.y += step.steps;
+            else if (step.dir === "left") p.x -= step.steps;
+            else if (step.dir === "right") p.x += step.steps;
+          }
+          spawnPosition = p;
+        } else {
+          spawnPosition = { ...npc.autoGive.asidePosition };
+        }
+      }
 
       // Nurse and old_man sprites have fewer than 9 frames —
       // skip walkingAnimationMapping for them to avoid wrong frame refs.
       const isStandardSprite = !["nurse", "old_man"].includes(npc.spriteKey);
       // NPCs with movement behavior or autoGive need speed > 0.
-      const hasMovement = npc.movementBehavior && npc.movementBehavior !== "stationary";
-      const npcSpeed = (npc.autoGive || hasMovement) ? WALK_SPEED : 0;
+      // Use pattern's walkSpeed if defined, else standard WALK_SPEED.
+      const npcPattern = getMovementPattern(npc.movementBehavior);
+      const hasMovement = npcPattern && (npcPattern.lookEnabled || npcPattern.walkEnabled);
+      const patternSpeed = npcPattern?.walkSpeed || 0;
+      const npcSpeed = npc.autoGive ? WALK_SPEED : (hasMovement ? (patternSpeed > 0 ? patternSpeed : WALK_SPEED) : 0);
 
       characters.push({
         id: npc.id,
@@ -582,29 +598,84 @@ export class InteriorScene extends Phaser.Scene {
     // ── Grid Engine ──────────────────────────────────────────
     this.gridEngine.create(map, { characters });
 
-    // ── NPC movement behaviors ──────────────────────────────
+    // ── NPC movement behaviors (pattern-based) ──────────────
+    const strToDir = (s: "up" | "down" | "left" | "right"): Direction => {
+      switch (s) {
+        case "up": return Direction.UP;
+        case "down": return Direction.DOWN;
+        case "left": return Direction.LEFT;
+        case "right": return Direction.RIGHT;
+      }
+    };
     for (const npc of def.npcs) {
-      const behavior = npc.movementBehavior;
-      if (!behavior || behavior === "stationary") continue;
+      const pattern = getMovementPattern(npc.movementBehavior);
+      if (!pattern || (!pattern.lookEnabled && !pattern.walkEnabled)) continue;
+
+      const home = { x: npc.position.x, y: npc.position.y };
+      const paceDir: { current: Direction | null } = { current: null };
+
+      const scheduleDelay = () => {
+        const [minMs, maxMs] = pattern.walkEnabled ? pattern.walkFrequencyMs : pattern.lookFrequencyMs;
+        return minMs + Math.random() * (maxMs - minMs);
+      };
 
       const timer = this.time.addEvent({
-        delay: 2000 + Math.random() * 2000,
+        delay: scheduleDelay(),
         loop: false,
         callback: () => {
           if (this.dialogSystem?.active) return;
           if (this.gridEngine.isMoving(npc.id)) return;
 
-          if (behavior === "look_around") {
-            const dirs = [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT];
-            this.gridEngine.turnTowards(npc.id, dirs[Math.floor(Math.random() * 4)]);
-          } else if (behavior === "wander_left_right" || behavior === "wander_up_down" || behavior === "wander_area") {
-            const dirs = behavior === "wander_left_right" ? [Direction.LEFT, Direction.RIGHT]
-              : behavior === "wander_up_down" ? [Direction.UP, Direction.DOWN]
-              : [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT];
-            this.gridEngine.move(npc.id, dirs[Math.floor(Math.random() * dirs.length)]);
+          const canLook = pattern.lookEnabled && (pattern.lookDirections.up + pattern.lookDirections.down + pattern.lookDirections.left + pattern.lookDirections.right) > 0;
+          const canWalk = pattern.walkEnabled && (pattern.walkDirections.up + pattern.walkDirections.down + pattern.walkDirections.left + pattern.walkDirections.right) > 0;
+
+          let doWalk = canWalk;
+          if (canLook && canWalk) doWalk = Math.random() < 0.5;
+          else if (canLook && !canWalk) doWalk = false;
+
+          if (doWalk) {
+            const pos = this.gridEngine.getPosition(npc.id);
+            if (pattern.paceMode) {
+              const valid = (d: Direction) => {
+                const axis = d === Direction.LEFT || d === Direction.RIGHT ? "x" : "y";
+                const delta = d === Direction.RIGHT || d === Direction.DOWN ? 1 : -1;
+                const range = axis === "x" ? pattern.maxRangeX : pattern.maxRangeY;
+                const cur = axis === "x" ? pos.x : pos.y;
+                const hc = axis === "x" ? home.x : home.y;
+                return Math.abs(cur + delta - hc) <= range;
+              };
+              if (!paceDir.current || !valid(paceDir.current)) {
+                const picked = weightedRandomDirection(pattern.walkDirections);
+                if (picked) paceDir.current = strToDir(picked);
+              }
+              if (paceDir.current && !valid(paceDir.current)) {
+                const opp = paceDir.current === Direction.UP ? Direction.DOWN
+                  : paceDir.current === Direction.DOWN ? Direction.UP
+                  : paceDir.current === Direction.LEFT ? Direction.RIGHT
+                  : Direction.LEFT;
+                paceDir.current = opp;
+              }
+              if (paceDir.current) this.gridEngine.move(npc.id, paceDir.current);
+            } else {
+              const picked = weightedRandomDirection(pattern.walkDirections);
+              if (picked) {
+                const dir = strToDir(picked);
+                const axis = picked === "left" || picked === "right" ? "x" : "y";
+                const delta = picked === "right" || picked === "down" ? 1 : -1;
+                const range = axis === "x" ? pattern.maxRangeX : pattern.maxRangeY;
+                const cur = axis === "x" ? pos.x : pos.y;
+                const hc = axis === "x" ? home.x : home.y;
+                if (Math.abs(cur + delta - hc) <= range) {
+                  this.gridEngine.move(npc.id, dir);
+                }
+              }
+            }
+          } else if (canLook) {
+            const picked = weightedRandomDirection(pattern.lookDirections);
+            if (picked) this.gridEngine.turnTowards(npc.id, strToDir(picked));
           }
 
-          timer.reset({ delay: 2000 + Math.random() * 2000, loop: false, callback: timer.callback, callbackScope: timer.callbackScope });
+          timer.reset({ delay: scheduleDelay(), loop: false, callback: timer.callback, callbackScope: timer.callbackScope });
         },
       });
       this.npcBehaviorTimers.push(timer);
@@ -1157,11 +1228,19 @@ export class InteriorScene extends Phaser.Scene {
     checkBadges();
 
     // 4. Walk to aside position — grid-engine animates using the
-    //    NPC's configured WALK_SPEED.
-    this.gridEngine.moveTo(npc.id, {
-      x: ag.asidePosition.x,
-      y: ag.asidePosition.y,
-    });
+    //    NPC's configured WALK_SPEED. If asideSteps is present, compute
+    //    the absolute target from relative deltas applied to home.
+    let target = { x: ag.asidePosition.x, y: ag.asidePosition.y };
+    if (ag.asideSteps && ag.asideSteps.length > 0) {
+      target = { x: npc.position.x, y: npc.position.y };
+      for (const step of ag.asideSteps) {
+        if (step.dir === "up") target.y -= step.steps;
+        else if (step.dir === "down") target.y += step.steps;
+        else if (step.dir === "left") target.x -= step.steps;
+        else if (step.dir === "right") target.x += step.steps;
+      }
+    }
+    this.gridEngine.moveTo(npc.id, target);
   }
 
   /**

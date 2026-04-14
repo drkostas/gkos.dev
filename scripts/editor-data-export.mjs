@@ -559,6 +559,76 @@ function extractResearchLog(text) {
   return out;
 }
 
+function extractMovementPatterns(text) {
+  // Slice the MOVEMENT_PATTERNS object body
+  const startRe = /MOVEMENT_PATTERNS[^=]*=\s*\{/;
+  const startMatch = startRe.exec(text);
+  if (!startMatch) return [];
+  let i = startMatch.index + startMatch[0].length;
+  let depth = 1;
+  while (i < text.length && depth > 0) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}") depth--;
+    if (depth === 0) break;
+    i++;
+  }
+  const body = text.substring(startMatch.index + startMatch[0].length, i);
+
+  // Each pattern is an object keyed by id. Find top-level id blocks.
+  const out = [];
+  const idRe = /id:\s*"([^"]+)"/g;
+  const idMatches = [];
+  let m;
+  while ((m = idRe.exec(body)) !== null) idMatches.push({ id: m[1], idx: m.index });
+
+  const parseDirs = (s, key) => {
+    const re = new RegExp(`${key}:\\s*\\{\\s*up:\\s*(-?\\d+(?:\\.\\d+)?)\\s*,\\s*down:\\s*(-?\\d+(?:\\.\\d+)?)\\s*,\\s*left:\\s*(-?\\d+(?:\\.\\d+)?)\\s*,\\s*right:\\s*(-?\\d+(?:\\.\\d+)?)\\s*\\}`);
+    const mm = s.match(re);
+    if (!mm) return { up: 0, down: 0, left: 0, right: 0 };
+    return { up: parseFloat(mm[1]), down: parseFloat(mm[2]), left: parseFloat(mm[3]), right: parseFloat(mm[4]) };
+  };
+  const parseTuple = (s, key) => {
+    const re = new RegExp(`${key}:\\s*\\[\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*\\]`);
+    const mm = s.match(re);
+    if (!mm) return [0, 0];
+    return [parseInt(mm[1], 10), parseInt(mm[2], 10)];
+  };
+  const parseNum = (s, key) => {
+    const mm = s.match(new RegExp(`${key}:\\s*(-?\\d+(?:\\.\\d+)?)`));
+    return mm ? parseFloat(mm[1]) : 0;
+  };
+  const parseBool = (s, key) => {
+    const mm = s.match(new RegExp(`${key}:\\s*(true|false)`));
+    return mm ? mm[1] === "true" : false;
+  };
+  const parseStr = (s, key) => {
+    const mm = s.match(new RegExp(`${key}:\\s*"([^"]*)"`));
+    return mm ? mm[1] : "";
+  };
+
+  for (let k = 0; k < idMatches.length; k++) {
+    const start = idMatches[k].idx;
+    const end = k + 1 < idMatches.length ? idMatches[k + 1].idx : body.length;
+    const slice = body.slice(start, end);
+    out.push({
+      id: idMatches[k].id,
+      label: parseStr(slice, "label"),
+      lookEnabled: parseBool(slice, "lookEnabled"),
+      lookDirections: parseDirs(slice, "lookDirections"),
+      lookFrequencyMs: parseTuple(slice, "lookFrequencyMs"),
+      walkEnabled: parseBool(slice, "walkEnabled"),
+      walkDirections: parseDirs(slice, "walkDirections"),
+      walkStepsPerMove: parseTuple(slice, "walkStepsPerMove"),
+      walkFrequencyMs: parseTuple(slice, "walkFrequencyMs"),
+      walkSpeed: parseNum(slice, "walkSpeed"),
+      maxRangeX: parseNum(slice, "maxRangeX"),
+      maxRangeY: parseNum(slice, "maxRangeY"),
+      paceMode: parseBool(slice, "paceMode"),
+    });
+  }
+  return out;
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 const npcsText = readFileSync(resolve(ROOT, "src/game/data/npcs.ts"), "utf-8");
 const wildText = readFileSync(resolve(ROOT, "src/game/data/wild-pokemon.ts"), "utf-8");
@@ -573,6 +643,7 @@ const partyText = readFileSync(resolve(ROOT, "src/game/data/party.ts"), "utf-8")
 const badgesText = readFileSync(resolve(ROOT, "src/game/systems/BadgeMilestones.ts"), "utf-8");
 const fmaText = readFileSync(resolve(ROOT, "src/game/data/fieldMoveAwards.ts"), "utf-8");
 const researchLogText = readFileSync(resolve(ROOT, "src/game/data/researchLog.ts"), "utf-8");
+const movementPatternsText = readFileSync(resolve(ROOT, "src/game/data/movementPatterns.ts"), "utf-8");
 
 const pokedexMap = buildPokedexMap(pokemonText);
 const mauvilleNpcs = extractFullNpcsFromTopLevel(npcsText, "MAUVILLE_NPCS_RAW", true, "npcs.ts");
@@ -651,6 +722,17 @@ function extractInteriors(text) {
             let m2;
             while ((m2 = lineRe.exec(clearedDlgM[1])) !== null) lines.push(m2[1]);
             if (lines.length) autoGive.clearedDialog = lines;
+          }
+          // Extract asideSteps array
+          const stepsM = slice.match(/asideSteps:\s*\[([\s\S]*?)\]/);
+          if (stepsM) {
+            const steps = [];
+            const stepRe = /\{\s*dir:\s*"([^"]+)"\s*,\s*steps:\s*(\d+)\s*\}/g;
+            let sm;
+            while ((sm = stepRe.exec(stepsM[1])) !== null) {
+              steps.push({ dir: sm[1], steps: parseInt(sm[2], 10) });
+            }
+            if (steps.length) autoGive.asideSteps = steps;
           }
         }
       }
@@ -789,6 +871,7 @@ const catalogParty = extractParty(partyText);
 const catalogBadges = extractBadges(badgesText);
 const catalogFieldMoves = extractFieldMoveAwards(fmaText);
 const catalogResearchLog = extractResearchLog(researchLogText);
+const catalogMovementPatterns = extractMovementPatterns(movementPatternsText);
 
 const data = {
   generatedAt: new Date().toISOString(),
@@ -815,6 +898,7 @@ const data = {
     badges: catalogBadges,
     fieldMoveAwards: catalogFieldMoves,
     researchLog: catalogResearchLog,
+    movementPatterns: catalogMovementPatterns,
   },
   mapSize: { width: 140, height: 120 },
   spawn: { x: 72, y: 58 },
@@ -846,4 +930,4 @@ console.log(`editor-data.json generated: ${allEntities.length} entities`);
 console.log(`  NPCs: ${data.byType.npc}, Pokemon NPCs: ${data.byType["pokemon-npc"]}, Pickups: ${data.byType.pickup}`);
 console.log(`  Wild Pokemon: ${data.byType["wild-pokemon"]}, Signs: ${data.byType.sign}`);
 console.log(`  Hidden Items: ${data.byType["hidden-item"]}, Warps: ${data.byType.warp}, Gates: ${data.byType.gate}`);
-console.log(`  Catalog: ${catalogItemDefs.length} items, ${catalogMilestones.length} TMs, ${catalogPokedex.length} pokedex, ${catalogParty.length} party, ${catalogBadges.length} badges, ${catalogFieldMoves.length} field moves, ${catalogResearchLog.length} log entries`);
+console.log(`  Catalog: ${catalogItemDefs.length} items, ${catalogMilestones.length} TMs, ${catalogPokedex.length} pokedex, ${catalogParty.length} party, ${catalogBadges.length} badges, ${catalogFieldMoves.length} field moves, ${catalogResearchLog.length} log entries, ${catalogMovementPatterns.length} movement patterns`);
