@@ -99,6 +99,8 @@ export class EditorScene extends Phaser.Scene {
   private collisionLayerData: number[] = [];
   private foregroundImage: Phaser.GameObjects.Image | null = null;
   private topSprites: Phaser.GameObjects.Sprite[] = [];
+  private tintHighlight: Phaser.GameObjects.Graphics | null = null;
+  private tintHighlightTween: Phaser.Tweens.Tween | null = null;
   private foregroundVisible: boolean = true;
   private hoverTooltip: Phaser.GameObjects.Container | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -192,15 +194,9 @@ export class EditorScene extends Phaser.Scene {
       }
     }
 
-    // Foreground image (semi-transparent overlay)
-    const fgKey = "mauville_bottom_fg";
-    if (this.textures.exists(fgKey)) {
-      this.foregroundImage = this.add.image(0, 0, fgKey);
-      this.foregroundImage.setOrigin(0, 0);
-      this.foregroundImage.setAlpha(1.0);
-      this.foregroundImage.setDepth(100);
-      this.foregroundImage.setVisible(this.foregroundVisible);
-    }
+    // Foreground — render as per-tile sprites (not a flat image) so each
+    // tree/fence/rock/flower can be individually tinted by the Tint tool.
+    this.createOverworldForegroundTiles();
 
     // Camera setup
     const cam = this.cameras.main;
@@ -346,6 +342,7 @@ export class EditorScene extends Phaser.Scene {
             return sx === tileX && sy === tileY;
           });
           const layer = hasTopSprite ? "top" : "ground";
+          this.showTintHighlight(tileX, tileY);
           emitEditorEvent("editor:tint-click", {
             x: tileX,
             y: tileY,
@@ -592,6 +589,10 @@ export class EditorScene extends Phaser.Scene {
       }),
       onEditorEvent(SET_TOOL, (detail: { tool: string }) => {
         this.currentTool = detail.tool;
+        if (detail.tool !== "tint") this.clearTintHighlight();
+      }),
+      onEditorEvent("editor:tint-close", () => {
+        this.clearTintHighlight();
       }),
       onEditorEvent("editor:apply-tile-tint", (detail: { x: number; y: number; layer: string; rgb: number | null; alpha: number }) => {
         this.applySingleTileTint(detail.x, detail.y, detail.layer, detail.rgb, detail.alpha);
@@ -668,14 +669,9 @@ export class EditorScene extends Phaser.Scene {
       }
     }
 
-    // Foreground for this map (overworld PNG overlay)
-    const fgKey = cfg.tilesetName + "_fg";
-    if (cfg.foreground && this.textures.exists(fgKey)) {
-      this.foregroundImage = this.add.image(0, 0, fgKey);
-      this.foregroundImage.setOrigin(0, 0);
-      this.foregroundImage.setAlpha(1.0);
-      this.foregroundImage.setDepth(100);
-      this.foregroundImage.setVisible(this.foregroundVisible);
+    // Foreground for this map (overworld — per-tile sprites for tinting)
+    if (cfg.foreground) {
+      this.createOverworldForegroundTiles();
     }
 
     // Update camera bounds
@@ -936,6 +932,86 @@ export class EditorScene extends Phaser.Scene {
   }
 
   /** Apply a single tile tint immediately (from the popup). */
+  /**
+   * Render the Mauville foreground PNG as individual 16x16 tile sprites
+   * so each non-transparent tile can be independently tinted. Mirrors
+   * OverworldScene.createForegroundTiles.
+   */
+  private createOverworldForegroundTiles(): void {
+    const fgKey = "mauville_bottom_fg";
+    if (!this.textures.exists(fgKey)) return;
+    const fgTexture = this.textures.get(fgKey);
+    const source = fgTexture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+
+    // Canvas to read alpha
+    const canvas = document.createElement("canvas");
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(source as CanvasImageSource, 0, 0);
+    const mapW = Math.floor(source.width / TILE_SIZE);
+    const mapH = Math.floor(source.height / TILE_SIZE);
+
+    for (let ty = 0; ty < mapH; ty++) {
+      for (let tx = 0; tx < mapW; tx++) {
+        const imgData = ctx.getImageData(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        let hasContent = false;
+        for (let i = 3; i < imgData.data.length; i += 4) {
+          if (imgData.data[i] > 0) { hasContent = true; break; }
+        }
+        if (!hasContent) continue;
+
+        const frameKey = `fg_${tx}_${ty}`;
+        if (!fgTexture.has(frameKey)) {
+          fgTexture.add(frameKey, 0, tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+        // Use CENTER origin so (x, y) in tile coords reflects sprite center
+        const sprite = this.add.sprite(tx * TILE_SIZE + TILE_SIZE / 2, ty * TILE_SIZE + TILE_SIZE / 2, fgKey, frameKey);
+        sprite.setDepth(100 + ty);
+        sprite.setVisible(this.foregroundVisible);
+        this.topSprites.push(sprite);
+      }
+    }
+  }
+
+  /** Draw a pulsing yellow highlight on the tile currently being tinted. */
+  showTintHighlight(x: number, y: number): void {
+    this.clearTintHighlight();
+    if (!this.sys?.displayList) return;
+    const g = this.add.graphics();
+    g.setDepth(999);
+    const cx = x * TILE_SIZE + TILE_SIZE / 2;
+    const cy = y * TILE_SIZE + TILE_SIZE / 2;
+    g.setPosition(cx, cy);
+    // Outer yellow border
+    g.lineStyle(2, 0xffd700, 1);
+    g.strokeRect(-TILE_SIZE / 2, -TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
+    // Inner semi-transparent yellow fill
+    g.fillStyle(0xffd700, 0.15);
+    g.fillRect(-TILE_SIZE / 2, -TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
+    this.tintHighlight = g;
+    // Pulse animation
+    this.tintHighlightTween = this.tweens.add({
+      targets: g,
+      alpha: { from: 1, to: 0.4 },
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  clearTintHighlight(): void {
+    if (this.tintHighlightTween) {
+      this.tintHighlightTween.destroy();
+      this.tintHighlightTween = null;
+    }
+    if (this.tintHighlight) {
+      this.tintHighlight.destroy();
+      this.tintHighlight = null;
+    }
+  }
+
   applySingleTileTint(x: number, y: number, layer: string, rgb: number | null, alpha: number): void {
     if (layer === "top") {
       // Find top sprite at that tile

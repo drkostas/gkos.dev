@@ -3,6 +3,7 @@ import { EditorProvider, useEditorState, useEditorDispatch } from "./state/Edito
 import type { EditorEntity } from "./state/editorTypes";
 import EditorViewport from "./EditorViewport";
 import { emitEditorEvent, onEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE, SWITCH_MAP, VIEWPORT_READY } from "../../game/editor/EditorEvents";
+import { adjustToRgb } from "../../game/data/tintPresets";
 
 /** Dropdown menu item */
 function MenuItem({ label, shortcut, onClick, disabled }: { label: string; shortcut?: string; onClick?: () => void; disabled?: boolean }) {
@@ -2377,22 +2378,7 @@ function EditorInner() {
         const preset = state.catalog?.tintPresets?.find((p) => p.id === entry.presetId);
         if (preset) adj = preset.adjust;
       }
-      // Inline HSL→RGB (same logic as tintPresets.ts adjustToRgb)
-      let h = ((adj.h % 360) + 360) % 360;
-      const s = Math.max(0, Math.min(2, 1 + adj.s));
-      const l = Math.max(0, Math.min(1, 0.5 + adj.l));
-      const c = (1 - Math.abs(2 * l - 1)) * Math.min(s, 1);
-      const xx = c * (1 - Math.abs(((h / 60) % 2) - 1));
-      const m = l - c / 2;
-      let r = 0, g = 0, b = 0;
-      if (h < 60) { r = c; g = xx; }
-      else if (h < 120) { r = xx; g = c; }
-      else if (h < 180) { g = c; b = xx; }
-      else if (h < 240) { g = xx; b = c; }
-      else if (h < 300) { r = xx; b = c; }
-      else { r = c; b = xx; }
-      const rgb = (Math.round((r + m) * 255) << 16) | (Math.round((g + m) * 255) << 8) | Math.round((b + m) * 255);
-      resolved[key] = { rgb, alpha: adj.a };
+      resolved[key] = { rgb: adjustToRgb(adj), alpha: adj.a };
     }
     (window as any).__EDITOR_TILE_TINTS__ = resolved;
     emitEditorEvent("editor:refresh-tints", {});
@@ -2824,15 +2810,14 @@ function EditorInner() {
       {/* Tile Tint popup */}
       {tintPopup && (
         <TintPopup
-          key={`${tintPopup.mapId}:${tintPopup.layer}:${tintPopup.x},${tintPopup.y}`}
+          key={`${tintPopup.mapId}:${tintPopup.x},${tintPopup.y}`}
           popup={tintPopup}
           tileTints={state.tileTints}
           tintPresets={state.catalog?.tintPresets || []}
-          onChange={(entry) => {
-            const key = `${tintPopup.mapId}:${tintPopup.layer}:${tintPopup.x},${tintPopup.y}`;
+          onChange={(key, entry) => {
             dispatch({ type: "SET_TILE_TINT", key, entry });
           }}
-          onClose={() => setTintPopup(null)}
+          onClose={() => { setTintPopup(null); emitEditorEvent("editor:tint-close", {}); }}
           onSavePreset={(preset) => {
             dispatch({ type: "ADD_CATALOG_ENTRY", dataType: "tintPresets", entry: preset });
           }}
@@ -2849,17 +2834,26 @@ function TintPopup({
   popup: { x: number; y: number; layer: string; screenX: number; screenY: number; mapId: string };
   tileTints: Record<string, any>;
   tintPresets: { id: string; label: string; adjust: { h: number; s: number; l: number; a: number } }[];
-  onChange: (entry: any) => void;
+  onChange: (key: string, entry: any) => void;
   onClose: () => void;
   onSavePreset: (preset: { id: string; label: string; adjust: { h: number; s: number; l: number; a: number } }) => void;
 }) {
-  const key = `${popup.mapId}:${popup.layer}:${popup.x},${popup.y}`;
+  const [layer, setLayer] = useState(popup.layer);
+  const key = `${popup.mapId}:${layer}:${popup.x},${popup.y}`;
   const existing = tileTints[key] || { h: 0, s: 0, l: 0, a: 1 };
   const [h, setH] = useState(existing.h ?? 0);
   const [s, setS] = useState(existing.s ?? 0);
   const [l, setL] = useState(existing.l ?? 0);
   const [a, setA] = useState(existing.a ?? 1);
   const [presetName, setPresetName] = useState("");
+
+  // When the layer changes, reload the sliders from the new key's existing tint
+  useEffect(() => {
+    const k = `${popup.mapId}:${layer}:${popup.x},${popup.y}`;
+    const e = tileTints[k] || { h: 0, s: 0, l: 0, a: 1 };
+    setH(e.h ?? 0); setS(e.s ?? 0); setL(e.l ?? 0); setA(e.a ?? 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layer]);
 
   // Initial popup position, clamped to viewport
   const [pos, setPos] = useState(() => ({
@@ -2889,9 +2883,9 @@ function TintPopup({
 
   const applyChange = (nh: number, ns: number, nl: number, na: number) => {
     if (nh === 0 && ns === 0 && nl === 0 && na === 1) {
-      onChange(null); // Remove tint
+      onChange(key, null); // Remove tint
     } else {
-      onChange({ h: nh, s: ns, l: nl, a: na });
+      onChange(key, { h: nh, s: ns, l: nl, a: na });
     }
   };
 
@@ -2915,14 +2909,10 @@ function TintPopup({
         {/* Layer override */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
           <span style={{ fontSize: 9, color: "#888", width: 60 }}>Layer</span>
-          <select value={popup.layer} onChange={(e) => {
-            // Changing layer requires recomputing the key; for simplicity, update popup state via parent
-            (popup as any).layer = e.target.value;
-            onClose();
-          }} style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 5px" }}>
-            <option value="ground">Ground</option>
+          <select value={layer} onChange={(e) => setLayer(e.target.value)}
+            style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 5px" }}>
+            <option value="ground">Ground (grass/floor/dirt)</option>
             <option value="top">Top (trees/fences/rocks/furniture)</option>
-            <option value="foreground">Foreground</option>
           </select>
         </div>
 
@@ -2935,7 +2925,7 @@ function TintPopup({
               const preset = tintPresets.find((p) => p.id === e.target.value);
               if (preset) {
                 setH(preset.adjust.h); setS(preset.adjust.s); setL(preset.adjust.l); setA(preset.adjust.a);
-                onChange({ presetId: preset.id });
+                onChange(key, { presetId: preset.id });
               }
             }} style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 5px" }}>
               <option value="">— apply preset —</option>
@@ -2944,12 +2934,12 @@ function TintPopup({
           </div>
         )}
 
-        {/* HSL sliders */}
+        {/* HSL sliders — double-click a slider to reset it to default. */}
         {[
-          { label: "Hue", val: h, setVal: setH, min: -180, max: 180, step: 1, after: "°" },
-          { label: "Sat", val: s, setVal: setS, min: -1, max: 1, step: 0.05, after: "" },
-          { label: "Light", val: l, setVal: setL, min: -1, max: 1, step: 0.05, after: "" },
-          { label: "Alpha", val: a, setVal: setA, min: 0, max: 1, step: 0.05, after: "" },
+          { label: "Hue", val: h, setVal: setH, min: -180, max: 180, step: 1, after: "°", defaultVal: 0 },
+          { label: "Sat", val: s, setVal: setS, min: -1, max: 1, step: 0.05, after: "", defaultVal: 0 },
+          { label: "Light", val: l, setVal: setL, min: -1, max: 1, step: 0.05, after: "", defaultVal: 0 },
+          { label: "Alpha", val: a, setVal: setA, min: 0, max: 1, step: 0.05, after: "", defaultVal: 1 },
         ].map((row) => (
           <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
             <span style={{ fontSize: 9, color: "#888", width: 45 }}>{row.label}</span>
@@ -2960,6 +2950,12 @@ function TintPopup({
                 const vals = { h, s, l, a, [row.label === "Hue" ? "h" : row.label === "Sat" ? "s" : row.label === "Light" ? "l" : "a"]: v } as any;
                 applyChange(vals.h, vals.s, vals.l, vals.a);
               }}
+              onDoubleClick={() => {
+                row.setVal(row.defaultVal);
+                const vals = { h, s, l, a, [row.label === "Hue" ? "h" : row.label === "Sat" ? "s" : row.label === "Light" ? "l" : "a"]: row.defaultVal } as any;
+                applyChange(vals.h, vals.s, vals.l, vals.a);
+              }}
+              title={`Double-click to reset to ${row.defaultVal}`}
               style={{ flex: 1, accentColor: "#4a9eed" }} />
             <span style={{ fontSize: 9, color: "#666", width: 40, textAlign: "right" }}>{row.val.toFixed(2)}{row.after}</span>
           </div>
@@ -2968,7 +2964,7 @@ function TintPopup({
         <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 8, borderTop: "1px solid #2a2a40" }}>
           <button onClick={() => {
             setH(0); setS(0); setL(0); setA(1);
-            onChange(null);
+            onChange(key, null);
           }} style={{ flex: 1, background: "#2a2a40", color: "#ccc", border: "1px solid #3a3a50", borderRadius: 3, padding: "4px 8px", fontSize: 9, cursor: "pointer" }}>
             Clear
           </button>
