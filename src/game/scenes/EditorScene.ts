@@ -171,6 +171,16 @@ export class EditorScene extends Phaser.Scene {
    */
   private lastClickedTile: { x: number; y: number } | null = null;
   /**
+   * Double-click tracking. Adobe / Figma convention: single click selects
+   * passively, double click drills into the thing (open properties /
+   * isolation mode). We track the last click timestamp + tile so a second
+   * click on the same tile within 400ms is treated as a double.
+   */
+  private lastClickAt: number = 0;
+  private lastClickTileForDouble: { x: number; y: number } | null = null;
+  private lastClickEntityId: string | null = null;
+  private static readonly DOUBLE_CLICK_MS = 400;
+  /**
    * Hover-preview ghost — when the user hovers over a swatch in the React
    * panel, we paint a translucent thumbnail of that GID at the cursor's
    * tile position so they can see where it would land.
@@ -327,22 +337,22 @@ export class EditorScene extends Phaser.Scene {
 
     // Scroll wheel zoom — zoom toward the cursor position so the tile
     // under the cursor stays in place while the rest scales around it.
-    // Standard pattern in Figma/Adobe; ours used to zoom to the camera
-    // center which forced zoom-then-pan cycles.
+    // Phaser zooms the camera about its midpoint, so we can't just use
+    // `scrollX = worldX - cursorX/zoom`. The robust way: sample the
+    // world point under the cursor before zoom, change zoom, sample the
+    // world point at the same screen coords *after* zoom, and shift
+    // scroll by the delta.
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _gameObjects: any, _deltaX: number, deltaY: number) => {
       const factor = deltaY > 0 ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
       const oldZoom = this.currentZoom;
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * factor));
       if (newZoom === oldZoom) return;
-      // World point under the cursor before zoom
-      const wx = pointer.worldX;
-      const wy = pointer.worldY;
+      const before = cam.getWorldPoint(pointer.x, pointer.y);
       this.currentZoom = newZoom;
       cam.setZoom(newZoom);
-      // After zoom, compute the new scrollX/Y so (wx, wy) lands at the
-      // same screen position as before. screenX = (wx - scrollX) * zoom
-      cam.scrollX = wx - pointer.x / newZoom;
-      cam.scrollY = wy - pointer.y / newZoom;
+      const after = cam.getWorldPoint(pointer.x, pointer.y);
+      cam.scrollX += before.x - after.x;
+      cam.scrollY += before.y - after.y;
       this.syncAutoPixelGrid();
     });
 
@@ -453,6 +463,19 @@ export class EditorScene extends Phaser.Scene {
         }
       }
 
+      // Double-click detection (same target within DOUBLE_CLICK_MS).
+      // Routed to tile → open tint popup, entity → open properties panel.
+      const now = Date.now();
+      const dblElapsed = now - this.lastClickAt;
+      const sameTile = this.lastClickTileForDouble
+        && this.lastClickTileForDouble.x === tileX
+        && this.lastClickTileForDouble.y === tileY;
+      const sameEntity = hitEntity && this.lastClickEntityId === hitEntity.id;
+      const isDouble = dblElapsed < EditorScene.DOUBLE_CLICK_MS && (sameEntity || (sameTile && !hitEntity));
+      this.lastClickAt = now;
+      this.lastClickTileForDouble = { x: tileX, y: tileY };
+      this.lastClickEntityId = hitEntity ? hitEntity.id : null;
+
       if (hitEntity) {
         emitEditorEvent(ENTITY_CLICKED, {
           entityId: hitEntity.id,
@@ -460,6 +483,12 @@ export class EditorScene extends Phaser.Scene {
           x: hitEntity.x,
           y: hitEntity.y,
         });
+        if (isDouble) {
+          // Double-click entity → "dive into" it: select + open its
+          // properties panel (React will un-collapse the right panel).
+          emitEditorEvent("editor:entity-double-click", { entityId: hitEntity.id });
+          return;
+        }
         // Already-selected entity: drag on pointermove
         if (this.selectedId === hitEntity.id) {
           this.isDragging = true;
@@ -468,6 +497,12 @@ export class EditorScene extends Phaser.Scene {
           if (dragMarker) dragMarker.container.setAlpha(0.3);
           emitEditorEvent(DRAG_START, { entityId: hitEntity.id });
         }
+        return;
+      }
+
+      // Double-click on a tile → open the tint popup for it.
+      if (isDouble && this.tilemap) {
+        this.openTintForTile(tileX, tileY, pointer.x, pointer.y);
         return;
       }
 
@@ -834,11 +869,26 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
-  /** Zoom step helper — respects clamp + refreshes the auto pixel grid. */
+  /**
+   * Zoom step helper — respects clamp + refreshes the auto pixel grid.
+   * Anchored on the last known pointer position (or the camera center if
+   * the cursor has never been tracked) so keyboard `+`/`-` feels the
+   * same as scroll wheel zoom.
+   */
   private stepZoom(factor: number): void {
     const cam = this.cameras.main;
-    this.currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.currentZoom * factor));
-    cam.setZoom(this.currentZoom);
+    const pointer = this.input.activePointer;
+    const oldZoom = this.currentZoom;
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * factor));
+    if (newZoom === oldZoom) return;
+    const anchorX = pointer?.x ?? cam.width / 2;
+    const anchorY = pointer?.y ?? cam.height / 2;
+    const before = cam.getWorldPoint(anchorX, anchorY);
+    this.currentZoom = newZoom;
+    cam.setZoom(newZoom);
+    const after = cam.getWorldPoint(anchorX, anchorY);
+    cam.scrollX += before.x - after.x;
+    cam.scrollY += before.y - after.y;
     this.syncAutoPixelGrid();
   }
 
@@ -953,17 +1003,24 @@ export class EditorScene extends Phaser.Scene {
    */
   private openTintForLastTile(): void {
     const tile = this.lastClickedTile;
-    if (!tile || !this.tilemap) return;
+    if (!tile) return;
+    this.openTintForTile(tile.x, tile.y);
+  }
+
+  /** Open the tint popup centered on a specific tile. */
+  private openTintForTile(x: number, y: number, screenX?: number, screenY?: number): void {
+    if (!this.tilemap) return;
     const hasTopSprite = this.topSprites.some((s) => {
       const sx = Math.floor((s.x as number) / TILE_SIZE);
       const sy = Math.floor((s.y as number) / TILE_SIZE);
-      return sx === tile.x && sy === tile.y;
+      return sx === x && sy === y;
     });
     const layer = hasTopSprite ? "top" : "ground";
-    this.showTintHighlight(tile.x, tile.y);
+    this.showTintHighlight(x, y);
     emitEditorEvent("editor:tint-click", {
-      x: tile.x, y: tile.y, layer,
-      screenX: window.innerWidth / 2, screenY: window.innerHeight / 2,
+      x, y, layer,
+      screenX: screenX ?? window.innerWidth / 2,
+      screenY: screenY ?? window.innerHeight / 2,
       append: false,
     });
   }

@@ -3078,6 +3078,20 @@ function EditorInner() {
     };
   }, []);
 
+  // Double-click on an entity → open (un-collapse) the right properties
+  // panel and make sure the entity is selected. Mirrors Adobe's
+  // "double-click drills into the object" convention.
+  useEffect(() => {
+    const onDouble = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { entityId?: string };
+      if (!detail?.entityId) return;
+      setRightCollapsed(false);
+      dispatch({ type: "SELECT_ENTITY", id: detail.entityId });
+    };
+    window.addEventListener("editor:entity-double-click", onDouble);
+    return () => window.removeEventListener("editor:entity-double-click", onDouble);
+  }, []);
+
   // Load data on mount
   useEffect(() => {
     fetch("/api/editor/data")
