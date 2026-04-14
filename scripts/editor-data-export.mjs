@@ -629,6 +629,43 @@ function extractMovementPatterns(text) {
   return out;
 }
 
+function extractTintPresets(text) {
+  const startRe = /TINT_PRESETS[^=]*=\s*\{/;
+  const startMatch = startRe.exec(text);
+  if (!startMatch) return [];
+  let i = startMatch.index + startMatch[0].length;
+  let depth = 1;
+  while (i < text.length && depth > 0) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}") depth--;
+    if (depth === 0) break;
+    i++;
+  }
+  const body = text.substring(startMatch.index + startMatch[0].length, i);
+  const out = [];
+  const idRe = /id:\s*"([^"]+)"/g;
+  const idMatches = [];
+  let m;
+  while ((m = idRe.exec(body)) !== null) idMatches.push({ id: m[1], idx: m.index });
+
+  for (let k = 0; k < idMatches.length; k++) {
+    const start = idMatches[k].idx;
+    const end = k + 1 < idMatches.length ? idMatches[k + 1].idx : body.length;
+    const slice = body.slice(start, end);
+    const labelM = slice.match(/label:\s*"([^"]*)"/);
+    const adjM = slice.match(/adjust:\s*\{\s*h:\s*(-?\d+(?:\.\d+)?)\s*,\s*s:\s*(-?\d+(?:\.\d+)?)\s*,\s*l:\s*(-?\d+(?:\.\d+)?)\s*,\s*a:\s*(-?\d+(?:\.\d+)?)\s*\}/);
+    out.push({
+      id: idMatches[k].id,
+      label: labelM?.[1] || "",
+      adjust: adjM ? {
+        h: parseFloat(adjM[1]), s: parseFloat(adjM[2]),
+        l: parseFloat(adjM[3]), a: parseFloat(adjM[4]),
+      } : { h: 0, s: 0, l: 0, a: 1 },
+    });
+  }
+  return out;
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 const npcsText = readFileSync(resolve(ROOT, "src/game/data/npcs.ts"), "utf-8");
 const wildText = readFileSync(resolve(ROOT, "src/game/data/wild-pokemon.ts"), "utf-8");
@@ -644,6 +681,7 @@ const badgesText = readFileSync(resolve(ROOT, "src/game/systems/BadgeMilestones.
 const fmaText = readFileSync(resolve(ROOT, "src/game/data/fieldMoveAwards.ts"), "utf-8");
 const researchLogText = readFileSync(resolve(ROOT, "src/game/data/researchLog.ts"), "utf-8");
 const movementPatternsText = readFileSync(resolve(ROOT, "src/game/data/movementPatterns.ts"), "utf-8");
+const tintPresetsText = readFileSync(resolve(ROOT, "src/game/data/tintPresets.ts"), "utf-8");
 
 const pokedexMap = buildPokedexMap(pokemonText);
 const mauvilleNpcs = extractFullNpcsFromTopLevel(npcsText, "MAUVILLE_NPCS_RAW", true, "npcs.ts");
@@ -872,6 +910,7 @@ const catalogBadges = extractBadges(badgesText);
 const catalogFieldMoves = extractFieldMoveAwards(fmaText);
 const catalogResearchLog = extractResearchLog(researchLogText);
 const catalogMovementPatterns = extractMovementPatterns(movementPatternsText);
+const catalogTintPresets = extractTintPresets(tintPresetsText);
 
 const data = {
   generatedAt: new Date().toISOString(),
@@ -899,6 +938,7 @@ const data = {
     fieldMoveAwards: catalogFieldMoves,
     researchLog: catalogResearchLog,
     movementPatterns: catalogMovementPatterns,
+    tintPresets: catalogTintPresets,
   },
   mapSize: { width: 140, height: 120 },
   spawn: { x: 72, y: 58 },
