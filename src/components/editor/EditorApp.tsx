@@ -194,6 +194,10 @@ function Toolbar() {
         <MenuItem label="Paint stroke" shortcut="⌘+Drag" disabled />
         <MenuItem label="Erase tile" shortcut="⌥+Click" disabled />
         <MenuItem label="Erase stroke" shortcut="⌥+Drag" disabled />
+        <MenuItem label="Fill bucket (flood fill)" shortcut="⌘⇧+Click" disabled />
+        <MenuItem label="Magic wand (select all same GID)" shortcut="W" onClick={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "w" }));
+        }} />
 
         <MenuSep />
         <MenuHeader>Block copy / paste</MenuHeader>
@@ -239,8 +243,16 @@ function Toolbar() {
         <MenuSep />
         <MenuHeader>Navigation</MenuHeader>
         <MenuItem label="Pan" shortcut="Drag / ␣+Drag / middle-click" disabled />
-        <MenuItem label="Zoom" shortcut="Scroll" disabled />
+        <MenuItem label="Zoom" shortcut="Scroll · + / -" disabled />
+        <MenuItem label="Fit map to view" shortcut="0" onClick={() => emitEditorEvent("editor:fit-map", {})} />
+        <MenuItem label="Reset zoom (100%)" shortcut="1" onClick={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "1" }));
+        }} />
         <MenuItem label="Arrow keys (step pan)" shortcut="← → ↑ ↓" disabled />
+
+        <MenuSep />
+        <MenuHeader>Export</MenuHeader>
+        <MenuItem label="Export map as PNG" onClick={() => emitEditorEvent("editor:export-png", {})} />
       </>
     ),
     View: (
@@ -439,19 +451,80 @@ const ALL_TILESETS = [
   { id: "gym_top", label: "Gym Top", path: "/game/tilesets/gym_top.png" },
 ];
 
+/** Swatch entry — a pinned tile reference persisted across sessions. */
+interface TileSwatch { tilesetId: string; gid: number; }
+
+function useSwatches() {
+  const [list, setList] = useState<TileSwatch[]>(() => {
+    try {
+      const raw = localStorage.getItem("editor_swatches");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  });
+  useEffect(() => {
+    try { localStorage.setItem("editor_swatches", JSON.stringify(list)); } catch {}
+  }, [list]);
+  const add = (sw: TileSwatch) => setList((prev) => {
+    if (prev.some((p) => p.tilesetId === sw.tilesetId && p.gid === sw.gid)) return prev;
+    return [...prev, sw];
+  });
+  const remove = (sw: TileSwatch) => setList((prev) =>
+    prev.filter((p) => !(p.tilesetId === sw.tilesetId && p.gid === sw.gid)),
+  );
+  return { list, add, remove };
+}
+
 function TilesPanel() {
-  const dispatch = useEditorDispatch();
   const [selectedTileset, setSelectedTileset] = useState("mauville_bottom");
   const ts = ALL_TILESETS.find((t) => t.id === selectedTileset) || ALL_TILESETS[0];
+  const swatches = useSwatches();
+
+  const applyGid = (gid: number) => {
+    emitEditorEvent("editor:select-tile-gid", { gid });
+  };
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "4px", display: "flex", flexDirection: "column" }}>
+      {/* Pinned swatches — favourites for quick recall */}
+      {swatches.list.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 8, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>
+            Pinned Swatches
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+            {swatches.list.map((sw) => {
+              const setDef = ALL_TILESETS.find((t) => t.id === sw.tilesetId);
+              if (!setDef) return null;
+              const col = (sw.gid - 1) % 16;
+              const row = Math.floor((sw.gid - 1) / 16);
+              return (
+                <div
+                  key={`${sw.tilesetId}:${sw.gid}`}
+                  title={`${setDef.label} · GID ${sw.gid} (right-click to unpin)`}
+                  onClick={() => applyGid(sw.gid)}
+                  onContextMenu={(e) => { e.preventDefault(); swatches.remove(sw); }}
+                  style={{
+                    width: 28, height: 28, cursor: "pointer",
+                    background: `url("${setDef.path}") no-repeat`,
+                    backgroundPosition: `-${col * 16}px -${row * 16}px`,
+                    backgroundSize: "auto",
+                    imageRendering: "pixelated",
+                    border: "1px solid #3a3a50", borderRadius: 2,
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <select value={selectedTileset} onChange={(e) => setSelectedTileset(e.target.value)}
         style={{ width: "100%", background: "#161628", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "3px 4px", marginBottom: 4 }}>
         {ALL_TILESETS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
       </select>
       <div style={{ fontSize: 8, color: "#666", padding: "0 2px 3px" }}>
-        Click tile to select for Stamp tool (3)
+        Click tile to pick GID · Right-click to pin as swatch
       </div>
       <div
         style={{ position: "relative", cursor: "crosshair" }}
@@ -466,9 +539,21 @@ function TilesPanel() {
           const tileCol = Math.floor(realX / 16);
           const tileRow = Math.floor(realY / 16);
           const gid = tileRow * 16 + tileCol + 1;
-          emitEditorEvent("editor:select-tile-gid", { gid });
-          dispatch({ type: "SET_TOOL", tool: "stamp" });
-          emitEditorEvent("editor:set-tool", { tool: "stamp" });
+          applyGid(gid);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const rect = e.currentTarget.getBoundingClientRect();
+          const img = e.currentTarget.querySelector("img");
+          if (!img) return;
+          const scaleX = img.naturalWidth / rect.width;
+          const scaleY = img.naturalHeight / rect.height;
+          const realX = (e.clientX - rect.left) * scaleX;
+          const realY = (e.clientY - rect.top) * scaleY;
+          const tileCol = Math.floor(realX / 16);
+          const tileRow = Math.floor(realY / 16);
+          const gid = tileRow * 16 + tileCol + 1;
+          swatches.add({ tilesetId: selectedTileset, gid });
         }}
       >
         <img src={ts.path} alt={ts.label}
