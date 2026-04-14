@@ -1075,13 +1075,131 @@ function DataManagerPanel() {
   );
 }
 
-/** Minimap — small overview of the full map with entity dots */
+/**
+ * Per-map assets used to render the minimap background. Uses the ORIGINAL
+ * (pre-split) tileset for Mauville so grass + decor both appear composited,
+ * and includes the foreground PNG so trees/buildings are visible above.
+ */
+const MINIMAP_MAP_ASSETS: Record<string, { mapJson: string; tileset: string; foreground?: string; width: number; height: number }> = {
+  mauville: {
+    mapJson: "/game/maps/mauville.json",
+    tileset: "/game/tilesets/mauville_bottom.png",
+    foreground: "/game/maps/mauville_foreground.png",
+    width: 140, height: 120,
+  },
+  pokecenter: { mapJson: "/game/maps/pokecenter.json", tileset: "/game/tilesets/pokecenter_bottom.png", width: 14, height: 9 },
+  mart: { mapJson: "/game/maps/mart.json", tileset: "/game/tilesets/mart_bottom.png", width: 11, height: 8 },
+  gym: { mapJson: "/game/maps/gym.json", tileset: "/game/tilesets/gym_bottom.png", width: 10, height: 21 },
+};
+
+/** Module-level cache so switching maps back and forth doesn't re-fetch. */
+const minimapThumbCache = new Map<string, HTMLCanvasElement>();
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+/**
+ * Build an offscreen canvas with the full map rendered at native tile
+ * resolution. The Minimap then scales it down with drawImage. Cached by
+ * map id — subsequent switches to the same map are instant.
+ */
+async function buildMapThumbnail(mapId: string): Promise<HTMLCanvasElement | null> {
+  const cached = minimapThumbCache.get(mapId);
+  if (cached) return cached;
+  const cfg = MINIMAP_MAP_ASSETS[mapId];
+  if (!cfg) return null;
+  const [mapJson, tilesetImg] = await Promise.all([
+    fetch(cfg.mapJson).then((r) => r.json()),
+    loadImage(cfg.tileset),
+  ]);
+  const w = mapJson.width as number;
+  const h = mapJson.height as number;
+  const ts = mapJson.tilesets[0];
+  const tw = ts.tilewidth as number;
+  const th = ts.tileheight as number;
+  const margin = (ts.margin as number) ?? 0;
+  const spacing = (ts.spacing as number) ?? 0;
+  const cols = ts.columns as number;
+  const firstgid = ts.firstgid as number;
+  const ground = mapJson.layers.find((l: any) => l.name === "Ground");
+  if (!ground) return null;
+
+  const cv = document.createElement("canvas");
+  cv.width = w * tw;
+  cv.height = h * th;
+  const ctx = cv.getContext("2d");
+  if (!ctx) return null;
+  // Transparent under grass so any foreground alpha shows through correctly
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const gid = ground.data[y * w + x] as number;
+      if (!gid) continue;
+      const local = gid - firstgid;
+      if (local < 0) continue;
+      const srcX = margin + (local % cols) * (tw + spacing);
+      const srcY = margin + Math.floor(local / cols) * (th + spacing);
+      ctx.drawImage(tilesetImg, srcX, srcY, tw, th, x * tw, y * th, tw, th);
+    }
+  }
+
+  if (cfg.foreground) {
+    try {
+      const fgImg = await loadImage(cfg.foreground);
+      ctx.drawImage(fgImg, 0, 0);
+    } catch {
+      // Foreground PNG missing — grass-only thumbnail is still useful
+    }
+  }
+
+  minimapThumbCache.set(mapId, cv);
+  return cv;
+}
+
+/**
+ * Minimap — small overview of the full map with the actual tile graphics
+ * plus entity dots. Click to jump the main viewport to that tile.
+ */
 function Minimap() {
   const state = useEditorState();
-  const dispatch = useEditorDispatch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const W = 180;
-  const H = Math.round(W * (120 / 140));
+  const [mapId, setMapId] = useState<string>(() =>
+    typeof localStorage !== "undefined" ? (localStorage.getItem("editor_current_map") || "mauville") : "mauville"
+  );
+  const [thumb, setThumb] = useState<HTMLCanvasElement | null>(null);
+
+  // Listen for map switches so we re-render with the right thumbnail
+  useEffect(() => {
+    const onSwitch = (e: Event) => {
+      const next = (e as CustomEvent).detail?.mapId;
+      if (next && next !== mapId) setMapId(next);
+    };
+    window.addEventListener(SWITCH_MAP, onSwitch);
+    return () => window.removeEventListener(SWITCH_MAP, onSwitch);
+  }, [mapId]);
+
+  // Load the thumbnail canvas for the current map
+  useEffect(() => {
+    let cancelled = false;
+    setThumb(minimapThumbCache.get(mapId) || null);
+    buildMapThumbnail(mapId).then((cv) => {
+      if (!cancelled && cv) setThumb(cv);
+    });
+    return () => { cancelled = true; };
+  }, [mapId]);
+
+  const cfg = MINIMAP_MAP_ASSETS[mapId] ?? MINIMAP_MAP_ASSETS.mauville;
+  const MAX_W = 180;
+  const MAX_H = 150;
+  // Scale to fit within MAX_W x MAX_H while preserving aspect ratio
+  const scale = Math.min(MAX_W / cfg.width, MAX_H / cfg.height);
+  const W = Math.round(cfg.width * scale);
+  const H = Math.round(cfg.height * scale);
 
   const typeColors: Record<string, string> = {
     npc: "#3b82f6", "pokemon-npc": "#06b6d4", pickup: "#f97316",
@@ -1095,13 +1213,24 @@ function Minimap() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Background fill for the brief pre-load window
     ctx.fillStyle = "#1a2e1a";
     ctx.fillRect(0, 0, W, H);
 
-    // Draw entity dots
+    // Actual map tiles
+    if (thumb) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(thumb, 0, 0, W, H);
+      // Slight dark wash so entity dots stay readable against bright tiles
+      ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Entity dots
     for (const e of state.entities) {
-      const px = (e.x / 140) * W;
-      const py = (e.y / 120) * H;
+      const px = (e.x / cfg.width) * W;
+      const py = (e.y / cfg.height) * H;
       ctx.fillStyle = typeColors[e.type] || "#888";
       const r = state.selectedEntityId === e.id ? 3 : 1.5;
       ctx.beginPath();
@@ -1109,12 +1238,12 @@ function Minimap() {
       ctx.fill();
     }
 
-    // Draw selected entity highlight
+    // Selected entity ring
     if (state.selectedEntityId) {
       const sel = state.entities.find((e) => e.id === state.selectedEntityId);
       if (sel) {
-        const px = (sel.x / 140) * W;
-        const py = (sel.y / 120) * H;
+        const px = (sel.x / cfg.width) * W;
+        const py = (sel.y / cfg.height) * H;
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -1122,13 +1251,13 @@ function Minimap() {
         ctx.stroke();
       }
     }
-  }, [state.entities, state.selectedEntityId]);
+  }, [state.entities, state.selectedEntityId, thumb, W, H, cfg.width, cfg.height]);
 
   const handleClick = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = Math.floor(((e.clientX - rect.left) / W) * 140);
-    const y = Math.floor(((e.clientY - rect.top) / H) * 120);
+    const x = Math.floor(((e.clientX - rect.left) / W) * cfg.width);
+    const y = Math.floor(((e.clientY - rect.top) / H) * cfg.height);
     emitEditorEvent(JUMP_TO_TILE, { x, y });
   };
 
