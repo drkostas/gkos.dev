@@ -2325,6 +2325,7 @@ function EditorInner() {
     // All selected tiles (for multi-tint via Shift+click)
     selected: Array<{ x: number; y: number; layer: string; mapId: string }>;
   } | null>(null);
+  const [hoverTile, setHoverTile] = useState<{ x: number; y: number; gid: number; hasTopSprite: boolean; screenX: number; screenY: number } | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -2388,9 +2389,16 @@ function EditorInner() {
     };
     window.addEventListener("editor:set-tool", onSetTool);
 
+    const onHoverTile = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setHoverTile(detail);
+    };
+    window.addEventListener("editor:hover-tile", onHoverTile);
+
     return () => {
       window.removeEventListener("editor:tint-click", onTintClick);
       window.removeEventListener("editor:set-tool", onSetTool);
+      window.removeEventListener("editor:hover-tile", onHoverTile);
     };
   }, []);
 
@@ -2841,6 +2849,31 @@ function EditorInner() {
       })()}
 
       {/* Tile Tint popup */}
+      {/* Hovered tile coordinate badge — follows the cursor, always visible */}
+      {hoverTile && (
+        <div style={{
+          position: "fixed",
+          left: Math.min(hoverTile.screenX + 18, window.innerWidth - 180),
+          top: Math.min(hoverTile.screenY + 18, window.innerHeight - 60),
+          zIndex: 9997,
+          pointerEvents: "none",
+          background: "rgba(0, 0, 0, 0.85)",
+          color: "#ffd700",
+          fontFamily: "monospace",
+          fontSize: 12,
+          fontWeight: 700,
+          padding: "4px 8px",
+          borderRadius: 4,
+          border: "1px solid #4a4a6a",
+          whiteSpace: "nowrap",
+        }}>
+          <div>Tile ({hoverTile.x}, {hoverTile.y})</div>
+          <div style={{ fontSize: 10, color: "#aaa", fontWeight: 400 }}>
+            GID: {hoverTile.gid}{hoverTile.hasTopSprite ? " · has top sprite" : ""}
+          </div>
+        </div>
+      )}
+
       {tintPopup && (
         <TintPopup
           key={`${tintPopup.mapId}:${tintPopup.x},${tintPopup.y}:${tintPopup.selected.length}`}

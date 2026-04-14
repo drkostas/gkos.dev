@@ -706,6 +706,8 @@ export class EditorScene extends Phaser.Scene {
     this.refreshAllMarkers([]);
   }
 
+  private lastEmittedTile = "";
+
   update(): void {
     // Update coordinate display with tile GID info
     const pointer = this.input.activePointer;
@@ -717,14 +719,32 @@ export class EditorScene extends Phaser.Scene {
 
       // Get tile GID from tilemap
       let gidInfo = "";
+      let groundGid = 0;
+      let topSpriteAt = false;
       if (this.tilemap) {
         const groundTile = this.tilemap.getTileAt(clampedX, clampedY, false, "Ground");
-        if (groundTile) gidInfo = ` GID:${groundTile.index}`;
+        if (groundTile) { gidInfo = ` GID:${groundTile.index}`; groundGid = groundTile.index; }
         const isCollision = this.collisionLayerData[clampedY * MAP_WIDTH + clampedX] > 0;
         if (isCollision) gidInfo += " [BLOCKED]";
       }
+      // Detect top sprite at hover
+      topSpriteAt = this.topSprites.some((s) => {
+        const sx = Math.floor((s.x as number) / TILE_SIZE);
+        const sy = Math.floor((s.y as number) / TILE_SIZE);
+        return sx === clampedX && sy === clampedY;
+      });
 
-      this.coordText.setText(`Tile: (${clampedX}, ${clampedY})${gidInfo}`);
+      this.coordText.setText(`Tile: (${clampedX}, ${clampedY})${gidInfo}${topSpriteAt ? " [FG]" : ""}`);
+
+      // Emit to React so the EditorApp can render a visible overlay
+      const sig = `${clampedX},${clampedY},${groundGid},${topSpriteAt}`;
+      if (sig !== this.lastEmittedTile) {
+        this.lastEmittedTile = sig;
+        emitEditorEvent("editor:hover-tile", {
+          x: clampedX, y: clampedY, gid: groundGid, hasTopSprite: topSpriteAt,
+          screenX: pointer.x, screenY: pointer.y,
+        });
+      }
     }
   }
 
