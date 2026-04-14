@@ -1021,7 +1021,7 @@ export class EditorScene extends Phaser.Scene {
     this.tintHighlights.clear();
   }
 
-  applySingleTileTint(x: number, y: number, layer: string, rgb: number | null, alpha: number): void {
+  applySingleTileTint(x: number, y: number, layer: string, rgb: number | null, alpha: number, extra?: { rot?: number; flipX?: boolean; flipY?: boolean }): void {
     if (layer === "top") {
       // Find top sprite at that tile
       for (const s of this.topSprites) {
@@ -1031,6 +1031,12 @@ export class EditorScene extends Phaser.Scene {
           if (rgb == null) s.clearTint();
           else s.setTint(rgb);
           s.setAlpha(alpha);
+          // Rotation & flip: sprite origin is center (we set it in addMarker pathway)
+          // For the per-tile foreground sprites created via createOverworldForegroundTiles,
+          // origin is center (set via x+8, y+8), so rotation pivots the tile correctly.
+          const rot = extra?.rot ?? 0;
+          s.setAngle(rot);
+          s.setFlip(extra?.flipX ?? false, extra?.flipY ?? false);
           break;
         }
       }
@@ -1039,6 +1045,19 @@ export class EditorScene extends Phaser.Scene {
       if (tile) {
         tile.tint = rgb == null ? 0xffffff : rgb;
         tile.alpha = alpha;
+        // Ground rotation: Tiled tiles support rotation via 90° increments via flip flags
+        const rot = extra?.rot ?? 0;
+        const flipX = extra?.flipX ?? false;
+        const flipY = extra?.flipY ?? false;
+        // Phaser tiles don't directly support 90° rotation; approximate via flipX/flipY
+        // Rot 180° = flipX+flipY. 90/270 aren't supported natively on tilemap tiles.
+        if (rot === 180) {
+          tile.flipX = !flipX;
+          tile.flipY = !flipY;
+        } else {
+          tile.flipX = flipX;
+          tile.flipY = flipY;
+        }
       }
     }
   }
@@ -1060,7 +1079,7 @@ export class EditorScene extends Phaser.Scene {
         for (let y = 0; y < this.tilemap.height; y++) {
           for (let x = 0; x < this.tilemap.width; x++) {
             const t = gl.getTileAt(x, y);
-            if (t) { t.tint = 0xffffff; t.alpha = 1; }
+            if (t) { t.tint = 0xffffff; t.alpha = 1; t.flipX = false; t.flipY = false; }
           }
         }
       }
@@ -1068,6 +1087,8 @@ export class EditorScene extends Phaser.Scene {
     for (const s of this.topSprites) {
       s.clearTint();
       s.setAlpha(1);
+      s.setAngle(0);
+      s.setFlip(false, false);
     }
 
     // Re-apply from stored tints (resolve via adjustToRgb in React before sending)
@@ -1081,7 +1102,11 @@ export class EditorScene extends Phaser.Scene {
       if (!entry) continue;
       const rgb = typeof entry.rgb === "number" ? entry.rgb : null;
       const alpha = typeof entry.alpha === "number" ? entry.alpha : 1;
-      this.applySingleTileTint(x, y, layer, rgb, alpha);
+      this.applySingleTileTint(x, y, layer, rgb, alpha, {
+        rot: entry.rot,
+        flipX: entry.flipX,
+        flipY: entry.flipY,
+      });
     }
   }
 

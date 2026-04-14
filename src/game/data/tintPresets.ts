@@ -15,6 +15,12 @@ export interface TintAdjust {
   s: number;
   l: number;
   a: number;
+  /** Rotation in degrees (0, 90, 180, 270). Only applied to top sprites, not ground tiles. */
+  rot?: number;
+  /** Horizontal flip. */
+  flipX?: boolean;
+  /** Vertical flip. */
+  flipY?: boolean;
 }
 
 export interface TintPreset {
