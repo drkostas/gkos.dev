@@ -2855,12 +2855,34 @@ function TintPopup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer]);
 
-  // Initial popup position, clamped to viewport
-  const [pos, setPos] = useState(() => ({
-    x: Math.min(popup.screenX + 10, window.innerWidth - 340),
-    y: Math.min(popup.screenY + 10, window.innerHeight - 340),
-  }));
+  // Popup position — persisted across opens via localStorage.
+  // Default: bottom-left area that rarely covers interesting tiles.
+  const [pos, setPos] = useState(() => {
+    try {
+      const saved = localStorage.getItem("editor_tint_popup_pos");
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (typeof p.x === "number" && typeof p.y === "number") {
+          return {
+            x: Math.max(0, Math.min(p.x, window.innerWidth - 340)),
+            y: Math.max(0, Math.min(p.y, window.innerHeight - 100)),
+          };
+        }
+      }
+    } catch {}
+    return {
+      x: 240,
+      y: Math.max(40, window.innerHeight - 400),
+    };
+  });
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  // Persist position whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("editor_tint_popup_pos", JSON.stringify(pos));
+    } catch {}
+  }, [pos]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
