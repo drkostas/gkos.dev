@@ -3,6 +3,7 @@ import { EditorProvider, useEditorState, useEditorDispatch } from "./state/Edito
 import type { EditorEntity } from "./state/editorTypes";
 import EditorViewport from "./EditorViewport";
 import { emitEditorEvent, onEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE, SWITCH_MAP, VIEWPORT_READY } from "../../game/editor/EditorEvents";
+import { POKEMON_SPECIES, type PokemonSpecies } from "../../game/data/pokemonSpecies";
 
 /** Dropdown menu item */
 function MenuItem({ label, shortcut, onClick, disabled }: { label: string; shortcut?: string; onClick?: () => void; disabled?: boolean }) {
@@ -2083,9 +2084,36 @@ function RightPanel() {
 
       {selected.pokemon && (
         <PropSection title="POKEMON" color="#22c55e">
-          <PropField label="Dex #" value={selected.pokemon.pokedexNumber} type="number" disabled />
-          <PropField label="Species" value={selected.pokemon.speciesName} disabled />
-          <PropField label="Project" value={selected.pokemon.projectName} disabled />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>Species</span>
+            <img
+              src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${selected.pokemon.pokedexNumber}.png`}
+              alt="" loading="lazy"
+              style={{ width: 32, height: 32, imageRendering: "pixelated", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, flexShrink: 0 }}
+            />
+            <select
+              value={selected.pokemon.pokedexNumber}
+              onChange={(e) => {
+                const dex = Number(e.target.value);
+                const sp = POKEMON_SPECIES[dex - 1];
+                if (!sp) return;
+                updateField("pokemon", {
+                  pokedexNumber: sp.dex,
+                  speciesName: sp.name,
+                  projectName: selected.pokemon?.projectName ?? sp.name,
+                }, selected.pokemon);
+              }}
+              style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px" }}
+            >
+              {POKEMON_SPECIES.map((sp) => (
+                <option key={sp.dex} value={sp.dex}>
+                  #{String(sp.dex).padStart(3, "0")} {sp.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <PropField label="Project" value={selected.pokemon.projectName}
+            onChange={(v) => updateField("pokemon", { ...selected.pokemon!, projectName: String(v) }, selected.pokemon)} />
         </PropSection>
       )}
 
@@ -2505,6 +2533,8 @@ interface CmdItem {
   label: string;
   hint?: string;      // right-aligned subtitle
   category: string;
+  /** Optional thumbnail URL rendered to the left of the label. */
+  iconUrl?: string;
   run: () => void;
 }
 
@@ -2644,6 +2674,7 @@ function buildPaletteItems(opts: {
   showHistory: () => void;
   showRelationships: () => void;
   toggleLayer: (layer: string) => void;
+  applySpecies: (sp: PokemonSpecies) => void;
 }): CmdItem[] {
   const { state, dispatch } = opts;
   const items: CmdItem[] = [];
@@ -2723,6 +2754,22 @@ function buildPaletteItems(opts: {
     });
   }
 
+  // All 386 Gen 1–3 pokémon — searchable by name or dex number. Clicking
+  // assigns the species to the currently-selected pokémon entity (if any)
+  // or surfaces a toast/prompt for further action.
+  for (const sp of POKEMON_SPECIES) {
+    items.push({
+      id: `species-${sp.dex}`,
+      label: `${sp.name} (#${String(sp.dex).padStart(3, "0")})`,
+      category: "Pokémon",
+      hint: `Gen ${sp.dex <= 151 ? 1 : sp.dex <= 251 ? 2 : 3}`,
+      iconUrl: sp.spriteUrl,
+      run: () => {
+        opts.applySpecies(sp);
+      },
+    });
+  }
+
   return items;
 }
 
@@ -2737,11 +2784,18 @@ function CmdRow({ item, active, onRun, onHover }: { item: CmdItem; active: boole
         color: active ? "#fff" : "#ccc",
         cursor: "pointer",
         display: "flex", justifyContent: "space-between", alignItems: "center",
+        gap: 8,
         borderLeft: active ? "2px solid #4a9eed" : "2px solid transparent",
       }}
     >
-      <span>{item.label}</span>
-      <span style={{ fontSize: 9, color: active ? "#9abcd6" : "#666", fontFamily: "monospace" }}>{item.hint || item.category}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        {item.iconUrl && (
+          <img src={item.iconUrl} alt="" loading="lazy"
+            style={{ width: 24, height: 24, imageRendering: "pixelated", flexShrink: 0 }} />
+        )}
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+      </span>
+      <span style={{ fontSize: 9, color: active ? "#9abcd6" : "#666", fontFamily: "monospace", flexShrink: 0 }}>{item.hint || item.category}</span>
     </div>
   );
 }
@@ -3479,6 +3533,30 @@ function EditorInner() {
               const visible = !state.layers[layer as keyof typeof state.layers];
               dispatch({ type: "TOGGLE_LAYER", layer: layer as any });
               emitEditorEvent(TOGGLE_LAYER_EVENT, { layer, visible });
+            },
+            applySpecies: (sp) => {
+              // If a pokémon entity is selected, re-link it to the chosen
+              // species. Otherwise drop the user at the Pokédex tab so
+              // they can attach it manually or add a new dex entry.
+              const sel = state.selectedEntityId
+                ? state.entities.find((e) => e.id === state.selectedEntityId)
+                : null;
+              if (sel && (sel.type === "pokemon-npc" || sel.type === "wild-pokemon")) {
+                dispatch({
+                  type: "UPDATE_FIELD",
+                  id: sel.id,
+                  field: "pokemon",
+                  value: {
+                    pokedexNumber: sp.dex,
+                    speciesName: sp.name,
+                    projectName: sel.pokemon?.projectName ?? sp.name,
+                  },
+                  oldValue: sel.pokemon,
+                });
+              } else {
+                // No target entity — show a toast-ish notice via alert
+                window.dispatchEvent(new CustomEvent("editor:species-clicked", { detail: sp }));
+              }
             },
           })}
           onClose={() => setPaletteOpen(false)}
