@@ -2824,6 +2824,7 @@ function EditorInner() {
       {/* Tile Tint popup */}
       {tintPopup && (
         <TintPopup
+          key={`${tintPopup.mapId}:${tintPopup.layer}:${tintPopup.x},${tintPopup.y}`}
           popup={tintPopup}
           tileTints={state.tileTints}
           tintPresets={state.catalog?.tintPresets || []}
@@ -2860,9 +2861,31 @@ function TintPopup({
   const [a, setA] = useState(existing.a ?? 1);
   const [presetName, setPresetName] = useState("");
 
-  // Clamp popup to viewport
-  const popupX = Math.min(popup.screenX + 10, window.innerWidth - 340);
-  const popupY = Math.min(popup.screenY + 10, window.innerHeight - 340);
+  // Initial popup position, clamped to viewport
+  const [pos, setPos] = useState(() => ({
+    x: Math.min(popup.screenX + 10, window.innerWidth - 340),
+    y: Math.min(popup.screenY + 10, window.innerHeight - 340),
+  }));
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 320, dragRef.current.origX + dx)),
+        y: Math.max(0, Math.min(window.innerHeight - 100, dragRef.current.origY + dy)),
+      });
+    };
+    const onUp = () => { dragRef.current = null; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   const applyChange = (nh: number, ns: number, nl: number, na: number) => {
     if (nh === 0 && ns === 0 && nl === 0 && na === 1) {
@@ -2873,14 +2896,16 @@ function TintPopup({
   };
 
   return (
-    <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 9998 }} onClick={onClose} />
       <div style={{
-        position: "fixed", left: popupX, top: popupY, zIndex: 9999, width: 320,
+        position: "fixed", left: pos.x, top: pos.y, zIndex: 9999, width: 320,
         background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 6, padding: 12,
         boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div
+          onMouseDown={(e) => {
+            dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
+          }}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, cursor: "move", userSelect: "none" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#e5e5e5" }}>
             Tint Tile ({popup.x}, {popup.y}) <span style={{ fontSize: 9, color: "#888" }}>— {popup.layer}</span>
           </span>
@@ -2959,7 +2984,6 @@ function TintPopup({
           </button>
         </div>
       </div>
-    </>
   );
 }
 
