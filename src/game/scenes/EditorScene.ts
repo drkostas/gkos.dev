@@ -1126,6 +1126,13 @@ export class EditorScene extends Phaser.Scene {
         break;
       case "foreground":
         this.foregroundVisible = visible;
+        // Control per-tile foreground sprites (which replaced the single image).
+        // Only sprites rendered for the overworld Mauville foreground respond here;
+        // interior map top sprites (furniture) are kept always visible since they
+        // aren't a "foreground layer" conceptually.
+        if (this.currentMapId === "mauville") {
+          for (const s of this.topSprites) s.setVisible(visible);
+        }
         if (this.foregroundImage) this.foregroundImage.setVisible(visible);
         break;
       case "grid":
