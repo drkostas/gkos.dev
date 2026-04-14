@@ -62,27 +62,60 @@ async function main() {
   // raw layout: [R, G, B, A, R, G, B, A, ...]
   const out = Buffer.from(raw);
 
-  let stripped = 0;
-  let kept = 0;
-  const pixelCount = width * height;
+  const TILE = 16;
+  const tilesX = width / TILE;
+  const tilesY = height / TILE;
 
-  for (let i = 0; i < pixelCount; i++) {
-    const idx = i * 4;
-    const alpha = out[idx + 3];
-    if (alpha === 0) continue;
+  // For each 16x16 tile, decide whether to strip grass.
+  // Strip ONLY if the tile is "mixed" (has both decor and grass pixels).
+  // Keep intact if the tile is "pure grass palette" (trees — grass colors
+  // ARE the decor, we'd wipe the whole tree).
+  let tilesStripped = 0;
+  let tilesKept = 0;
+  let pixelsStripped = 0;
 
-    const r = out[idx], g = out[idx + 1], b = out[idx + 2];
-    const isGrass = GRASS_COLORS.some((c) => colorDist([r, g, b], c) <= TOLERANCE);
+  const isGrass = (r, g, b) => GRASS_COLORS.some((c) => colorDist([r, g, b], c) <= TOLERANCE);
 
-    if (isGrass) {
-      out[idx + 3] = 0; // make transparent
-      stripped++;
-    } else {
-      kept++;
+  for (let ty = 0; ty < tilesY; ty++) {
+    for (let tx = 0; tx < tilesX; tx++) {
+      let opaque = 0;
+      let grassPx = 0;
+      let decorPx = 0;
+
+      // Analyze tile
+      for (let py = 0; py < TILE; py++) {
+        for (let px = 0; px < TILE; px++) {
+          const idx = ((ty * TILE + py) * width + (tx * TILE + px)) * 4;
+          const a = out[idx + 3];
+          if (a === 0) continue;
+          opaque++;
+          if (isGrass(out[idx], out[idx + 1], out[idx + 2])) grassPx++;
+          else decorPx++;
+        }
+      }
+
+      // Only strip if BOTH grass and decor pixels are present
+      // (i.e., tile is mixed — e.g., a fence post with grass on sides)
+      if (grassPx > 0 && decorPx > 0) {
+        for (let py = 0; py < TILE; py++) {
+          for (let px = 0; px < TILE; px++) {
+            const idx = ((ty * TILE + py) * width + (tx * TILE + px)) * 4;
+            if (out[idx + 3] === 0) continue;
+            if (isGrass(out[idx], out[idx + 1], out[idx + 2])) {
+              out[idx + 3] = 0;
+              pixelsStripped++;
+            }
+          }
+        }
+        tilesStripped++;
+      } else {
+        tilesKept++;
+      }
     }
   }
 
-  console.log(`Stripped ${stripped} grass/dirt pixels, kept ${kept} decor pixels`);
+  console.log(`Tiles stripped (mixed): ${tilesStripped}, tiles kept as-is: ${tilesKept}`);
+  console.log(`Pixels stripped: ${pixelsStripped}`);
 
   await sharp(out, { raw: { width, height, channels } })
     .png()
