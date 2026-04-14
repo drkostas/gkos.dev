@@ -2397,7 +2397,7 @@ function EditorInner() {
   // Stash tile tints on window so EditorScene can refresh when needed
   useEffect(() => {
     // Pre-compute RGB for each tint entry for efficient viewport application
-    const resolved: Record<string, { rgb: number | null; alpha: number }> = {};
+    const resolved: Record<string, { rgb: number | null; alpha: number; rot?: number; flipX?: boolean; flipY?: boolean }> = {};
     for (const key in state.tileTints) {
       const entry = state.tileTints[key];
       let adj = { h: entry.h ?? 0, s: entry.s ?? 0, l: entry.l ?? 0, a: entry.a ?? 1 };
@@ -2405,7 +2405,13 @@ function EditorInner() {
         const preset = state.catalog?.tintPresets?.find((p) => p.id === entry.presetId);
         if (preset) adj = preset.adjust;
       }
-      resolved[key] = { rgb: adjustToRgb(adj), alpha: adj.a };
+      resolved[key] = {
+        rgb: adjustToRgb(adj),
+        alpha: adj.a,
+        rot: entry.rot,
+        flipX: entry.flipX,
+        flipY: entry.flipY,
+      };
     }
     (window as any).__EDITOR_TILE_TINTS__ = resolved;
     emitEditorEvent("editor:refresh-tints", {});
@@ -2880,6 +2886,9 @@ function TintPopup({
   const [s, setS] = useState(existing.s ?? 0);
   const [l, setL] = useState(existing.l ?? 0);
   const [a, setA] = useState(existing.a ?? 1);
+  const [rot, setRot] = useState(existing.rot ?? 0);
+  const [flipX, setFlipX] = useState(existing.flipX ?? false);
+  const [flipY, setFlipY] = useState(existing.flipY ?? false);
   const [presetName, setPresetName] = useState("");
 
   // When the layer changes, reload the sliders from the new key's existing tint
@@ -2887,6 +2896,7 @@ function TintPopup({
     const k = `${popup.mapId}:${layer}:${popup.x},${popup.y}`;
     const e = tileTints[k] || { h: 0, s: 0, l: 0, a: 1 };
     setH(e.h ?? 0); setS(e.s ?? 0); setL(e.l ?? 0); setA(e.a ?? 1);
+    setRot(e.rot ?? 0); setFlipX(e.flipX ?? false); setFlipY(e.flipY ?? false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer]);
 
@@ -2938,11 +2948,16 @@ function TintPopup({
     };
   }, []);
 
-  const applyChange = (nh: number, ns: number, nl: number, na: number) => {
-    if (nh === 0 && ns === 0 && nl === 0 && na === 1) {
+  const applyChange = (nh: number, ns: number, nl: number, na: number, nrot = rot, nfx = flipX, nfy = flipY) => {
+    const isDefault = nh === 0 && ns === 0 && nl === 0 && na === 1 && nrot === 0 && !nfx && !nfy;
+    if (isDefault) {
       onChange(key, null); // Remove tint
     } else {
-      onChange(key, { h: nh, s: ns, l: nl, a: na });
+      const entry: any = { h: nh, s: ns, l: nl, a: na };
+      if (nrot !== 0) entry.rot = nrot;
+      if (nfx) entry.flipX = true;
+      if (nfy) entry.flipY = true;
+      onChange(key, entry);
     }
   };
 
@@ -3025,9 +3040,38 @@ function TintPopup({
           </div>
         ))}
 
+        {/* Rotation & Flip (top layer only — tilemap tiles only support 180° via flip flags) */}
+        <div style={{ borderTop: "1px solid #2a2a40", marginTop: 6, paddingTop: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 45 }}>Rotate</span>
+            {[0, 90, 180, 270].map((r) => (
+              <button key={r} onClick={() => { setRot(r); applyChange(h, s, l, a, r, flipX, flipY); }}
+                disabled={layer === "ground" && r !== 0 && r !== 180}
+                style={{
+                  flex: 1, background: rot === r ? "#1e3a5f" : "#0d0d1a",
+                  color: rot === r ? "#fff" : "#ccc",
+                  border: "1px solid " + (rot === r ? "#4a9eed" : "#2a2a40"),
+                  borderRadius: 2, fontSize: 9, padding: "3px 0", cursor: "pointer",
+                  opacity: (layer === "ground" && r !== 0 && r !== 180) ? 0.3 : 1,
+                }}>{r}°</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 45 }}>Flip</span>
+            <label style={{ flex: 1, display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "#ccc", cursor: "pointer" }}>
+              <input type="checkbox" checked={flipX} onChange={(e) => { setFlipX(e.target.checked); applyChange(h, s, l, a, rot, e.target.checked, flipY); }} />
+              Horizontal
+            </label>
+            <label style={{ flex: 1, display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: "#ccc", cursor: "pointer" }}>
+              <input type="checkbox" checked={flipY} onChange={(e) => { setFlipY(e.target.checked); applyChange(h, s, l, a, rot, flipX, e.target.checked); }} />
+              Vertical
+            </label>
+          </div>
+        </div>
+
         <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 8, borderTop: "1px solid #2a2a40" }}>
           <button onClick={() => {
-            setH(0); setS(0); setL(0); setA(1);
+            setH(0); setS(0); setL(0); setA(1); setRot(0); setFlipX(false); setFlipY(false);
             onChange(key, null);
           }} style={{ flex: 1, background: "#2a2a40", color: "#ccc", border: "1px solid #3a3a50", borderRadius: 3, padding: "4px 8px", fontSize: 9, cursor: "pointer" }}>
             Clear

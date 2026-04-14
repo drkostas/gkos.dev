@@ -133,6 +133,10 @@ export interface TileTintEntry {
   s?: number;
   l?: number;
   a?: number;
+  /** Rotation 0/90/180/270 degrees. Top sprites only. */
+  rot?: number;
+  flipX?: boolean;
+  flipY?: boolean;
 }
 
 /** Named NPC movement pattern — edited via the Movement tab */
