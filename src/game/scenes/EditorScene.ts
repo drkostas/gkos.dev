@@ -336,23 +336,27 @@ export class EditorScene extends Phaser.Scene {
     });
 
     // Scroll wheel zoom — zoom toward the cursor position so the tile
-    // under the cursor stays in place while the rest scales around it.
-    // Phaser zooms the camera about its midpoint, so we can't just use
-    // `scrollX = worldX - cursorX/zoom`. The robust way: sample the
-    // world point under the cursor before zoom, change zoom, sample the
-    // world point at the same screen coords *after* zoom, and shift
-    // scroll by the delta.
+    // under the cursor stays in place while everything else scales around
+    // it. Phaser caches `worldView` / `midPoint` until the next
+    // preRender(), so calling getWorldPoint right after setZoom returns
+    // stale values and throws off cursor anchoring. Instead we derive the
+    // new scroll analytically from Phaser's transform formula:
+    //   worldX = scrollX + (screenX - originX*width)/zoom + originX*width
+    // Solving for scrollX given the target (pointer.worldX at the same
+    // screen coords post-zoom) keeps the tile under the cursor stationary.
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _gameObjects: any, _deltaX: number, deltaY: number) => {
       const factor = deltaY > 0 ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
-      const oldZoom = this.currentZoom;
+      const oldZoom = cam.zoom;
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * factor));
       if (newZoom === oldZoom) return;
-      const before = cam.getWorldPoint(pointer.x, pointer.y);
-      this.currentZoom = newZoom;
+      const wx = pointer.worldX;
+      const wy = pointer.worldY;
+      const ox = cam.originX * cam.width;
+      const oy = cam.originY * cam.height;
       cam.setZoom(newZoom);
-      const after = cam.getWorldPoint(pointer.x, pointer.y);
-      cam.scrollX += before.x - after.x;
-      cam.scrollY += before.y - after.y;
+      cam.scrollX = wx - (pointer.x - ox) / newZoom - ox;
+      cam.scrollY = wy - (pointer.y - oy) / newZoom - oy;
+      this.currentZoom = newZoom;
       this.syncAutoPixelGrid();
     });
 
@@ -878,17 +882,19 @@ export class EditorScene extends Phaser.Scene {
   private stepZoom(factor: number): void {
     const cam = this.cameras.main;
     const pointer = this.input.activePointer;
-    const oldZoom = this.currentZoom;
+    const oldZoom = cam.zoom;
     const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * factor));
     if (newZoom === oldZoom) return;
     const anchorX = pointer?.x ?? cam.width / 2;
     const anchorY = pointer?.y ?? cam.height / 2;
-    const before = cam.getWorldPoint(anchorX, anchorY);
-    this.currentZoom = newZoom;
+    const wx = pointer?.worldX ?? cam.scrollX + cam.width / 2;
+    const wy = pointer?.worldY ?? cam.scrollY + cam.height / 2;
+    const ox = cam.originX * cam.width;
+    const oy = cam.originY * cam.height;
     cam.setZoom(newZoom);
-    const after = cam.getWorldPoint(anchorX, anchorY);
-    cam.scrollX += before.x - after.x;
-    cam.scrollY += before.y - after.y;
+    cam.scrollX = wx - (anchorX - ox) / newZoom - ox;
+    cam.scrollY = wy - (anchorY - oy) / newZoom - oy;
+    this.currentZoom = newZoom;
     this.syncAutoPixelGrid();
   }
 
