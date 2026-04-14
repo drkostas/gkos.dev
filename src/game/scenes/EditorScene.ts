@@ -143,6 +143,13 @@ export class EditorScene extends Phaser.Scene {
   private dragPaintMode: "paint" | "erase" | null = null;
   /** Deduped set of "x,y" keys visited during the current drag-paint. */
   private dragPaintVisited: Set<string> = new Set();
+  /**
+   * Multi-select queue for stamp/eraser — Shift+click accumulates tiles
+   * into this set with a visible outline. Enter commits the tool's action
+   * to every queued tile at once. Switching tools or pressing Esc clears.
+   */
+  private pendingOpMode: "paint" | "erase" | null = null;
+  private pendingOpTiles: Map<string, Phaser.GameObjects.Graphics> = new Map();
 
   constructor() {
     super({ key: "EditorScene" });
@@ -586,6 +593,35 @@ export class EditorScene extends Phaser.Scene {
         const w = Math.abs(endX - this.shiftDragStart.x) + 1;
         const h = Math.abs(endY - this.shiftDragStart.y) + 1;
 
+        // Single-tile shift-click is routed to the tool-specific queue:
+        //   stamp → queue for batch paint (Enter commits)
+        //   eraser → queue for batch erase
+        //   eyedropper → pick GID without auto-switching to stamp
+        // A 2×2+ drag still produces a real block selection below.
+        if (w === 1 && h === 1) {
+          this.isShiftDragging = false;
+          this.shiftDragStart = null;
+          if (this.currentTool === "stamp") {
+            this.togglePendingOpTile("paint", sx, sy);
+            return;
+          }
+          if (this.currentTool === "eraser") {
+            this.togglePendingOpTile("erase", sx, sy);
+            return;
+          }
+          if (this.currentTool === "eyedropper") {
+            const tile = this.tilemap.getTileAt(sx, sy, false, "Ground");
+            if (tile) {
+              this.selectedTileGid = tile.index;
+              emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: sx, y: sy });
+              // Shift+click = stay in eyedropper so the user can compare
+              // multiple tiles without the tool jumping to stamp.
+            }
+            return;
+          }
+          // Other tools: fall through to the legacy 1×1 block behaviour
+        }
+
         // Capture tile GIDs in the selected region
         const tiles: number[][] = [];
         for (let dy = 0; dy < h; dy++) {
@@ -709,6 +745,13 @@ export class EditorScene extends Phaser.Scene {
       }
       this.emitBlockStatus();
     });
+    // Enter commits the queued Shift+click tiles (paint or erase) in one go.
+    this.input.keyboard?.on("keydown-ENTER", () => {
+      if (isTypingInField()) return;
+      if (this.pendingOpMode && this.pendingOpTiles.size > 0) {
+        this.commitPendingOpQueue();
+      }
+    });
   }
 
   /** Rotate a tile grid 90° clockwise. */
@@ -750,6 +793,69 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Toggle a tile in the pending-op queue. When the queue switches modes
+   * (e.g. paint → erase on tool change), it's reset first. Emits status to
+   * React so the HUD badge stays in sync.
+   */
+  private togglePendingOpTile(mode: "paint" | "erase", x: number, y: number): void {
+    if (this.pendingOpMode && this.pendingOpMode !== mode) {
+      this.clearPendingOpQueue();
+    }
+    this.pendingOpMode = mode;
+    const key = `${x},${y}`;
+    const existing = this.pendingOpTiles.get(key);
+    if (existing) {
+      existing.destroy();
+      this.pendingOpTiles.delete(key);
+      if (this.pendingOpTiles.size === 0) this.pendingOpMode = null;
+    } else {
+      const g = this.add.graphics();
+      g.setDepth(450);
+      const color = mode === "paint" ? 0x22c55e : 0xef4444;
+      g.lineStyle(2, color, 0.9);
+      g.strokeRect(x * TILE_SIZE + 1, y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+      g.fillStyle(color, 0.18);
+      g.fillRect(x * TILE_SIZE + 1, y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+      this.pendingOpTiles.set(key, g);
+    }
+    this.emitPendingOpStatus();
+  }
+
+  /** Apply the queued paint/erase to every queued tile in one go. */
+  private commitPendingOpQueue(): void {
+    if (!this.pendingOpMode || !this.tilemap) return;
+    const mode = this.pendingOpMode;
+    for (const key of this.pendingOpTiles.keys()) {
+      const [xs, ys] = key.split(",");
+      const x = parseInt(xs, 10);
+      const y = parseInt(ys, 10);
+      if (mode === "paint" && this.selectedTileGid > 0) {
+        this.tilemap.putTileAt(this.selectedTileGid, x, y, false, "Ground");
+        emitEditorEvent("editor:tile-paint", { x, y, gid: this.selectedTileGid });
+      } else if (mode === "erase") {
+        this.tilemap.putTileAt(0, x, y, false, "Ground");
+        emitEditorEvent("editor:tile-paint", { x, y, gid: 0 });
+      }
+    }
+    this.clearPendingOpQueue();
+  }
+
+  /** Drop all queued tiles and their highlights. */
+  clearPendingOpQueue(): void {
+    for (const g of this.pendingOpTiles.values()) g.destroy();
+    this.pendingOpTiles.clear();
+    this.pendingOpMode = null;
+    this.emitPendingOpStatus();
+  }
+
+  private emitPendingOpStatus(): void {
+    emitEditorEvent("editor:pending-op-status", this.pendingOpMode
+      ? { mode: this.pendingOpMode, count: this.pendingOpTiles.size }
+      : null,
+    );
+  }
+
   private setupEventListeners(): void {
     this.unsubscribers.push(
       onEditorEvent(SELECT_ENTITY, (detail: { entityId: string }) => {
@@ -786,8 +892,16 @@ export class EditorScene extends Phaser.Scene {
         this.switchMap(detail.mapId);
       }),
       onEditorEvent(SET_TOOL, (detail: { tool: string }) => {
+        const previous = this.currentTool;
         this.currentTool = detail.tool;
         if (detail.tool !== "tint") this.clearTintHighlight();
+        // Leaving stamp/eraser with a pending multi-select queue clears it;
+        // the queue is tool-specific and shouldn't bleed into another tool.
+        if (previous !== detail.tool && this.pendingOpMode) {
+          const stillApplies = (this.pendingOpMode === "paint" && detail.tool === "stamp") ||
+                               (this.pendingOpMode === "erase" && detail.tool === "eraser");
+          if (!stillApplies) this.clearPendingOpQueue();
+        }
       }),
       onEditorEvent("editor:tint-close", () => {
         this.clearTintHighlight();
@@ -803,6 +917,12 @@ export class EditorScene extends Phaser.Scene {
           this.blockSelectionGraphics = null;
         }
         this.emitBlockStatus();
+      }),
+      onEditorEvent("editor:clear-pending-ops", () => {
+        this.clearPendingOpQueue();
+      }),
+      onEditorEvent("editor:commit-pending-ops", () => {
+        this.commitPendingOpQueue();
       }),
       onEditorEvent("editor:select-tile-gid", (detail: { gid: number }) => {
         this.selectedTileGid = detail.gid;
