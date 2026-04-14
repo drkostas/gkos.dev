@@ -138,6 +138,21 @@ function Toolbar() {
     return () => window.removeEventListener("editor:trigger-save", handler);
   }, [state.undoStack, state.dirty]);
 
+  // Esc closes the save-diff modal while it's open. Runs in capture phase
+  // and stops propagation so it wins over the main editor's tiered Esc.
+  useEffect(() => {
+    if (!saveDiffChanges) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSaveDiffChanges(null);
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [saveDiffChanges]);
+
   const handleUndo = () => dispatch({ type: "UNDO" });
   const handleRedo = () => dispatch({ type: "REDO" });
 
@@ -196,8 +211,11 @@ function Toolbar() {
         <MenuItem label="Erase tile" shortcut="⌥+Click" disabled />
         <MenuItem label="Erase stroke" shortcut="⌥+Drag" disabled />
         <MenuItem label="Fill bucket (flood fill)" shortcut="⌘⇧+Click" disabled />
-        <MenuItem label="Magic wand (select all same GID)" shortcut="W" onClick={() => {
+        <MenuItem label="Magic wand (select all same GID / top sprite)" shortcut="W" onClick={() => {
           window.dispatchEvent(new KeyboardEvent("keydown", { key: "w" }));
+        }} />
+        <MenuItem label="Toggle tile collision" shortcut="C" onClick={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
         }} />
 
         <MenuSep />
@@ -2815,7 +2833,7 @@ function ModifierBar() {
       hint = <>
         <kbd>Click</kbd> pick GID / select entity · <kbd>Drag</kbd> pan ·{" "}
         <kbd>⌘</kbd> paint · <kbd>⌥</kbd> erase · <kbd>⇧</kbd> multi-select ·{" "}
-        <kbd>W</kbd> magic wand · <kbd>T</kbd> tint · <kbd>?</kbd> more
+        <kbd>W</kbd> wand · <kbd>T</kbd> tint · <kbd>C</kbd> collision · <kbd>⌘K</kbd> palette
       </>;
   }
 
@@ -3281,6 +3299,7 @@ function EditorInner() {
         // can unwind without blowing away everything at once. First match
         // wins; stop after handling.
         // Level 1: any modal/popup/overlay
+        if (paletteOpen) { setPaletteOpen(false); return; }
         if (dialogPreview) { setDialogPreview(null); return; }
         if (deleteConfirm) { setDeleteConfirm(null); return; }
         if (showShortcuts) { setShowShortcuts(false); return; }
@@ -3329,6 +3348,7 @@ function EditorInner() {
     state.selectedEntityId, state.selectedEntityIds, state.entities,
     blockStatus, pendingOp, tintPopup, contextMenu, deleteConfirm,
     showShortcuts, showHistory, showRelationships, dialogPreview,
+    paletteOpen,
   ]);
 
   if (state.loading) {

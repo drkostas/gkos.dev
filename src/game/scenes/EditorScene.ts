@@ -69,6 +69,13 @@ interface EntityMarker {
   selectionRing?: Phaser.GameObjects.Graphics;
 }
 
+/** Captured top-sprite metadata for a block-selection cell. */
+interface BlockDecor {
+  textureKey: string;
+  frameKey: string;
+  depth: number;
+}
+
 const TYPE_COLORS: Record<string, number> = {
   npc: 0x3b82f6,
   "pokemon-npc": 0x06b6d4,
@@ -129,8 +136,18 @@ export class EditorScene extends Phaser.Scene {
   private unsubscribers: (() => void)[] = [];
   private selectedTileGid: number = 0;
   private currentTool: string = "select";
-  // Block copy/paste state
-  private blockSelection: { startX: number; startY: number; endX: number; endY: number; tiles: number[][] } | null = null;
+  // Block copy/paste state. `tiles` holds ground-layer GIDs per cell;
+  // `decor` holds the texture/frame of any top-sprite (tree / fence /
+  // building piece) at that cell, so paste can recreate them. Without
+  // the decor capture, pasting into an area that was decor-only in the
+  // original tileset shows as transparent/black (the grass-split image
+  // has no pixels at that tile position).
+  private blockSelection: {
+    startX: number; startY: number;
+    endX: number; endY: number;
+    tiles: number[][];
+    decor: (BlockDecor | null)[][];
+  } | null = null;
   private blockSelectionGraphics: Phaser.GameObjects.Graphics | null = null;
   private isShiftDragging: boolean = false;
   private shiftDragStart: { x: number; y: number } | null = null;
@@ -414,10 +431,12 @@ export class EditorScene extends Phaser.Scene {
         tileX >= 0 && tileX < this.tilemap.width &&
         tileY >= 0 && tileY < this.tilemap.height;
 
-      // Alt: erase the starting tile immediately + enter drag-erase
+      // Alt: erase the starting tile immediately + enter drag-erase.
+      // Also destroys any top sprite (tree / fence / building) at that
+      // cell — otherwise the ground gets cleared but the decor sprite
+      // keeps floating, making the erase look broken.
       if (altDown && this.tilemap && inBounds) {
-        this.tilemap.putTileAt(0, tileX, tileY, false, "Ground");
-        emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
+        this.eraseTileAndDecor(tileX, tileY);
         this.isDragPainting = true;
         this.dragPaintMode = "erase";
         this.dragPaintVisited.clear();
@@ -453,6 +472,14 @@ export class EditorScene extends Phaser.Scene {
         this.camStart = { x: cam.scrollX, y: cam.scrollY };
         this.panMoved = false;
       };
+
+      // With a stamp block copied, a plain click pastes it — this was the
+      // old "stamp tool" behaviour that the unified mode must preserve
+      // otherwise shift-drag-to-copy has no obvious way to commit.
+      if (this.blockSelection && this.blockSelection.tiles.length > 0 && this.tilemap && inBounds) {
+        deferToolClick(() => this.pasteBlockAt(tileX, tileY));
+        return;
+      }
 
       // Plain click: entity takes priority over tile.
       let hitEntity: EntityMarker | null = null;
@@ -585,8 +612,7 @@ export class EditorScene extends Phaser.Scene {
               this.tilemap.putTileAt(this.selectedTileGid, tx, ty, false, "Ground");
               emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: this.selectedTileGid });
             } else if (this.dragPaintMode === "erase") {
-              this.tilemap.putTileAt(0, tx, ty, false, "Ground");
-              emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: 0 });
+              this.eraseTileAndDecor(tx, ty);
             }
           }
         }
@@ -708,18 +734,34 @@ export class EditorScene extends Phaser.Scene {
           return;
         }
 
-        // Capture tile GIDs in the selected region
+        // Capture tile GIDs + any top-sprite metadata in the selected
+        // region. Decor lookup is indexed by tile coord so paste can
+        // recreate the tree/fence/building sprites at the new position.
+        const decorByKey = new Map<string, BlockDecor>();
+        for (const s of this.topSprites) {
+          const tx = Math.floor((s.x as number) / TILE_SIZE);
+          const ty = Math.floor((s.y as number) / TILE_SIZE);
+          decorByKey.set(`${tx},${ty}`, {
+            textureKey: s.texture.key,
+            frameKey: String(s.frame.name),
+            depth: s.depth as number,
+          });
+        }
         const tiles: number[][] = [];
+        const decor: (BlockDecor | null)[][] = [];
         for (let dy = 0; dy < h; dy++) {
           const row: number[] = [];
+          const decorRow: (BlockDecor | null)[] = [];
           for (let dx = 0; dx < w; dx++) {
             const tile = this.tilemap.getTileAt(sx + dx, sy + dy, false, "Ground");
             row.push(tile?.index || 0);
+            decorRow.push(decorByKey.get(`${sx + dx},${sy + dy}`) ?? null);
           }
           tiles.push(row);
+          decor.push(decorRow);
         }
 
-        this.blockSelection = { startX: sx, startY: sy, endX: sx + w - 1, endY: sy + h - 1, tiles };
+        this.blockSelection = { startX: sx, startY: sy, endX: sx + w - 1, endY: sy + h - 1, tiles, decor };
         this.isShiftDragging = false;
         this.shiftDragStart = null;
 
@@ -825,6 +867,7 @@ export class EditorScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-R", () => {
       if (!this.blockSelection || isTypingInField()) return;
       this.blockSelection.tiles = EditorScene.rotateBlock90(this.blockSelection.tiles);
+      this.blockSelection.decor = EditorScene.rotateDecor90(this.blockSelection.decor);
       this.emitBlockStatus();
       // Force a ghost redraw — its cached tile is still valid but width/height changed.
       this.blockGhostTile = { x: -1, y: -1 };
@@ -833,8 +876,10 @@ export class EditorScene extends Phaser.Scene {
       if (!this.blockSelection || isTypingInField()) return;
       if (event.shiftKey) {
         this.blockSelection.tiles = EditorScene.flipBlockY(this.blockSelection.tiles);
+        this.blockSelection.decor = EditorScene.flipBlockY(this.blockSelection.decor);
       } else {
         this.blockSelection.tiles = EditorScene.flipBlockX(this.blockSelection.tiles);
+        this.blockSelection.decor = EditorScene.flipBlockX(this.blockSelection.decor);
       }
       this.emitBlockStatus();
       this.blockGhostTile = { x: -1, y: -1 };
@@ -871,6 +916,38 @@ export class EditorScene extends Phaser.Scene {
       if (isTypingInField()) return;
       this.magicWandSelectByGid();
     });
+    // C toggles the collision flag on the last-clicked tile. The old
+    // Ctrl+click gesture was reclaimed by the unified paint shortcut, so
+    // collision authoring lives on a dedicated key now.
+    this.input.keyboard?.on("keydown-C", () => {
+      if (isTypingInField()) return;
+      this.toggleCollisionAtLastTile();
+    });
+  }
+
+  /** Toggle collision at the most-recently-clicked tile (hover if none). */
+  private toggleCollisionAtLastTile(): void {
+    if (!this.tilemap) return;
+    const pointer = this.input.activePointer;
+    let x: number, y: number;
+    if (this.lastClickedTile) {
+      x = this.lastClickedTile.x; y = this.lastClickedTile.y;
+    } else if (pointer) {
+      x = Math.floor(pointer.worldX / TILE_SIZE);
+      y = Math.floor(pointer.worldY / TILE_SIZE);
+    } else return;
+    if (x < 0 || x >= this.tilemap.width || y < 0 || y >= this.tilemap.height) return;
+    const idx = y * this.tilemap.width + x;
+    if (idx < 0 || idx >= this.collisionLayerData.length) return;
+    const wasBlocked = this.collisionLayerData[idx] > 0;
+    this.collisionLayerData[idx] = wasBlocked ? 0 : 1;
+    // Only write back to the Collision tilemap layer if one actually
+    // exists (interior maps don't always have one).
+    if (this.tilemap.getLayer("Collision")) {
+      this.tilemap.putTileAt(wasBlocked ? 0 : 1, x, y, false, "Collision");
+    }
+    if (this.collisionVisible) this.renderCollisionOverlay();
+    emitEditorEvent("editor:collision-toggle", { x, y, blocked: !wasBlocked });
   }
 
   /**
@@ -912,20 +989,52 @@ export class EditorScene extends Phaser.Scene {
   }
 
   /**
-   * Magic wand: when the last-clicked tile's GID is known, highlight every
-   * tile on the Ground layer that shares it. The highlights piggy-back on
-   * the tint multi-select so pressing T then moving sliders tints all of
-   * them in one go.
+   * Magic wand — selects all tiles similar to the last-clicked one. If
+   * the clicked tile has a top sprite (tree / building / fence), we match
+   * every top sprite with the same texture+frame. Otherwise we match
+   * same-GID tiles on the ground layer. Routes the matches through the
+   * tint multi-select so T-then-slider tints them all at once.
    */
   private magicWandSelectByGid(): void {
     if (!this.tilemap || !this.lastClickedTile) return;
-    const target = this.tilemap.getTileAt(this.lastClickedTile.x, this.lastClickedTile.y, false, "Ground");
+    const lcx = this.lastClickedTile.x;
+    const lcy = this.lastClickedTile.y;
+    this.clearTintHighlight();
+
+    // Prefer matching the top sprite if one exists at the clicked tile —
+    // otherwise the wand "only selects grass" because decor is in a
+    // separate sprite layer that ground-GID matching never sees.
+    const clickedSprite = this.topSprites.find((s) => {
+      const sx = Math.floor((s.x as number) / TILE_SIZE);
+      const sy = Math.floor((s.y as number) / TILE_SIZE);
+      return sx === lcx && sy === lcy;
+    });
+
+    let count = 0;
+    if (clickedSprite) {
+      const texKey = clickedSprite.texture.key;
+      const frameKey = String(clickedSprite.frame.name);
+      for (const s of this.topSprites) {
+        if (s.texture.key !== texKey) continue;
+        if (String(s.frame.name) !== frameKey) continue;
+        const x = Math.floor((s.x as number) / TILE_SIZE);
+        const y = Math.floor((s.y as number) / TILE_SIZE);
+        this.addTintHighlight(x, y);
+        emitEditorEvent("editor:tint-click", {
+          x, y, layer: "top",
+          screenX: window.innerWidth / 2, screenY: window.innerHeight / 2,
+          append: count > 0,
+        });
+        count++;
+      }
+      return;
+    }
+
+    const target = this.tilemap.getTileAt(lcx, lcy, false, "Ground");
     if (!target) return;
     const targetGid = target.index;
-    this.clearTintHighlight();
     const ground = this.tilemap.getLayer("Ground");
     if (!ground) return;
-    let count = 0;
     for (let y = 0; y < this.tilemap.height; y++) {
       for (let x = 0; x < this.tilemap.width; x++) {
         const t = ground.data[y]?.[x];
@@ -934,7 +1043,7 @@ export class EditorScene extends Phaser.Scene {
           emitEditorEvent("editor:tint-click", {
             x, y, layer: "ground",
             screenX: window.innerWidth / 2, screenY: window.innerHeight / 2,
-            append: count > 0, // first click opens popup, rest append
+            append: count > 0,
           });
           count++;
         }
@@ -1031,27 +1140,52 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
-  /** Rotate a tile grid 90° clockwise. */
-  private static rotateBlock90(m: number[][]): number[][] {
+  /** Rotate a 2D grid 90° clockwise (generic over cell type). */
+  private static rotateGrid90<T>(m: T[][]): T[][] {
     const h = m.length;
     const w = m[0]?.length ?? 0;
-    const out: number[][] = [];
+    const out: T[][] = [];
     for (let y = 0; y < w; y++) {
-      const row: number[] = new Array(h);
+      const row: T[] = new Array(h);
       for (let x = 0; x < h; x++) row[x] = m[h - 1 - x][y];
       out.push(row);
     }
     return out;
   }
+  private static rotateBlock90(m: number[][]): number[][] { return this.rotateGrid90(m); }
+  private static rotateDecor90(m: (BlockDecor | null)[][]): (BlockDecor | null)[][] {
+    return this.rotateGrid90(m);
+  }
 
-  /** Mirror a tile grid along its vertical axis (left ↔ right). */
-  private static flipBlockX(m: number[][]): number[][] {
+  /** Mirror a 2D grid along its vertical axis (left ↔ right). */
+  private static flipBlockX<T>(m: T[][]): T[][] {
     return m.map((row) => [...row].reverse());
   }
 
-  /** Mirror a tile grid along its horizontal axis (top ↔ bottom). */
-  private static flipBlockY(m: number[][]): number[][] {
+  /** Mirror a 2D grid along its horizontal axis (top ↔ bottom). */
+  private static flipBlockY<T>(m: T[][]): T[][] {
     return [...m].reverse();
+  }
+
+  /**
+   * Erase the ground tile AND any top sprite at (x, y). Ensures the user
+   * doesn't get a floating tree after clearing the ground beneath it.
+   */
+  private eraseTileAndDecor(x: number, y: number): void {
+    if (!this.tilemap) return;
+    if (x < 0 || x >= this.tilemap.width || y < 0 || y >= this.tilemap.height) return;
+    this.tilemap.putTileAt(0, x, y, false, "Ground");
+    emitEditorEvent("editor:tile-paint", { x, y, gid: 0 });
+    const beforeLen = this.topSprites.length;
+    this.topSprites = this.topSprites.filter((s) => {
+      const sx = Math.floor((s.x as number) / TILE_SIZE);
+      const sy = Math.floor((s.y as number) / TILE_SIZE);
+      if (sx === x && sy === y) { s.destroy(); return false; }
+      return true;
+    });
+    if (this.topSprites.length !== beforeLen) {
+      emitEditorEvent("editor:decor-erased", { x, y });
+    }
   }
 
   /**
@@ -1165,15 +1299,51 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
-  /** Paste the current stamp block at (tileX, tileY). Skips zero gids. */
+  /**
+   * Paste the current stamp block at (tileX, tileY). Also recreates any
+   * captured top-sprite decor (trees, fences, building pieces) so tiles
+   * that are decor-only in the grass-split don't show as transparent.
+   * Destroys existing top sprites at the target cells first to avoid
+   * duplicates when pasting on top of existing decor.
+   */
   private pasteBlockAt(tileX: number, tileY: number): void {
     if (!this.blockSelection || !this.tilemap) return;
-    const { tiles } = this.blockSelection;
+    const { tiles, decor } = this.blockSelection;
+    const targets = new Set<string>();
     for (let dy = 0; dy < tiles.length; dy++) {
       for (let dx = 0; dx < tiles[dy].length; dx++) {
+        const tx = tileX + dx;
+        const ty = tileY + dy;
+        if (tx < 0 || tx >= this.tilemap.width || ty < 0 || ty >= this.tilemap.height) continue;
         if (tiles[dy][dx] > 0) {
-          this.tilemap.putTileAt(tiles[dy][dx], tileX + dx, tileY + dy, false, "Ground");
+          this.tilemap.putTileAt(tiles[dy][dx], tx, ty, false, "Ground");
         }
+        targets.add(`${tx},${ty}`);
+      }
+    }
+    // Remove any existing top sprites inside the paste footprint so we
+    // don't layer duplicates. Then add new ones for captured decor.
+    this.topSprites = this.topSprites.filter((s) => {
+      const tx = Math.floor((s.x as number) / TILE_SIZE);
+      const ty = Math.floor((s.y as number) / TILE_SIZE);
+      if (targets.has(`${tx},${ty}`)) { s.destroy(); return false; }
+      return true;
+    });
+    for (let dy = 0; dy < decor.length; dy++) {
+      for (let dx = 0; dx < decor[dy].length; dx++) {
+        const d = decor[dy][dx];
+        if (!d) continue;
+        const tx = tileX + dx;
+        const ty = tileY + dy;
+        if (tx < 0 || tx >= this.tilemap.width || ty < 0 || ty >= this.tilemap.height) continue;
+        const sprite = this.add.sprite(
+          tx * TILE_SIZE + TILE_SIZE / 2,
+          ty * TILE_SIZE + TILE_SIZE / 2,
+          d.textureKey,
+          d.frameKey,
+        );
+        sprite.setDepth(d.depth);
+        this.topSprites.push(sprite);
       }
     }
     emitEditorEvent("editor:block-pasted", {
