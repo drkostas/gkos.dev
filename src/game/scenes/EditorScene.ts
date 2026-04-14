@@ -548,8 +548,9 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
-      // Plain click on tile: pick GID (eyedropper), remember as most-recent
-      // for tint popup, and defer so drag still pans.
+      // Plain click on tile: pick GID (eyedropper) AND replace the
+      // unified selection with this one tile. Inspector reads the
+      // selection state, so this one path populates both.
       if (this.tilemap) {
         deferToolClick(() => {
           const tile = this.tilemap!.getTileAt(tileX, tileY, false, "Ground");
@@ -558,6 +559,7 @@ export class EditorScene extends Phaser.Scene {
             this.lastClickedTile = { x: tileX, y: tileY };
             emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: tileX, y: tileY });
             emitEditorEvent("editor:tile-selected", { x: tileX, y: tileY });
+            this.showTintHighlight(tileX, tileY); // unified selection
           }
         });
         return;
@@ -722,26 +724,16 @@ export class EditorScene extends Phaser.Scene {
         const w = Math.abs(endX - this.shiftDragStart.x) + 1;
         const h = Math.abs(endY - this.shiftDragStart.y) + 1;
 
-        // Single-tile Shift+click in the unified Edit mode: add the tile
-        // to the tint multi-selection. The user can then press T (or
-        // change a slider if the popup is open) to tint every highlighted
-        // tile at once. A 2×2+ drag still produces a block selection.
+        // Single-tile Shift+click: toggle the tile in the unified
+        // selection. Adds on first click, removes on second. Inspector
+        // and every batch op (tint, collision, copy, delete) read from
+        // this selection.
         if (w === 1 && h === 1) {
           this.isShiftDragging = false;
           this.shiftDragStart = null;
-          const hasTopSprite = this.topSprites.some((spr) => {
-            const ssx = Math.floor((spr.x as number) / TILE_SIZE);
-            const ssy = Math.floor((spr.y as number) / TILE_SIZE);
-            return ssx === sx && ssy === sy;
-          });
-          const layer = hasTopSprite ? "top" : "ground";
-          this.addTintHighlight(sx, sy);
+          this.toggleTileInSelection(sx, sy);
           this.lastClickedTile = { x: sx, y: sy };
-          emitEditorEvent("editor:tint-click", {
-            x: sx, y: sy, layer,
-            screenX: p.x, screenY: p.y,
-            append: true,
-          });
+          emitEditorEvent("editor:tile-selected", { x: sx, y: sy });
           return;
         }
 
@@ -775,6 +767,15 @@ export class EditorScene extends Phaser.Scene {
         this.blockSelection = { startX: sx, startY: sy, endX: sx + w - 1, endY: sy + h - 1, tiles, decor };
         this.isShiftDragging = false;
         this.shiftDragStart = null;
+
+        // Also populate the unified selection with every tile in the
+        // rect, so the inspector's batch ops target the same cells the
+        // user just dragged out.
+        const rectTiles: { x: number; y: number }[] = [];
+        for (let dy = 0; dy < h; dy++) {
+          for (let dx = 0; dx < w; dx++) rectTiles.push({ x: sx + dx, y: sy + dy });
+        }
+        this.setSelection(rectTiles);
 
         // Auto-switch to stamp tool for pasting
         this.currentTool = "stamp";
@@ -1510,6 +1511,62 @@ export class EditorScene extends Phaser.Scene {
       }),
       // Esc clears the copied stamp block. Also clears the blue outline
       // and the cursor-follow ghost.
+      onEditorEvent("editor:erase-tile", (detail: { x: number; y: number }) => {
+        if (!detail) return;
+        this.eraseTileAndDecor(detail.x, detail.y);
+      }),
+      onEditorEvent("editor:copy-selection-as-block", (detail: { tiles: { x: number; y: number }[] }) => {
+        if (!this.tilemap || !detail?.tiles || detail.tiles.length === 0) return;
+        // Compute bounding rect
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const t of detail.tiles) {
+          if (t.x < minX) minX = t.x;
+          if (t.y < minY) minY = t.y;
+          if (t.x > maxX) maxX = t.x;
+          if (t.y > maxY) maxY = t.y;
+        }
+        const w = maxX - minX + 1;
+        const h = maxY - minY + 1;
+        const inSel = new Set(detail.tiles.map((t) => `${t.x},${t.y}`));
+        const decorMap = new Map<string, BlockDecor>();
+        for (const s of this.topSprites) {
+          const tx = Math.floor((s.x as number) / TILE_SIZE);
+          const ty = Math.floor((s.y as number) / TILE_SIZE);
+          decorMap.set(`${tx},${ty}`, {
+            textureKey: s.texture.key,
+            frameKey: String(s.frame.name),
+            depth: s.depth as number,
+          });
+        }
+        const tiles: number[][] = [];
+        const decor: (BlockDecor | null)[][] = [];
+        for (let dy = 0; dy < h; dy++) {
+          const row: number[] = [];
+          const drow: (BlockDecor | null)[] = [];
+          for (let dx = 0; dx < w; dx++) {
+            const key = `${minX + dx},${minY + dy}`;
+            if (inSel.has(key)) {
+              const tt = this.tilemap.getTileAt(minX + dx, minY + dy, false, "Ground");
+              row.push(tt?.index ?? 0);
+              drow.push(decorMap.get(key) ?? null);
+            } else {
+              // Tiles outside the selection within the bounding rect
+              // paste as "no-op" (zero GID, no decor)
+              row.push(0);
+              drow.push(null);
+            }
+          }
+          tiles.push(row);
+          decor.push(drow);
+        }
+        this.blockSelection = {
+          startX: minX, startY: minY,
+          endX: maxX, endY: maxY,
+          tiles, decor,
+        };
+        emitEditorEvent("editor:block-copied", { width: w, height: h, tileCount: detail.tiles.length });
+        this.emitBlockStatus();
+      }),
       onEditorEvent("editor:copy-single-tile", (detail: { x: number; y: number }) => {
         if (!this.tilemap || !detail) return;
         const t = this.tilemap.getTileAt(detail.x, detail.y, false, "Ground");
@@ -2069,17 +2126,22 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
-  /** Reset all highlights and draw one at (x, y). */
+  /**
+   * Unified tile selection — one Set drives the inspector + every batch
+   * op (tint sliders, collision toggle, copy, delete, rotate/flip). The
+   * `tintHighlights` name is kept for backwards-compat with a few call
+   * sites but the concept is "selected tiles". Every mutation emits
+   * `editor:selection-change` so React's inspector can mirror it.
+   */
   showTintHighlight(x: number, y: number): void {
     this.clearTintHighlight();
     this.addTintHighlight(x, y);
   }
 
-  /** Add a highlight at (x, y) without clearing existing ones (multi-select). */
   addTintHighlight(x: number, y: number): void {
     if (!this.sys?.displayList) return;
     const key = `${x},${y}`;
-    if (this.tintHighlights.has(key)) return; // already highlighted
+    if (this.tintHighlights.has(key)) return;
     const g = this.add.graphics();
     g.setDepth(999);
     const cx = x * TILE_SIZE + TILE_SIZE / 2;
@@ -2098,6 +2160,34 @@ export class EditorScene extends Phaser.Scene {
       ease: "Sine.easeInOut",
     });
     this.tintHighlights.set(key, { gfx: g, tween });
+    this.emitSelectionChange();
+  }
+
+  /** Toggle a tile's selection state (shift+click). */
+  toggleTileInSelection(x: number, y: number): void {
+    const key = `${x},${y}`;
+    if (this.tintHighlights.has(key)) {
+      const entry = this.tintHighlights.get(key)!;
+      entry.tween.destroy();
+      entry.gfx.destroy();
+      this.tintHighlights.delete(key);
+      this.emitSelectionChange();
+    } else {
+      this.addTintHighlight(x, y);
+    }
+  }
+
+  /** Replace selection with an arbitrary list of tiles. */
+  setSelection(tiles: { x: number; y: number }[]): void {
+    for (const { gfx, tween } of this.tintHighlights.values()) {
+      tween.destroy();
+      gfx.destroy();
+    }
+    this.tintHighlights.clear();
+    for (const t of tiles) this.addTintHighlight(t.x, t.y);
+    // addTintHighlight emits selection-change each call; extra emit here
+    // ensures the final state is broadcast even for empty input.
+    if (tiles.length === 0) this.emitSelectionChange();
   }
 
   clearTintHighlight(): void {
@@ -2106,6 +2196,23 @@ export class EditorScene extends Phaser.Scene {
       gfx.destroy();
     }
     this.tintHighlights.clear();
+    this.emitSelectionChange();
+  }
+
+  /** Emit the full selection list so React can mirror it. */
+  private emitSelectionChange(): void {
+    const tiles: { x: number; y: number; layer: "ground" | "top" }[] = [];
+    for (const key of this.tintHighlights.keys()) {
+      const [xs, ys] = key.split(",");
+      const x = parseInt(xs, 10);
+      const y = parseInt(ys, 10);
+      const hasTop = this.topSprites.some((s) =>
+        Math.floor((s.x as number) / TILE_SIZE) === x &&
+        Math.floor((s.y as number) / TILE_SIZE) === y,
+      );
+      tiles.push({ x, y, layer: hasTop ? "top" : "ground" });
+    }
+    emitEditorEvent("editor:selection-change", { tiles });
   }
 
   /**
