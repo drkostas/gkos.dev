@@ -2320,7 +2320,10 @@ function EditorInner() {
   const [leftWidth, setLeftWidth] = useState(220);
   const [rightWidth, setRightWidth] = useState(300);
   const [tintPopup, setTintPopup] = useState<{
+    // The "primary" tile (last clicked) — drives the popup sliders
     x: number; y: number; layer: string; screenX: number; screenY: number; mapId: string;
+    // All selected tiles (for multi-tint via Shift+click)
+    selected: Array<{ x: number; y: number; layer: string; mapId: string }>;
   } | null>(null);
 
   // Load data on mount
@@ -2357,14 +2360,38 @@ function EditorInner() {
       const detail = (e as CustomEvent).detail;
       const mapId = localStorage.getItem("editor_current_map") || "mauville";
       const storageMapId = mapId === "mauville" ? "overworld" : mapId;
-      setTintPopup({
-        x: detail.x, y: detail.y, layer: detail.layer,
-        screenX: detail.screenX, screenY: detail.screenY,
-        mapId: storageMapId,
+      const tile = { x: detail.x, y: detail.y, layer: detail.layer, mapId: storageMapId };
+      setTintPopup((prev) => {
+        if (detail.append && prev) {
+          // Append to selection (dedupe by key)
+          const k = `${tile.mapId}:${tile.layer}:${tile.x},${tile.y}`;
+          const existingKeys = new Set(prev.selected.map((t) => `${t.mapId}:${t.layer}:${t.x},${t.y}`));
+          const selected = existingKeys.has(k) ? prev.selected : [...prev.selected, tile];
+          return { ...prev, ...tile, screenX: detail.screenX, screenY: detail.screenY, selected };
+        }
+        // Replace selection with just this tile
+        return {
+          ...tile,
+          screenX: detail.screenX, screenY: detail.screenY,
+          selected: [tile],
+        };
       });
     };
     window.addEventListener("editor:tint-click", onTintClick);
-    return () => window.removeEventListener("editor:tint-click", onTintClick);
+
+    // Sync tool changes initiated by Phaser (e.g., eyedropper auto-switches
+    // to stamp after picking a tile) back to React state so the toolbar UI
+    // reflects the actual active tool.
+    const onSetTool = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.tool) dispatch({ type: "SET_TOOL", tool: detail.tool });
+    };
+    window.addEventListener("editor:set-tool", onSetTool);
+
+    return () => {
+      window.removeEventListener("editor:tint-click", onTintClick);
+      window.removeEventListener("editor:set-tool", onSetTool);
+    };
   }, []);
 
   // Stash tile tints on window so EditorScene can refresh when needed
@@ -2810,12 +2837,17 @@ function EditorInner() {
       {/* Tile Tint popup */}
       {tintPopup && (
         <TintPopup
-          key={`${tintPopup.mapId}:${tintPopup.x},${tintPopup.y}`}
+          key={`${tintPopup.mapId}:${tintPopup.x},${tintPopup.y}:${tintPopup.selected.length}`}
           popup={tintPopup}
           tileTints={state.tileTints}
           tintPresets={state.catalog?.tintPresets || []}
-          onChange={(key, entry) => {
-            dispatch({ type: "SET_TILE_TINT", key, entry });
+          onChange={(_key, entry) => {
+            // Apply the tint to every selected tile so shift-click multi-select
+            // works: all highlighted tiles get the same adjustment.
+            for (const t of tintPopup.selected) {
+              const k = `${t.mapId}:${t.layer}:${t.x},${t.y}`;
+              dispatch({ type: "SET_TILE_TINT", key: k, entry });
+            }
           }}
           onClose={() => { setTintPopup(null); emitEditorEvent("editor:tint-close", {}); }}
           onSavePreset={(preset) => {
@@ -2831,7 +2863,10 @@ function EditorInner() {
 function TintPopup({
   popup, tileTints, tintPresets, onChange, onClose, onSavePreset,
 }: {
-  popup: { x: number; y: number; layer: string; screenX: number; screenY: number; mapId: string };
+  popup: {
+    x: number; y: number; layer: string; screenX: number; screenY: number; mapId: string;
+    selected: Array<{ x: number; y: number; layer: string; mapId: string }>;
+  };
   tileTints: Record<string, any>;
   tintPresets: { id: string; label: string; adjust: { h: number; s: number; l: number; a: number } }[];
   onChange: (key: string, entry: any) => void;
@@ -2923,9 +2958,16 @@ function TintPopup({
           }}
           style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, cursor: "move", userSelect: "none" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#e5e5e5" }}>
-            Tint Tile ({popup.x}, {popup.y}) <span style={{ fontSize: 9, color: "#888" }}>— {popup.layer}</span>
+            {popup.selected.length > 1 ? (
+              <>Tint {popup.selected.length} Tiles <span style={{ fontSize: 9, color: "#888" }}>— {popup.layer}</span></>
+            ) : (
+              <>Tint Tile ({popup.x}, {popup.y}) <span style={{ fontSize: 9, color: "#888" }}>— {popup.layer}</span></>
+            )}
           </span>
           <span onClick={onClose} style={{ cursor: "pointer", color: "#666", fontSize: 14 }}>×</span>
+        </div>
+        <div style={{ fontSize: 8, color: "#666", marginBottom: 6, fontStyle: "italic" }}>
+          Tip: Shift+click to add more tiles · Click (no shift) to restart selection
         </div>
 
         {/* Layer override */}

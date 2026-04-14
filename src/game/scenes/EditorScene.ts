@@ -99,8 +99,7 @@ export class EditorScene extends Phaser.Scene {
   private collisionLayerData: number[] = [];
   private foregroundImage: Phaser.GameObjects.Image | null = null;
   private topSprites: Phaser.GameObjects.Sprite[] = [];
-  private tintHighlight: Phaser.GameObjects.Graphics | null = null;
-  private tintHighlightTween: Phaser.Tweens.Tween | null = null;
+  private tintHighlights: Map<string, { gfx: Phaser.GameObjects.Graphics; tween: Phaser.Tweens.Tween }> = new Map();
   private foregroundVisible: boolean = true;
   private hoverTooltip: Phaser.GameObjects.Container | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -342,13 +341,22 @@ export class EditorScene extends Phaser.Scene {
             return sx === tileX && sy === tileY;
           });
           const layer = hasTopSprite ? "top" : "ground";
-          this.showTintHighlight(tileX, tileY);
+          // Detect Shift via multiple sources — browser event, Phaser keyboard state.
+          const evt = pointer.event as MouseEvent | PointerEvent | KeyboardEvent | undefined;
+          const kbShiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT).isDown;
+          const append = !!(evt && (evt as MouseEvent).shiftKey) || !!kbShiftKey;
+          if (append) {
+            this.addTintHighlight(tileX, tileY);
+          } else {
+            this.showTintHighlight(tileX, tileY); // resets and sets one
+          }
           emitEditorEvent("editor:tint-click", {
             x: tileX,
             y: tileY,
             layer,
             screenX: pointer.x,
             screenY: pointer.y,
+            append,
           });
           return;
         }
@@ -974,24 +982,27 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
-  /** Draw a pulsing yellow highlight on the tile currently being tinted. */
+  /** Reset all highlights and draw one at (x, y). */
   showTintHighlight(x: number, y: number): void {
     this.clearTintHighlight();
+    this.addTintHighlight(x, y);
+  }
+
+  /** Add a highlight at (x, y) without clearing existing ones (multi-select). */
+  addTintHighlight(x: number, y: number): void {
     if (!this.sys?.displayList) return;
+    const key = `${x},${y}`;
+    if (this.tintHighlights.has(key)) return; // already highlighted
     const g = this.add.graphics();
     g.setDepth(999);
     const cx = x * TILE_SIZE + TILE_SIZE / 2;
     const cy = y * TILE_SIZE + TILE_SIZE / 2;
     g.setPosition(cx, cy);
-    // Outer yellow border
     g.lineStyle(2, 0xffd700, 1);
     g.strokeRect(-TILE_SIZE / 2, -TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
-    // Inner semi-transparent yellow fill
     g.fillStyle(0xffd700, 0.15);
     g.fillRect(-TILE_SIZE / 2, -TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
-    this.tintHighlight = g;
-    // Pulse animation
-    this.tintHighlightTween = this.tweens.add({
+    const tween = this.tweens.add({
       targets: g,
       alpha: { from: 1, to: 0.4 },
       duration: 600,
@@ -999,17 +1010,15 @@ export class EditorScene extends Phaser.Scene {
       repeat: -1,
       ease: "Sine.easeInOut",
     });
+    this.tintHighlights.set(key, { gfx: g, tween });
   }
 
   clearTintHighlight(): void {
-    if (this.tintHighlightTween) {
-      this.tintHighlightTween.destroy();
-      this.tintHighlightTween = null;
+    for (const { gfx, tween } of this.tintHighlights.values()) {
+      tween.destroy();
+      gfx.destroy();
     }
-    if (this.tintHighlight) {
-      this.tintHighlight.destroy();
-      this.tintHighlight = null;
-    }
+    this.tintHighlights.clear();
   }
 
   applySingleTileTint(x: number, y: number, layer: string, rgb: number | null, alpha: number): void {
