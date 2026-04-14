@@ -1804,6 +1804,125 @@ function KostasDialogEditor() {
   );
 }
 
+/**
+ * Tile inspector — shown in the right sidebar when no entity is selected.
+ * Tracks the last-clicked tile (from `editor:tile-selected` events the
+ * scene emits) and surfaces per-tile controls: collision toggle, GID,
+ * top-sprite presence, tint status. Without this panel, tile-level
+ * authoring was keyboard-only (C key) and felt hidden.
+ */
+function TileInspector() {
+  const state = useEditorState();
+  const [tile, setTile] = useState<{ x: number; y: number } | null>(null);
+  const [gid, setGid] = useState<number>(0);
+  const [blocked, setBlocked] = useState<boolean>(false);
+  const [hasTopSprite, setHasTopSprite] = useState<boolean>(false);
+
+  // Listen for the scene's tile-selected event (fired on plain click).
+  useEffect(() => {
+    const onTile = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { x: number; y: number } | null;
+      if (!detail) return;
+      setTile({ x: detail.x, y: detail.y });
+      refresh(detail.x, detail.y);
+    };
+    window.addEventListener("editor:tile-selected", onTile);
+    // Also re-read after collision-toggle events so the checkbox stays in sync
+    const onCol = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { x: number; y: number; blocked: boolean };
+      setTile((prev) => {
+        if (prev && prev.x === detail.x && prev.y === detail.y) setBlocked(detail.blocked);
+        return prev;
+      });
+    };
+    window.addEventListener("editor:collision-toggle", onCol);
+    return () => {
+      window.removeEventListener("editor:tile-selected", onTile);
+      window.removeEventListener("editor:collision-toggle", onCol);
+    };
+  }, []);
+
+  const refresh = (x: number, y: number) => {
+    const g = (window as any).__EDITOR_GAME__;
+    const s = g?.scene?.getScene("EditorScene");
+    if (!s || !s.tilemap) return;
+    const t = s.tilemap.getTileAt(x, y, false, "Ground");
+    setGid(t?.index ?? 0);
+    const idx = y * s.tilemap.width + x;
+    setBlocked((s.collisionLayerData?.[idx] ?? 0) > 0);
+    setHasTopSprite(
+      (s.topSprites ?? []).some((sp: any) =>
+        Math.floor(sp.x / 16) === x && Math.floor(sp.y / 16) === y,
+      ),
+    );
+  };
+
+  const toggleCollision = () => {
+    if (!tile) return;
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
+    // Re-read after a frame so the checkbox reflects the new state
+    setTimeout(() => refresh(tile.x, tile.y), 30);
+  };
+
+  const tintCount = Object.keys(state.tileTints).filter((k) => {
+    if (!tile) return false;
+    return k.endsWith(`:${tile.x},${tile.y}`);
+  }).length;
+
+  if (!tile) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: "#1e1e30", padding: 12, color: "#555", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+        Click an entity to inspect it, or click a tile to edit collision / view GID.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ width: "100%", height: "100%", background: "#1e1e30", overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #2a2a40", paddingBottom: 4 }}>
+        <span style={{ background: "#4a9eed", color: "#fff", fontSize: 8, padding: "1px 5px", borderRadius: 8, fontWeight: 700, textTransform: "uppercase" }}>
+          tile
+        </span>
+        <span style={{ fontSize: 11, fontWeight: 700, flex: 1, fontFamily: "monospace" }}>
+          ({tile.x}, {tile.y})
+        </span>
+      </div>
+
+      <PropSection title="TILE DATA" color="#4a9eed">
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, fontSize: 10 }}>
+          <span style={{ color: "#888", width: 70, textAlign: "right" }}>GID</span>
+          <span style={{ color: "#ccc", fontFamily: "monospace" }}>{gid}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, fontSize: 10 }}>
+          <span style={{ color: "#888", width: 70, textAlign: "right" }}>Top sprite</span>
+          <span style={{ color: hasTopSprite ? "#22c55e" : "#666" }}>{hasTopSprite ? "yes" : "no"}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, fontSize: 10 }}>
+          <span style={{ color: "#888", width: 70, textAlign: "right" }}>Tint entries</span>
+          <span style={{ color: tintCount > 0 ? "#a855f7" : "#666" }}>{tintCount}</span>
+        </div>
+      </PropSection>
+
+      <PropSection title="COLLISION" color="#ef4444">
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11 }}>
+          <input
+            type="checkbox"
+            checked={blocked}
+            onChange={toggleCollision}
+            style={{ width: 14, height: 14, accentColor: "#ef4444" }}
+          />
+          <span style={{ color: blocked ? "#ef4444" : "#aaa" }}>
+            {blocked ? "Blocked (player cannot walk)" : "Walkable"}
+          </span>
+        </label>
+        <div style={{ fontSize: 9, color: "#666", marginTop: 4 }}>
+          Keyboard shortcut: <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 2, padding: "0 4px", fontFamily: "monospace" }}>C</kbd>
+        </div>
+      </PropSection>
+    </div>
+  );
+}
+
 function RightPanel() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
@@ -1826,11 +1945,7 @@ function RightPanel() {
   };
 
   if (!selected) {
-    return (
-      <div style={{ width: "100%", height: "100%", background: "#1e1e30", padding: 12, color: "#555", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        Click an entity to inspect
-      </div>
-    );
+    return <TileInspector />;
   }
 
   const typeColors: Record<string, string> = {
