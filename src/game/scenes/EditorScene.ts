@@ -170,6 +170,13 @@ export class EditorScene extends Phaser.Scene {
    * to open the tint popup without requiring an explicit tool switch.
    */
   private lastClickedTile: { x: number; y: number } | null = null;
+  /**
+   * Hover-preview ghost — when the user hovers over a swatch in the React
+   * panel, we paint a translucent thumbnail of that GID at the cursor's
+   * tile position so they can see where it would land.
+   */
+  private hoverPreviewGhost: Phaser.GameObjects.Sprite | null = null;
+  private hoverPreviewGid: number = 0;
 
   constructor() {
     super({ key: "EditorScene" });
@@ -318,11 +325,24 @@ export class EditorScene extends Phaser.Scene {
       this.spaceDown = false;
     });
 
-    // Scroll wheel zoom — smooth continuous zoom
-    this.input.on("wheel", (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
+    // Scroll wheel zoom — zoom toward the cursor position so the tile
+    // under the cursor stays in place while the rest scales around it.
+    // Standard pattern in Figma/Adobe; ours used to zoom to the camera
+    // center which forced zoom-then-pan cycles.
+    this.input.on("wheel", (pointer: Phaser.Input.Pointer, _gameObjects: any, _deltaX: number, deltaY: number) => {
       const factor = deltaY > 0 ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
-      this.currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.currentZoom * factor));
-      cam.setZoom(this.currentZoom);
+      const oldZoom = this.currentZoom;
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * factor));
+      if (newZoom === oldZoom) return;
+      // World point under the cursor before zoom
+      const wx = pointer.worldX;
+      const wy = pointer.worldY;
+      this.currentZoom = newZoom;
+      cam.setZoom(newZoom);
+      // After zoom, compute the new scrollX/Y so (wx, wy) lands at the
+      // same screen position as before. screenX = (wx - scrollX) * zoom
+      cam.scrollX = wx - pointer.x / newZoom;
+      cam.scrollY = wy - pointer.y / newZoom;
       this.syncAutoPixelGrid();
     });
 
@@ -542,6 +562,17 @@ export class EditorScene extends Phaser.Scene {
         this.updateBlockGhost(tx, ty);
       } else if (this.blockGhost) {
         this.clearBlockGhost();
+      }
+
+      // Hover-preview ghost — draws the thumbnail of the swatch the user
+      // is currently hovering, at the cursor's tile.
+      if (this.hoverPreviewGid > 0 && this.tilemap) {
+        const tx = Math.floor(pointer.worldX / TILE_SIZE);
+        const ty = Math.floor(pointer.worldY / TILE_SIZE);
+        this.updateHoverPreviewGhost(tx, ty);
+      } else if (this.hoverPreviewGhost) {
+        this.hoverPreviewGhost.destroy();
+        this.hoverPreviewGhost = null;
       }
 
       // Pending click action (stamp/eraser/eyedropper/tint deferred): if
@@ -1127,6 +1158,43 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Draw a translucent thumbnail of the hovered swatch at the cursor's
+   * tile, so the user can preview a swatch click before committing.
+   * Reuses the active tilemap's tileset image as the source texture.
+   */
+  private updateHoverPreviewGhost(tileX: number, tileY: number): void {
+    if (!this.tilemap || this.hoverPreviewGid <= 0) return;
+    const cfg = MAP_CONFIGS[this.currentMapId];
+    if (!cfg) return;
+    const tilesetKey = cfg.tilesetName;
+    const texture = this.textures.get(tilesetKey);
+    if (!texture) return;
+    const tileset = this.tilemap.getTileset(tilesetKey);
+    if (!tileset) return;
+    const margin = (tileset as unknown as { tileMargin?: number }).tileMargin ?? 0;
+    const spacing = (tileset as unknown as { tileSpacing?: number }).tileSpacing ?? 0;
+    const cols = tileset.columns;
+    const firstgid = tileset.firstgid;
+    const local = this.hoverPreviewGid - firstgid;
+    if (local < 0 || cols <= 0) return;
+    const srcX = margin + (local % cols) * (TILE_SIZE + spacing);
+    const srcY = margin + Math.floor(local / cols) * (TILE_SIZE + spacing);
+    const frameKey = `gp_${local}`;
+    if (!texture.has(frameKey)) {
+      texture.add(frameKey, 0, srcX, srcY, TILE_SIZE, TILE_SIZE);
+    }
+    if (!this.hoverPreviewGhost) {
+      this.hoverPreviewGhost = this.add.sprite(0, 0, tilesetKey, frameKey);
+      this.hoverPreviewGhost.setOrigin(0, 0);
+      this.hoverPreviewGhost.setDepth(700);
+      this.hoverPreviewGhost.setAlpha(0.65);
+    } else {
+      this.hoverPreviewGhost.setTexture(tilesetKey, frameKey);
+    }
+    this.hoverPreviewGhost.setPosition(tileX * TILE_SIZE, tileY * TILE_SIZE);
+  }
+
   private setupEventListeners(): void {
     this.unsubscribers.push(
       onEditorEvent(SELECT_ENTITY, (detail: { entityId: string }) => {
@@ -1203,6 +1271,13 @@ export class EditorScene extends Phaser.Scene {
       }),
       onEditorEvent("editor:fit-map", () => {
         this.fitMapToViewport();
+      }),
+      onEditorEvent("editor:preview-gid", (detail: { gid: number } | null) => {
+        this.hoverPreviewGid = detail?.gid ?? 0;
+        if (!this.hoverPreviewGid && this.hoverPreviewGhost) {
+          this.hoverPreviewGhost.destroy();
+          this.hoverPreviewGhost = null;
+        }
       }),
       onEditorEvent("editor:select-tile-gid", (detail: { gid: number }) => {
         this.selectedTileGid = detail.gid;
