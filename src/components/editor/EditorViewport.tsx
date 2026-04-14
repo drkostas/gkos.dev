@@ -123,6 +123,39 @@ export default function EditorViewport() {
     return () => unsubs.forEach((u) => u());
   }, [state.entities]);
 
+  // Modifier-aware cursor feedback. The unified Edit mode relies on
+  // ⌘/⌥/⇧ to distinguish paint / erase / multi-select, so the cursor has
+  // to show what the next click will actually do.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const findCanvas = () => container.querySelector("canvas");
+    const update = (e: KeyboardEvent | MouseEvent) => {
+      const c = findCanvas();
+      if (!c) return;
+      const meta = (e as MouseEvent).metaKey || (e as MouseEvent).ctrlKey;
+      const alt = (e as MouseEvent).altKey;
+      const shift = (e as MouseEvent).shiftKey;
+      // CSS cursors map nicely to semantic actions. 'copy' shows a +
+      // badge (paint), 'no-drop' shows the crossed circle (erase),
+      // 'cell' is the selection crosshair (multi-select).
+      if (meta) c.style.cursor = "copy";
+      else if (alt) c.style.cursor = "no-drop";
+      else if (shift) c.style.cursor = "cell";
+      else c.style.cursor = "default";
+    };
+    const onKey = (e: KeyboardEvent) => update(e);
+    const onMouse = (e: MouseEvent) => update(e);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("mousemove", onMouse);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("mousemove", onMouse);
+    };
+  }, []);
+
   return (
     <div
       ref={containerRef}

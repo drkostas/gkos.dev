@@ -323,6 +323,7 @@ export class EditorScene extends Phaser.Scene {
       const factor = deltaY > 0 ? (1 - ZOOM_SPEED) : (1 + ZOOM_SPEED);
       this.currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.currentZoom * factor));
       cam.setZoom(this.currentZoom);
+      this.syncAutoPixelGrid();
     });
 
     // Pointer down — unified "Edit" dispatch. Every action is driven by
@@ -356,6 +357,14 @@ export class EditorScene extends Phaser.Scene {
       const altDown = !!evt && evt.altKey;
       const cmdDown = !!evt && (evt.metaKey || evt.ctrlKey);
       const shiftDown = !!evt && evt.shiftKey;
+
+      // Cmd+Shift+click: flood-fill the contiguous region of same-GID
+      // tiles with the currently-picked GID. Checked before the plain
+      // Shift handler so the composite modifier wins.
+      if (cmdDown && shiftDown && this.tilemap && this.selectedTileGid > 0) {
+        this.floodFillTile(tileX, tileY, this.selectedTileGid);
+        return;
+      }
 
       // Shift: defer for block copy vs 1-tile shift-click routing at pointerup
       if (shiftDown && this.tilemap) {
@@ -773,6 +782,138 @@ export class EditorScene extends Phaser.Scene {
       if (isTypingInField()) return;
       this.openTintForLastTile();
     });
+    // Zoom presets — 0 fits the map, 1 snaps to 100% (1× world = 1× screen),
+    // +/- step. The scroll wheel still does smooth zoom.
+    this.input.keyboard?.on("keydown-ZERO", () => {
+      if (isTypingInField()) return;
+      this.fitMapToViewport();
+    });
+    this.input.keyboard?.on("keydown-ONE", () => {
+      if (isTypingInField()) return;
+      this.currentZoom = 1;
+      cam.setZoom(1);
+      this.syncAutoPixelGrid();
+    });
+    this.input.keyboard?.on("keydown-PLUS", () => this.stepZoom(1.25));
+    this.input.keyboard?.on("keydown-EQUALS", () => this.stepZoom(1.25));
+    this.input.keyboard?.on("keydown-MINUS", () => this.stepZoom(0.8));
+    this.input.keyboard?.on("keydown-W", () => {
+      if (isTypingInField()) return;
+      this.magicWandSelectByGid();
+    });
+  }
+
+  /** Zoom step helper — respects clamp + refreshes the auto pixel grid. */
+  private stepZoom(factor: number): void {
+    const cam = this.cameras.main;
+    this.currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.currentZoom * factor));
+    cam.setZoom(this.currentZoom);
+    this.syncAutoPixelGrid();
+  }
+
+  /** Zoom the camera so the entire map fits into the viewport. */
+  private fitMapToViewport(): void {
+    if (!this.tilemap) return;
+    const cam = this.cameras.main;
+    const mapW = this.tilemap.width * TILE_SIZE;
+    const mapH = this.tilemap.height * TILE_SIZE;
+    const scale = Math.min(cam.width / mapW, cam.height / mapH) * 0.95;
+    this.currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, scale));
+    cam.setZoom(this.currentZoom);
+    cam.centerOn(mapW / 2, mapH / 2);
+    this.syncAutoPixelGrid();
+  }
+
+  /**
+   * Magic wand: when the last-clicked tile's GID is known, highlight every
+   * tile on the Ground layer that shares it. The highlights piggy-back on
+   * the tint multi-select so pressing T then moving sliders tints all of
+   * them in one go.
+   */
+  private magicWandSelectByGid(): void {
+    if (!this.tilemap || !this.lastClickedTile) return;
+    const target = this.tilemap.getTileAt(this.lastClickedTile.x, this.lastClickedTile.y, false, "Ground");
+    if (!target) return;
+    const targetGid = target.index;
+    this.clearTintHighlight();
+    const ground = this.tilemap.getLayer("Ground");
+    if (!ground) return;
+    let count = 0;
+    for (let y = 0; y < this.tilemap.height; y++) {
+      for (let x = 0; x < this.tilemap.width; x++) {
+        const t = ground.data[y]?.[x];
+        if (t && t.index === targetGid) {
+          this.addTintHighlight(x, y);
+          emitEditorEvent("editor:tint-click", {
+            x, y, layer: "ground",
+            screenX: window.innerWidth / 2, screenY: window.innerHeight / 2,
+            append: count > 0, // first click opens popup, rest append
+          });
+          count++;
+        }
+      }
+    }
+  }
+
+  /**
+   * The pixel grid should auto-appear at ≥2× zoom so individual tile
+   * boundaries are legible when drawing detail. Below 2× the grid is hidden
+   * unless the user explicitly toggled it from the View menu.
+   */
+  private syncAutoPixelGrid(): void {
+    if (this.gridVisible) return; // manual toggle takes precedence
+    if (this.currentZoom >= 2) this.renderPixelGrid();
+    else if (this.gridGraphics) { this.gridGraphics.destroy(); this.gridGraphics = null; }
+  }
+
+  /**
+   * Render the map to a PNG and trigger a browser download. Uses Phaser's
+   * snapshot of the full world area, not just the viewport, so the export
+   * captures the whole map even at current zoom/scroll.
+   */
+  private exportMapAsPng(): void {
+    if (!this.tilemap) return;
+    const cam = this.cameras.main;
+    const prevZoom = this.currentZoom;
+    const prevSx = cam.scrollX;
+    const prevSy = cam.scrollY;
+    // Temporarily fit the full map to the viewport before snapping
+    const mapW = this.tilemap.width * TILE_SIZE;
+    const mapH = this.tilemap.height * TILE_SIZE;
+    const targetZoom = Math.min(cam.width / mapW, cam.height / mapH) * 0.98;
+    cam.setZoom(targetZoom);
+    cam.centerOn(mapW / 2, mapH / 2);
+    // Phaser snapshot returns an HTMLImageElement via a callback.
+    this.renderer.snapshot((img: HTMLImageElement | Phaser.Display.Color) => {
+      // Restore camera
+      cam.setZoom(prevZoom);
+      cam.scrollX = prevSx;
+      cam.scrollY = prevSy;
+      this.currentZoom = prevZoom;
+      if (!(img instanceof HTMLImageElement)) return;
+      // Trigger download
+      const a = document.createElement("a");
+      a.href = img.src;
+      a.download = `${this.currentMapId}-${Date.now()}.png`;
+      a.click();
+    });
+  }
+
+  /** Like renderGrid, but used for the automatic-at-zoom overlay. */
+  private renderPixelGrid(): void {
+    if (this.gridGraphics) { this.gridGraphics.destroy(); this.gridGraphics = null; }
+    if (!this.tilemap) return;
+    this.gridGraphics = this.add.graphics();
+    this.gridGraphics.setDepth(50);
+    this.gridGraphics.lineStyle(0.5, 0xffffff, 0.12);
+    const w = this.tilemap.width;
+    const h = this.tilemap.height;
+    for (let x = 0; x <= w; x++) {
+      this.gridGraphics.lineBetween(x * TILE_SIZE, 0, x * TILE_SIZE, h * TILE_SIZE);
+    }
+    for (let y = 0; y <= h; y++) {
+      this.gridGraphics.lineBetween(0, y * TILE_SIZE, w * TILE_SIZE, y * TILE_SIZE);
+    }
   }
 
   /**
@@ -896,6 +1037,38 @@ export class EditorScene extends Phaser.Scene {
       ? { mode: this.pendingOpMode, count: this.pendingOpTiles.size }
       : null,
     );
+  }
+
+  /**
+   * Flood fill: replace every tile connected 4-way to (tileX, tileY) that
+   * shares the starting tile's GID. Bounded by map dimensions and a safety
+   * cap so a bad click on 140×120 tiles doesn't freeze the browser.
+   */
+  private floodFillTile(tileX: number, tileY: number, replacementGid: number): void {
+    if (!this.tilemap) return;
+    const start = this.tilemap.getTileAt(tileX, tileY, false, "Ground");
+    if (!start) return;
+    const targetGid = start.index;
+    if (targetGid === replacementGid) return;
+    const w = this.tilemap.width;
+    const h = this.tilemap.height;
+    const stack: [number, number][] = [[tileX, tileY]];
+    const visited = new Set<string>();
+    const MAX_CELLS = w * h; // safety upper bound — whole map
+    let painted = 0;
+    while (stack.length && painted < MAX_CELLS) {
+      const [x, y] = stack.pop()!;
+      const key = `${x},${y}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      if (x < 0 || x >= w || y < 0 || y >= h) continue;
+      const t = this.tilemap.getTileAt(x, y, false, "Ground");
+      if (!t || t.index !== targetGid) continue;
+      this.tilemap.putTileAt(replacementGid, x, y, false, "Ground");
+      emitEditorEvent("editor:tile-paint", { x, y, gid: replacementGid });
+      painted++;
+      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
   }
 
   /** Paste the current stamp block at (tileX, tileY). Skips zero gids. */
@@ -1024,6 +1197,12 @@ export class EditorScene extends Phaser.Scene {
       }),
       onEditorEvent("editor:commit-pending-ops", () => {
         this.commitPendingOpQueue();
+      }),
+      onEditorEvent("editor:export-png", () => {
+        this.exportMapAsPng();
+      }),
+      onEditorEvent("editor:fit-map", () => {
+        this.fitMapToViewport();
       }),
       onEditorEvent("editor:select-tile-gid", (detail: { gid: number }) => {
         this.selectedTileGid = detail.gid;
