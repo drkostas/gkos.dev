@@ -1668,7 +1668,7 @@ export class EditorScene extends Phaser.Scene {
 
   // --- Entity Marker Management ---
 
-  addMarker(entity: { id: string; type: string; x: number; y: number; spriteKey?: string; iconKey?: string; speciesName?: string; movementRangeX?: number; movementRangeY?: number }): void {
+  addMarker(entity: { id: string; type: string; x: number; y: number; spriteKey?: string; iconKey?: string; speciesName?: string; movementRangeX?: number; movementRangeY?: number; pokemon?: { pokedexNumber?: number } | null }): void {
     if (this.markers.has(entity.id)) return;
     // Guard: scene display list must be initialized
     if (!this.sys?.displayList) return;
@@ -1700,6 +1700,31 @@ export class EditorScene extends Phaser.Scene {
       icon.setScale(0.5);
       icon.setAlpha(0.9);
       container.add(icon);
+    }
+    // Pokemon-npc / wild-pokemon fallback to the national-dex PokeAPI
+    // sprite. Texture is loaded on demand (Phaser supports runtime URL
+    // loads) so every one of the 386 species can render without
+    // bundling ~5 MB of PNGs in the repo.
+    else if (
+      (entity.type === "pokemon-npc" || entity.type === "wild-pokemon")
+      && entity.pokemon && entity.pokemon.pokedexNumber
+    ) {
+      const dex = entity.pokemon.pokedexNumber;
+      const key = `pkmn_${dex}`;
+      const attach = () => {
+        if (!this.textures.exists(key)) return;
+        const sp = this.add.sprite(0, -4, key, 0);
+        sp.setScale(0.22); // PokeAPI sprites are 96×96 — scale to ~21 px
+        sp.setAlpha(0.95);
+        container.add(sp);
+      };
+      if (this.textures.exists(key)) {
+        attach();
+      } else {
+        this.load.image(key, `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${dex}.png`);
+        this.load.once(`filecomplete-image-${key}`, attach);
+        this.load.start();
+      }
     }
     // NPC sprites
     else {
