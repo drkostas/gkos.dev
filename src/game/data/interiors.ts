@@ -112,8 +112,14 @@ export interface InteriorNPC {
   autoGive?: {
     /** Item id from ITEM_DEFINITIONS (e.g. "paper_multiscale_igarss"). */
     itemId: string;
-    /** Tile the NPC walks to after giving the item. */
+    /** Tile the NPC walks to after giving the item (absolute). */
     asidePosition: { x: number; y: number };
+    /**
+     * Alternative to asidePosition — a relative chain of steps applied
+     * to the NPC's home position. When present, overrides asidePosition.
+     * Example: [{dir:"up",steps:1},{dir:"right",steps:2}]
+     */
+    asideSteps?: { dir: "up" | "down" | "left" | "right"; steps: number }[];
     /** Dialog shown on 2nd+ interactions. Falls back to a generic line. */
     clearedDialog?: string[];
   };
@@ -493,7 +499,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
       {
         id: "gym_ben",
         spriteKey: "school_kid_m",
-        position: { x: 5, y: 10 },
+        position: { x: 5, y: 12 },
         facingDirection: "left",
         speakerName: "TRAINER BEN",
         dialog: [
@@ -541,7 +547,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
       {
         id: "gym_amber",
         spriteKey: "woman_1",
-        position: { x: 3, y: 5 },
+        position: { x: 5, y: 9 },
         facingDirection: "right",
         speakerName: "TRAINER AMBER",
         dialog: [
@@ -567,7 +573,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
       {
         id: "gym_jenna",
         spriteKey: "woman_4",
-        position: { x: 8, y: 14 },  // was (8,13) on collision tile per map-analyzer
+        position: { x: 3, y: 10 },  // was (8,13) on collision tile per map-analyzer
         facingDirection: "left",
         speakerName: "TRAINER JENNA",
         dialog: [

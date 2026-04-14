@@ -160,6 +160,62 @@ function patchDialog(
   };
 }
 
+/** Apply an autoGive patch — replaces the whole autoGive:{...} block. */
+function patchAutoGive(
+  content: string,
+  entityId: string,
+  newAutoGive: any,
+): { content: string; applied: boolean } {
+  const idPattern = new RegExp(`id:\\s*["']${entityId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`);
+  const idMatch = idPattern.exec(content);
+  if (!idMatch) return { content, applied: false };
+
+  // Find "autoGive:" after the id, then the matching closing "}"
+  const searchFrom = idMatch.index;
+  const agStart = content.indexOf("autoGive:", searchFrom);
+  if (agStart === -1 || agStart > searchFrom + 3000) return { content, applied: false };
+  const openBrace = content.indexOf("{", agStart);
+  if (openBrace === -1) return { content, applied: false };
+
+  let depth = 1;
+  let i = openBrace + 1;
+  while (i < content.length && depth > 0) {
+    if (content[i] === "{") depth++;
+    else if (content[i] === "}") depth--;
+    if (depth === 0) break;
+    i++;
+  }
+  const closeBrace = i;
+
+  // Detect indentation of the autoGive line
+  const lineStart = content.lastIndexOf("\n", agStart) + 1;
+  const indent = content.substring(lineStart, agStart).match(/^(\s*)/)?.[1] || "      ";
+
+  // Serialize autoGive body
+  const lines: string[] = [];
+  lines.push(`${indent}  itemId: "${newAutoGive.itemId}",`);
+  if (newAutoGive.asideX != null && newAutoGive.asideY != null) {
+    lines.push(`${indent}  asidePosition: { x: ${newAutoGive.asideX}, y: ${newAutoGive.asideY} },`);
+  }
+  if (Array.isArray(newAutoGive.asideSteps) && newAutoGive.asideSteps.length > 0) {
+    const serSteps = newAutoGive.asideSteps.map((s: any) => `{ dir: "${s.dir}", steps: ${s.steps} }`).join(", ");
+    lines.push(`${indent}  asideSteps: [${serSteps}],`);
+  }
+  if (Array.isArray(newAutoGive.clearedDialog) && newAutoGive.clearedDialog.length > 0) {
+    lines.push(`${indent}  clearedDialog: [`);
+    for (const l of newAutoGive.clearedDialog) {
+      lines.push(`${indent}    "${String(l).replace(/"/g, '\\"')}",`);
+    }
+    lines.push(`${indent}  ],`);
+  }
+  const newBody = "\n" + lines.join("\n") + `\n${indent}`;
+
+  return {
+    content: content.substring(0, openBrace + 1) + newBody + content.substring(closeBrace),
+    applied: true,
+  };
+}
+
 /** Apply a spriteKey patch */
 function patchSpriteKey(
   content: string,
@@ -406,6 +462,12 @@ export const POST: APIRoute = async ({ request }) => {
           applied = result.applied;
           break;
         }
+        case "autoGive": {
+          const result = patchAutoGive(content, change.entityId, change.newValue);
+          content = result.content;
+          applied = result.applied;
+          break;
+        }
         default:
           results.push({ entityId: change.entityId, field: change.field, status: "skipped", message: `Field "${change.field}" not yet patchable` });
           continue;
@@ -540,6 +602,57 @@ export const POST: APIRoute = async ({ request }) => {
           content = patchFieldInBlock(content, anchor, /threshold:\s*\d+/, `threshold: ${entry.threshold}`);
           catalogPatched++;
         }
+        if (!body.dryRun) writeFileSync(filePath, content, "utf-8");
+      }
+
+      // Patch MOVEMENT_PATTERNS — full CRUD (update, add, delete)
+      if (body.catalog.movementPatterns) {
+        const filePath = resolve(dataRoot, "movementPatterns.ts");
+        let content = readFileSync(filePath, "utf-8");
+
+        const serializePattern = (p: any, indent: string): string => {
+          const dirs = (d: any) =>
+            `{ up: ${d.up}, down: ${d.down}, left: ${d.left}, right: ${d.right} }`;
+          return `${indent}${p.id}: {\n` +
+            `${indent}  id: "${p.id}",\n` +
+            `${indent}  label: "${String(p.label).replace(/"/g, '\\"')}",\n` +
+            `${indent}  lookEnabled: ${p.lookEnabled},\n` +
+            `${indent}  lookDirections: ${dirs(p.lookDirections)},\n` +
+            `${indent}  lookFrequencyMs: [${p.lookFrequencyMs[0]}, ${p.lookFrequencyMs[1]}],\n` +
+            `${indent}  walkEnabled: ${p.walkEnabled},\n` +
+            `${indent}  walkDirections: ${dirs(p.walkDirections)},\n` +
+            `${indent}  walkStepsPerMove: [${p.walkStepsPerMove[0]}, ${p.walkStepsPerMove[1]}],\n` +
+            `${indent}  walkFrequencyMs: [${p.walkFrequencyMs[0]}, ${p.walkFrequencyMs[1]}],\n` +
+            `${indent}  walkSpeed: ${p.walkSpeed},\n` +
+            `${indent}  maxRangeX: ${p.maxRangeX},\n` +
+            `${indent}  maxRangeY: ${p.maxRangeY},\n` +
+            `${indent}  paceMode: ${p.paceMode},\n` +
+            `${indent}},\n`;
+        };
+
+        // Find the MOVEMENT_PATTERNS object: from "MOVEMENT_PATTERNS ... = {" to the matching "}"
+        const objStartRe = /MOVEMENT_PATTERNS[^=]*=\s*\{/;
+        const objStartMatch = objStartRe.exec(content);
+        if (objStartMatch) {
+          const bodyStart = objStartMatch.index + objStartMatch[0].length;
+          let depth = 1;
+          let bodyEnd = bodyStart;
+          for (let i = bodyStart; i < content.length; i++) {
+            if (content[i] === "{") depth++;
+            else if (content[i] === "}") { depth--; if (depth === 0) { bodyEnd = i; break; } }
+          }
+
+          // Rebuild the body from the catalog patterns in order
+          const indent = "  ";
+          let newBody = "\n";
+          for (const p of body.catalog.movementPatterns) {
+            newBody += serializePattern(p, indent);
+          }
+          catalogPatched += body.catalog.movementPatterns.length;
+
+          content = content.substring(0, bodyStart) + newBody + content.substring(bodyEnd);
+        }
+
         if (!body.dryRun) writeFileSync(filePath, content, "utf-8");
       }
     }

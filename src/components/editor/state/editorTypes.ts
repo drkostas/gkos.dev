@@ -15,7 +15,13 @@ export interface EditorEntity {
   animated?: boolean;
   tileWidth?: number;
   tileHeight?: number;
-  autoGive?: { itemId: string; asideX?: number; asideY?: number } | null;
+  autoGive?: {
+    itemId: string;
+    asideX?: number;
+    asideY?: number;
+    clearedDialog?: string[];
+    asideSteps?: { dir: "up" | "down" | "left" | "right"; steps: number }[];
+  } | null;
   pickup?: { itemId: string } | null;
   pokemon?: { pokedexNumber: number; speciesName: string; projectName: string } | null;
   hasDialogFn?: boolean;
@@ -113,6 +119,23 @@ export interface CatalogLogEntry {
   text: string[];
 }
 
+/** Named NPC movement pattern — edited via the Movement tab */
+export interface CatalogMovementPattern {
+  id: string;
+  label: string;
+  lookEnabled: boolean;
+  lookDirections: { up: number; down: number; left: number; right: number };
+  lookFrequencyMs: [number, number];
+  walkEnabled: boolean;
+  walkDirections: { up: number; down: number; left: number; right: number };
+  walkStepsPerMove: [number, number];
+  walkFrequencyMs: [number, number];
+  walkSpeed: number;
+  maxRangeX: number;
+  maxRangeY: number;
+  paceMode: boolean;
+}
+
 /** All catalog data loaded from editor-data.json */
 export interface CatalogData {
   itemDefinitions: CatalogItem[];
@@ -122,6 +145,7 @@ export interface CatalogData {
   badges: CatalogBadge[];
   fieldMoveAwards: CatalogFieldMove[];
   researchLog: CatalogLogEntry[];
+  movementPatterns: CatalogMovementPattern[];
 }
 
 export type EditorLayer = "ground" | "collision" | "foreground" | "entities" | "heatmap" | "zones" | "movement" | "grid";
