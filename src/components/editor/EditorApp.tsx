@@ -3116,7 +3116,7 @@ function EditorInner() {
         }}>
           <span style={{ fontWeight: 700 }}>Stamp block: {blockStatus.width}×{blockStatus.height}</span>
           <span style={{ color: "#888", marginLeft: 10, fontSize: 10 }}>
-            R = rotate · F = flip X · ⇧F = flip Y · Esc = clear
+            Click = paste · ⌘+drag = paint-paste · R = rotate · F = flip X · ⇧F = flip Y · Esc = clear
           </span>
         </div>
       )}
