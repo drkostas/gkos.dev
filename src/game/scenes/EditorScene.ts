@@ -475,9 +475,15 @@ export class EditorScene extends Phaser.Scene {
 
       // With a stamp block copied, a plain click pastes it — this was the
       // old "stamp tool" behaviour that the unified mode must preserve
-      // otherwise shift-drag-to-copy has no obvious way to commit.
+      // otherwise shift-drag-to-copy has no obvious way to commit. Also
+      // records the clicked tile so `C` collision-toggles the expected
+      // tile instead of staying on the previous one.
       if (this.blockSelection && this.blockSelection.tiles.length > 0 && this.tilemap && inBounds) {
-        deferToolClick(() => this.pasteBlockAt(tileX, tileY));
+        deferToolClick(() => {
+          this.pasteBlockAt(tileX, tileY);
+          this.lastClickedTile = { x: tileX, y: tileY };
+          emitEditorEvent("editor:tile-selected", { x: tileX, y: tileY });
+        });
         return;
       }
 
