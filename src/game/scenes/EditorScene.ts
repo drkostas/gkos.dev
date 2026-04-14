@@ -336,6 +336,26 @@ export class EditorScene extends Phaser.Scene {
           return;
         }
 
+        // Tint tool: open color adjust popup for clicked tile.
+        // Detects topmost non-ground element (top sprite) or falls back to ground.
+        if (this.currentTool === "tint") {
+          // Check if there's a top sprite at this tile
+          const hasTopSprite = this.topSprites.some((s) => {
+            const sx = Math.floor((s.x as number) / TILE_SIZE);
+            const sy = Math.floor((s.y as number) / TILE_SIZE);
+            return sx === tileX && sy === tileY;
+          });
+          const layer = hasTopSprite ? "top" : "ground";
+          emitEditorEvent("editor:tint-click", {
+            x: tileX,
+            y: tileY,
+            layer,
+            screenX: pointer.x,
+            screenY: pointer.y,
+          });
+          return;
+        }
+
         // Check for entity hit
         let hitEntity: EntityMarker | null = null;
         let minDist = Infinity;
@@ -572,6 +592,12 @@ export class EditorScene extends Phaser.Scene {
       }),
       onEditorEvent(SET_TOOL, (detail: { tool: string }) => {
         this.currentTool = detail.tool;
+      }),
+      onEditorEvent("editor:apply-tile-tint", (detail: { x: number; y: number; layer: string; rgb: number | null; alpha: number }) => {
+        this.applySingleTileTint(detail.x, detail.y, detail.layer, detail.rgb, detail.alpha);
+      }),
+      onEditorEvent("editor:refresh-tints", () => {
+        this.refreshAllTints();
       }),
       onEditorEvent("editor:select-tile-gid", (detail: { gid: number }) => {
         this.selectedTileGid = detail.gid;
@@ -906,6 +932,71 @@ export class EditorScene extends Phaser.Scene {
     // Add all
     for (const e of entities) {
       this.addMarker(e);
+    }
+  }
+
+  /** Apply a single tile tint immediately (from the popup). */
+  applySingleTileTint(x: number, y: number, layer: string, rgb: number | null, alpha: number): void {
+    if (layer === "top") {
+      // Find top sprite at that tile
+      for (const s of this.topSprites) {
+        const sx = Math.floor((s.x as number) / TILE_SIZE);
+        const sy = Math.floor((s.y as number) / TILE_SIZE);
+        if (sx === x && sy === y) {
+          if (rgb == null) s.clearTint();
+          else s.setTint(rgb);
+          s.setAlpha(alpha);
+          break;
+        }
+      }
+    } else if (layer === "ground" && this.tilemap) {
+      const tile = this.tilemap.getTileAt(x, y, false, "Ground");
+      if (tile) {
+        tile.tint = rgb == null ? 0xffffff : rgb;
+        tile.alpha = alpha;
+      }
+    }
+  }
+
+  /**
+   * Re-apply all stored tints for the current map. Called after map
+   * switch or after bulk tint changes. React passes the full tint map
+   * via the "editor:refresh-tints" event (detail.tints on window).
+   */
+  refreshAllTints(): void {
+    const tints = (window as any).__EDITOR_TILE_TINTS__ || {};
+    const mapId = this.currentMapId;
+    const prefix = mapId === "mauville" ? "overworld:" : `${mapId}:`;
+
+    // Reset everything first
+    if (this.tilemap) {
+      const gl = this.tilemap.getLayer("Ground")?.tilemapLayer;
+      if (gl) {
+        for (let y = 0; y < this.tilemap.height; y++) {
+          for (let x = 0; x < this.tilemap.width; x++) {
+            const t = gl.getTileAt(x, y);
+            if (t) { t.tint = 0xffffff; t.alpha = 1; }
+          }
+        }
+      }
+    }
+    for (const s of this.topSprites) {
+      s.clearTint();
+      s.setAlpha(1);
+    }
+
+    // Re-apply from stored tints (resolve via adjustToRgb in React before sending)
+    for (const key in tints) {
+      if (!key.startsWith(prefix)) continue;
+      const [, layer, xy] = key.split(":");
+      const [xs, ys] = xy.split(",");
+      const x = parseInt(xs, 10);
+      const y = parseInt(ys, 10);
+      const entry = tints[key];
+      if (!entry) continue;
+      const rgb = typeof entry.rgb === "number" ? entry.rgb : null;
+      const alpha = typeof entry.alpha === "number" ? entry.alpha : 1;
+      this.applySingleTileTint(x, y, layer, rgb, alpha);
     }
   }
 

@@ -45,6 +45,7 @@ function Toolbar() {
     { id: "stamp" as const, icon: "⊞", label: "Stamp", desc: "Place new entities from library" },
     { id: "eraser" as const, icon: "⌫", label: "Eraser", desc: "Remove entities/clear tiles" },
     { id: "eyedropper" as const, icon: "◉", label: "Eyedropper", desc: "Pick tile from map (5)" },
+    { id: "tint" as const, icon: "◐", label: "Tint", desc: "Click tile to adjust color (hue/sat/brightness)" },
   ];
 
   const collectChanges = () => {
@@ -82,6 +83,17 @@ function Toolbar() {
       });
       const result = await r.json();
       console.log("[save] Result:", result);
+      // Always save tile tints (regardless of entity save success)
+      try {
+        await fetch("/api/editor/save-tints", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tints: state.tileTints,
+            presets: state.catalog?.tintPresets,
+          }),
+        });
+      } catch {}
       if (result.success) {
         // Re-export editor-data.json so reloads get fresh data
         try {
@@ -2306,6 +2318,9 @@ function EditorInner() {
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [leftWidth, setLeftWidth] = useState(220);
   const [rightWidth, setRightWidth] = useState(300);
+  const [tintPopup, setTintPopup] = useState<{
+    x: number; y: number; layer: string; screenX: number; screenY: number; mapId: string;
+  } | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -2325,7 +2340,63 @@ function EditorInner() {
         }
       })
       .catch((e) => dispatch({ type: "SET_ERROR", error: e.message }));
+
+    // Load tile tints from /game/tile-tints.json
+    fetch("/game/tile-tints.json", { cache: "no-cache" })
+      .then((r) => r.ok ? r.json() : { tints: {} })
+      .then((data) => {
+        if (data && data.tints) dispatch({ type: "LOAD_TILE_TINTS", tints: data.tints });
+      })
+      .catch(() => {});
   }, []);
+
+  // Listen for tint-click events from EditorScene
+  useEffect(() => {
+    const onTintClick = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const mapId = localStorage.getItem("editor_current_map") || "mauville";
+      const storageMapId = mapId === "mauville" ? "overworld" : mapId;
+      setTintPopup({
+        x: detail.x, y: detail.y, layer: detail.layer,
+        screenX: detail.screenX, screenY: detail.screenY,
+        mapId: storageMapId,
+      });
+    };
+    window.addEventListener("editor:tint-click", onTintClick);
+    return () => window.removeEventListener("editor:tint-click", onTintClick);
+  }, []);
+
+  // Stash tile tints on window so EditorScene can refresh when needed
+  useEffect(() => {
+    // Pre-compute RGB for each tint entry for efficient viewport application
+    const resolved: Record<string, { rgb: number | null; alpha: number }> = {};
+    for (const key in state.tileTints) {
+      const entry = state.tileTints[key];
+      let adj = { h: entry.h ?? 0, s: entry.s ?? 0, l: entry.l ?? 0, a: entry.a ?? 1 };
+      if (entry.presetId) {
+        const preset = state.catalog?.tintPresets?.find((p) => p.id === entry.presetId);
+        if (preset) adj = preset.adjust;
+      }
+      // Inline HSL→RGB (same logic as tintPresets.ts adjustToRgb)
+      let h = ((adj.h % 360) + 360) % 360;
+      const s = Math.max(0, Math.min(2, 1 + adj.s));
+      const l = Math.max(0, Math.min(1, 0.5 + adj.l));
+      const c = (1 - Math.abs(2 * l - 1)) * Math.min(s, 1);
+      const xx = c * (1 - Math.abs(((h / 60) % 2) - 1));
+      const m = l - c / 2;
+      let r = 0, g = 0, b = 0;
+      if (h < 60) { r = c; g = xx; }
+      else if (h < 120) { r = xx; g = c; }
+      else if (h < 180) { g = c; b = xx; }
+      else if (h < 240) { g = xx; b = c; }
+      else if (h < 300) { r = xx; b = c; }
+      else { r = c; b = xx; }
+      const rgb = (Math.round((r + m) * 255) << 16) | (Math.round((g + m) * 255) << 8) | Math.round((b + m) * 255);
+      resolved[key] = { rgb, alpha: adj.a };
+    }
+    (window as any).__EDITOR_TILE_TINTS__ = resolved;
+    emitEditorEvent("editor:refresh-tints", {});
+  }, [state.tileTints, state.catalog]);
 
   // Listen for show-history, show-relationships, and preview-dialog events
   useEffect(() => {
@@ -2749,7 +2820,146 @@ function EditorInner() {
           </>
         );
       })()}
+
+      {/* Tile Tint popup */}
+      {tintPopup && (
+        <TintPopup
+          popup={tintPopup}
+          tileTints={state.tileTints}
+          tintPresets={state.catalog?.tintPresets || []}
+          onChange={(entry) => {
+            const key = `${tintPopup.mapId}:${tintPopup.layer}:${tintPopup.x},${tintPopup.y}`;
+            dispatch({ type: "SET_TILE_TINT", key, entry });
+          }}
+          onClose={() => setTintPopup(null)}
+          onSavePreset={(preset) => {
+            dispatch({ type: "ADD_CATALOG_ENTRY", dataType: "tintPresets", entry: preset });
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** Popup shown when the Tint tool clicks a tile — HSL sliders + preset picker. */
+function TintPopup({
+  popup, tileTints, tintPresets, onChange, onClose, onSavePreset,
+}: {
+  popup: { x: number; y: number; layer: string; screenX: number; screenY: number; mapId: string };
+  tileTints: Record<string, any>;
+  tintPresets: { id: string; label: string; adjust: { h: number; s: number; l: number; a: number } }[];
+  onChange: (entry: any) => void;
+  onClose: () => void;
+  onSavePreset: (preset: { id: string; label: string; adjust: { h: number; s: number; l: number; a: number } }) => void;
+}) {
+  const key = `${popup.mapId}:${popup.layer}:${popup.x},${popup.y}`;
+  const existing = tileTints[key] || { h: 0, s: 0, l: 0, a: 1 };
+  const [h, setH] = useState(existing.h ?? 0);
+  const [s, setS] = useState(existing.s ?? 0);
+  const [l, setL] = useState(existing.l ?? 0);
+  const [a, setA] = useState(existing.a ?? 1);
+  const [presetName, setPresetName] = useState("");
+
+  // Clamp popup to viewport
+  const popupX = Math.min(popup.screenX + 10, window.innerWidth - 340);
+  const popupY = Math.min(popup.screenY + 10, window.innerHeight - 340);
+
+  const applyChange = (nh: number, ns: number, nl: number, na: number) => {
+    if (nh === 0 && ns === 0 && nl === 0 && na === 1) {
+      onChange(null); // Remove tint
+    } else {
+      onChange({ h: nh, s: ns, l: nl, a: na });
+    }
+  };
+
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9998 }} onClick={onClose} />
+      <div style={{
+        position: "fixed", left: popupX, top: popupY, zIndex: 9999, width: 320,
+        background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 6, padding: 12,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#e5e5e5" }}>
+            Tint Tile ({popup.x}, {popup.y}) <span style={{ fontSize: 9, color: "#888" }}>— {popup.layer}</span>
+          </span>
+          <span onClick={onClose} style={{ cursor: "pointer", color: "#666", fontSize: 14 }}>×</span>
+        </div>
+
+        {/* Layer override */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+          <span style={{ fontSize: 9, color: "#888", width: 60 }}>Layer</span>
+          <select value={popup.layer} onChange={(e) => {
+            // Changing layer requires recomputing the key; for simplicity, update popup state via parent
+            (popup as any).layer = e.target.value;
+            onClose();
+          }} style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 5px" }}>
+            <option value="ground">Ground</option>
+            <option value="top">Top (trees/fences/rocks/furniture)</option>
+            <option value="foreground">Foreground</option>
+          </select>
+        </div>
+
+        {/* Apply preset dropdown */}
+        {tintPresets.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 60 }}>Preset</span>
+            <select onChange={(e) => {
+              if (!e.target.value) return;
+              const preset = tintPresets.find((p) => p.id === e.target.value);
+              if (preset) {
+                setH(preset.adjust.h); setS(preset.adjust.s); setL(preset.adjust.l); setA(preset.adjust.a);
+                onChange({ presetId: preset.id });
+              }
+            }} style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "2px 5px" }}>
+              <option value="">— apply preset —</option>
+              {tintPresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* HSL sliders */}
+        {[
+          { label: "Hue", val: h, setVal: setH, min: -180, max: 180, step: 1, after: "°" },
+          { label: "Sat", val: s, setVal: setS, min: -1, max: 1, step: 0.05, after: "" },
+          { label: "Light", val: l, setVal: setL, min: -1, max: 1, step: 0.05, after: "" },
+          { label: "Alpha", val: a, setVal: setA, min: 0, max: 1, step: 0.05, after: "" },
+        ].map((row) => (
+          <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 9, color: "#888", width: 45 }}>{row.label}</span>
+            <input type="range" min={row.min} max={row.max} step={row.step} value={row.val}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                row.setVal(v);
+                const vals = { h, s, l, a, [row.label === "Hue" ? "h" : row.label === "Sat" ? "s" : row.label === "Light" ? "l" : "a"]: v } as any;
+                applyChange(vals.h, vals.s, vals.l, vals.a);
+              }}
+              style={{ flex: 1, accentColor: "#4a9eed" }} />
+            <span style={{ fontSize: 9, color: "#666", width: 40, textAlign: "right" }}>{row.val.toFixed(2)}{row.after}</span>
+          </div>
+        ))}
+
+        <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 8, borderTop: "1px solid #2a2a40" }}>
+          <button onClick={() => {
+            setH(0); setS(0); setL(0); setA(1);
+            onChange(null);
+          }} style={{ flex: 1, background: "#2a2a40", color: "#ccc", border: "1px solid #3a3a50", borderRadius: 3, padding: "4px 8px", fontSize: 9, cursor: "pointer" }}>
+            Clear
+          </button>
+          <input type="text" placeholder="Preset name..." value={presetName} onChange={(e) => setPresetName(e.target.value)}
+            style={{ flex: 2, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "3px 6px" }} />
+          <button onClick={() => {
+            if (!presetName.trim()) return;
+            const id = presetName.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+            onSavePreset({ id, label: presetName, adjust: { h, s, l, a } });
+            setPresetName("");
+          }} style={{ background: "#22c55e", color: "#000", border: "none", borderRadius: 3, padding: "4px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>
+            Save as Preset
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 

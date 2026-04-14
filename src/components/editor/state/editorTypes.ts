@@ -119,6 +119,22 @@ export interface CatalogLogEntry {
   text: string[];
 }
 
+/** Tint preset — named color adjustment */
+export interface CatalogTintPreset {
+  id: string;
+  label: string;
+  adjust: { h: number; s: number; l: number; a: number };
+}
+
+/** Per-tile tint entry — either references a preset or inlines the adjust. */
+export interface TileTintEntry {
+  presetId?: string;
+  h?: number;
+  s?: number;
+  l?: number;
+  a?: number;
+}
+
 /** Named NPC movement pattern — edited via the Movement tab */
 export interface CatalogMovementPattern {
   id: string;
@@ -146,10 +162,11 @@ export interface CatalogData {
   fieldMoveAwards: CatalogFieldMove[];
   researchLog: CatalogLogEntry[];
   movementPatterns: CatalogMovementPattern[];
+  tintPresets: CatalogTintPreset[];
 }
 
 export type EditorLayer = "ground" | "collision" | "foreground" | "entities" | "heatmap" | "zones" | "movement" | "grid";
-export type EditorTool = "select" | "move" | "stamp" | "eraser" | "eyedropper";
+export type EditorTool = "select" | "move" | "stamp" | "eraser" | "eyedropper" | "tint";
 
 export interface UndoEntry {
   action: EditorAction;
@@ -172,6 +189,8 @@ export interface EditorState {
   catalog: CatalogData | null;
   /** Available sprites scanned from the filesystem */
   availableSprites: { npcs: string[]; pokemonOverworld: string[]; itemIcons: string[] } | null;
+  /** Per-tile tints keyed by "{map}:{layer}:{x},{y}" */
+  tileTints: Record<string, TileTintEntry>;
 }
 
 export type EditorAction =
@@ -193,4 +212,6 @@ export type EditorAction =
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "MARK_CLEAN" }
-  | { type: "SET_ERROR"; error: string | null };
+  | { type: "SET_ERROR"; error: string | null }
+  | { type: "LOAD_TILE_TINTS"; tints: Record<string, TileTintEntry> }
+  | { type: "SET_TILE_TINT"; key: string; entry: TileTintEntry | null };

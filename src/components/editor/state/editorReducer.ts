@@ -18,6 +18,7 @@ export const initialState: EditorState = {
   error: null,
   catalog: null,
   availableSprites: null,
+  tileTints: {},
 };
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -170,6 +171,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "MARK_CLEAN":
       return { ...state, dirty: false, undoStack: [], redoStack: [] };
+
+    case "LOAD_TILE_TINTS":
+      return { ...state, tileTints: action.tints };
+
+    case "SET_TILE_TINT": {
+      const next = { ...state.tileTints };
+      if (action.entry === null) delete next[action.key];
+      else next[action.key] = action.entry;
+      return { ...state, tileTints: next, dirty: true };
+    }
 
     case "SET_ERROR":
       return { ...state, error: action.error, loading: false };
