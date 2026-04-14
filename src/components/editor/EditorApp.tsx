@@ -3,7 +3,6 @@ import { EditorProvider, useEditorState, useEditorDispatch } from "./state/Edito
 import type { EditorEntity } from "./state/editorTypes";
 import EditorViewport from "./EditorViewport";
 import { emitEditorEvent, onEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE, SWITCH_MAP, VIEWPORT_READY } from "../../game/editor/EditorEvents";
-import { adjustToRgb } from "../../game/data/tintPresets";
 
 /** Dropdown menu item */
 function MenuItem({ label, shortcut, onClick, disabled }: { label: string; shortcut?: string; onClick?: () => void; disabled?: boolean }) {
@@ -2427,10 +2426,12 @@ function EditorInner() {
     };
   }, []);
 
-  // Stash tile tints on window so EditorScene can refresh when needed
+  // Stash tile tints on window so EditorScene can refresh when needed.
+  // We pass the raw HSL adjust; EditorScene applies it via Phaser preFX
+  // ColorMatrix which supports real hue rotation / desaturation / brightening
+  // (unlike the multiplicative setTint which can only darken).
   useEffect(() => {
-    // Pre-compute RGB for each tint entry for efficient viewport application
-    const resolved: Record<string, { rgb: number | null; alpha: number; rot?: number; flipX?: boolean; flipY?: boolean }> = {};
+    const resolved: Record<string, { adjust: { h: number; s: number; l: number; a: number }; rot?: number; flipX?: boolean; flipY?: boolean }> = {};
     for (const key in state.tileTints) {
       const entry = state.tileTints[key];
       let adj = { h: entry.h ?? 0, s: entry.s ?? 0, l: entry.l ?? 0, a: entry.a ?? 1 };
@@ -2439,8 +2440,7 @@ function EditorInner() {
         if (preset) adj = preset.adjust;
       }
       resolved[key] = {
-        rgb: adjustToRgb(adj),
-        alpha: adj.a,
+        adjust: adj,
         rot: entry.rot,
         flipX: entry.flipX,
         flipY: entry.flipY,
