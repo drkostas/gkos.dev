@@ -2675,6 +2675,7 @@ function buildPaletteItems(opts: {
   showRelationships: () => void;
   toggleLayer: (layer: string) => void;
   applySpecies: (sp: PokemonSpecies) => void;
+  startPlacement: (p: any) => void;
 }): CmdItem[] {
   const { state, dispatch } = opts;
   const items: CmdItem[] = [];
@@ -2754,9 +2755,7 @@ function buildPaletteItems(opts: {
     });
   }
 
-  // All 386 Gen 1–3 pokémon — searchable by name or dex number. Clicking
-  // assigns the species to the currently-selected pokémon entity (if any)
-  // or surfaces a toast/prompt for further action.
+  // All 386 Gen 1–3 pokémon — searchable by name or dex number.
   for (const sp of POKEMON_SPECIES) {
     items.push({
       id: `species-${sp.dex}`,
@@ -2764,11 +2763,79 @@ function buildPaletteItems(opts: {
       category: "Pokémon",
       hint: `Gen ${sp.dex <= 151 ? 1 : sp.dex <= 251 ? 2 : 3}`,
       iconUrl: sp.spriteUrl,
-      run: () => {
-        opts.applySpecies(sp);
-      },
+      run: () => opts.applySpecies(sp),
+    });
+    items.push({
+      id: `wild-${sp.dex}`,
+      label: `Wild ${sp.name} (#${String(sp.dex).padStart(3, "0")})`,
+      category: "Wild encounter",
+      iconUrl: sp.spriteUrl,
+      run: () => opts.startPlacement({ kind: "wild-pokemon", species: sp }),
     });
   }
+
+  // Portfolio pokédex — the OG entries. Each is tied to a species slug
+  // and resolves to a PokeAPI sprite via that slug's dex number.
+  const pokedex = state.catalog?.pokedex ?? [];
+  const slugToDex = new Map<string, number>(POKEMON_SPECIES.map((s) => [s.slug, s.dex]));
+  for (const p of pokedex) {
+    const dex = slugToDex.get(p.pokemon) ?? p.number;
+    const sprite = dex > 0 && dex <= POKEMON_SPECIES.length
+      ? POKEMON_SPECIES[dex - 1]?.spriteUrl
+      : undefined;
+    items.push({
+      id: `pokedex-${p.number}`,
+      label: `${p.name} · ${p.pokemon} (#${p.number})`,
+      category: "Portfolio pokédex",
+      hint: `${p.level} · ${p.types.join("/")}`,
+      iconUrl: sprite,
+      run: () => opts.startPlacement({
+        kind: "pokedex-entry",
+        pokedexNumber: dex,
+        name: p.name,
+        pokemon: p.pokemon,
+      }),
+    });
+  }
+
+  // NPC sprites — every available overworld sprite is a placement target.
+  const npcSprites = state.availableSprites?.npcs ?? [];
+  for (const spriteKey of npcSprites) {
+    items.push({
+      id: `npc-${spriteKey}`,
+      label: `NPC: ${spriteKey}`,
+      category: "Place NPC",
+      iconUrl: `/game/sprites/emerald/${spriteKey}.png`,
+      run: () => opts.startPlacement({ kind: "npc", spriteKey }),
+    });
+  }
+
+  // Items (pickup + hidden). Each catalog item becomes two palette rows:
+  // visible pickup and hidden-item variant.
+  const items_ = state.catalog?.itemDefinitions ?? [];
+  for (const it of items_) {
+    items.push({
+      id: `item-${it.id}`,
+      label: `Item: ${it.name}`,
+      category: "Place pickup",
+      hint: it.pocket,
+      run: () => opts.startPlacement({ kind: "item", itemId: it.id, itemName: it.name, itemIcon: it.icon }),
+    });
+    items.push({
+      id: `hidden-${it.id}`,
+      label: `Hidden: ${it.name}`,
+      category: "Place hidden item",
+      hint: it.pocket,
+      run: () => opts.startPlacement({ kind: "hidden-item", itemId: it.id, itemName: it.name }),
+    });
+  }
+
+  // Miscellaneous placeables with no catalog — just kind.
+  items.push(
+    { id: "place-sign", label: "Place sign", category: "Place", hint: "edit text after", run: () => opts.startPlacement({ kind: "sign" }) },
+    { id: "place-warp", label: "Place warp", category: "Place", hint: "configure target after", run: () => opts.startPlacement({ kind: "warp" }) },
+    { id: "place-gate", label: "Place gate", category: "Place", hint: "configure after", run: () => opts.startPlacement({ kind: "gate" }) },
+  );
 
   return items;
 }
@@ -3122,11 +3189,22 @@ function EditorInner() {
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number; gid: number; hasTopSprite: boolean; screenX: number; screenY: number } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   /**
-   * Pending pokémon placement. Set when the user picks a species from the
-   * command palette (or any library) without an entity selected; the next
-   * tile click drops a new pokémon-npc entity at that tile. Esc cancels.
+   * Pending placement — picked from the command palette, dropped on the
+   * next tile click. Supports every entity type, not just pokémon.
+   * Each variant carries just enough info to instantiate a default
+   * entity. Esc cancels.
    */
-  const [pendingPlacement, setPendingPlacement] = useState<PokemonSpecies | null>(null);
+  type Placement =
+    | { kind: "species"; species: PokemonSpecies }
+    | { kind: "npc"; spriteKey: string }
+    | { kind: "item"; itemId: string; itemName: string; itemIcon?: string }
+    | { kind: "sign" }
+    | { kind: "wild-pokemon"; species: PokemonSpecies }
+    | { kind: "hidden-item"; itemId: string; itemName: string }
+    | { kind: "warp" }
+    | { kind: "gate" }
+    | { kind: "pokedex-entry"; pokedexNumber: number; name: string; pokemon: string };
+  const [pendingPlacement, setPendingPlacement] = useState<Placement | null>(null);
   /** Shadow of the Phaser stamp block state. null = no block. */
   const [blockStatus, setBlockStatus] = useState<{ width: number; height: number } | null>(null);
   /** Shadow of the Phaser multi-select queue for stamp/eraser. */
@@ -3156,40 +3234,110 @@ function EditorInner() {
     };
   }, []);
 
-  // Pokémon placement — when `pendingPlacement` is set, the next tile
-  // click drops a new pokémon-npc entity at that tile, then exits
-  // placement mode. The Phaser scene emits `editor:tile-selected` on
-  // every plain-click tile pick; we intercept only while a placement
-  // is pending.
+  // Placement commit — next tile click drops a new entity. Every entity
+  // type is supported; each kind shapes the default entity. Esc cancels.
   useEffect(() => {
     if (!pendingPlacement) return;
     const onTileSelected = (e: Event) => {
       const detail = (e as CustomEvent).detail as { x: number; y: number } | null;
       if (!detail) return;
-      const sp = pendingPlacement;
-      const id = `pkmn_${sp.slug}_${detail.x}_${detail.y}_${Date.now().toString(36)}`;
-      dispatch({
-        type: "ADD_ENTITY",
-        entity: {
-          id,
-          type: "pokemon-npc",
-          x: detail.x,
-          y: detail.y,
-          pokedexNumber: sp.dex,
-          pokemon: {
-            pokedexNumber: sp.dex,
-            speciesName: sp.name,
-            projectName: sp.name,
-          },
-          spriteKey: sp.slug,
-        },
-      });
+      const pp = pendingPlacement;
+      const tag = Date.now().toString(36);
+      let entity: EditorEntity | null = null;
+      switch (pp.kind) {
+        case "species":
+        case "pokedex-entry": {
+          const dex = pp.kind === "species" ? pp.species.dex : pp.pokedexNumber;
+          const name = pp.kind === "species" ? pp.species.name : pp.name;
+          const slug = pp.kind === "species" ? pp.species.slug : pp.pokemon;
+          entity = {
+            id: `pkmn_${slug}_${detail.x}_${detail.y}_${tag}`,
+            type: "pokemon-npc",
+            x: detail.x, y: detail.y,
+            pokedexNumber: dex,
+            pokemon: { pokedexNumber: dex, speciesName: name, projectName: name },
+            spriteKey: slug,
+          };
+          break;
+        }
+        case "wild-pokemon": {
+          entity = {
+            id: `wild_${pp.species.slug}_${detail.x}_${detail.y}_${tag}`,
+            type: "wild-pokemon",
+            x: detail.x, y: detail.y,
+            pokedexNumber: pp.species.dex,
+            pokemon: { pokedexNumber: pp.species.dex, speciesName: pp.species.name, projectName: pp.species.name },
+            spriteKey: pp.species.slug,
+          };
+          break;
+        }
+        case "npc": {
+          entity = {
+            id: `npc_${pp.spriteKey}_${detail.x}_${detail.y}_${tag}`,
+            type: "npc",
+            x: detail.x, y: detail.y,
+            spriteKey: pp.spriteKey,
+            facingDirection: "down",
+            dialog: [],
+          };
+          break;
+        }
+        case "item": {
+          entity = {
+            id: `pickup_${pp.itemId}_${detail.x}_${detail.y}_${tag}`,
+            type: "pickup",
+            x: detail.x, y: detail.y,
+            itemId: pp.itemId,
+            pickup: { itemId: pp.itemId },
+          };
+          break;
+        }
+        case "hidden-item": {
+          entity = {
+            id: `hidden_${pp.itemId}_${detail.x}_${detail.y}_${tag}`,
+            type: "hidden-item",
+            x: detail.x, y: detail.y,
+            itemId: pp.itemId,
+          };
+          break;
+        }
+        case "sign": {
+          entity = {
+            id: `sign_${detail.x}_${detail.y}_${tag}`,
+            type: "sign",
+            x: detail.x, y: detail.y,
+            text: [""],
+          };
+          break;
+        }
+        case "warp": {
+          entity = {
+            id: `warp_${detail.x}_${detail.y}_${tag}`,
+            type: "warp",
+            x: detail.x, y: detail.y,
+            targetMap: "",
+            spawnX: 0, spawnY: 0,
+            spawnFacing: "down",
+          };
+          break;
+        }
+        case "gate": {
+          entity = {
+            id: `gate_${detail.x}_${detail.y}_${tag}`,
+            type: "gate",
+            x: detail.x, y: detail.y,
+            gateType: "locked",
+          };
+          break;
+        }
+      }
+      if (entity) {
+        dispatch({ type: "ADD_ENTITY", entity });
+        dispatch({ type: "SELECT_ENTITY", id: entity.id });
+      }
       setPendingPlacement(null);
-      emitEditorEvent("editor:placement-preview", null);
     };
     window.addEventListener("editor:tile-selected", onTileSelected);
-    // Push the preview sprite URL to the scene so it renders a ghost
-    emitEditorEvent("editor:placement-preview", { spriteUrl: pendingPlacement.spriteUrl, name: pendingPlacement.name });
     return () => {
       window.removeEventListener("editor:tile-selected", onTileSelected);
     };
@@ -3596,9 +3744,7 @@ function EditorInner() {
             },
             applySpecies: (sp) => {
               // If a pokémon entity is selected, re-link it to the chosen
-              // species. Otherwise enter placement mode: the cursor
-              // becomes a ghost of the species sprite, next click on the
-              // map drops a new pokémon-npc entity at that tile.
+              // species. Otherwise enter placement mode.
               const sel = state.selectedEntityId
                 ? state.entities.find((e) => e.id === state.selectedEntityId)
                 : null;
@@ -3616,8 +3762,9 @@ function EditorInner() {
                 });
                 return;
               }
-              setPendingPlacement(sp);
+              setPendingPlacement({ kind: "species", species: sp });
             },
+            startPlacement: (p) => setPendingPlacement(p),
           })}
           onClose={() => setPaletteOpen(false)}
         />
@@ -3860,33 +4007,78 @@ function EditorInner() {
         );
       })()}
 
-      {/* Pending pokémon placement HUD — shows which species is about to
-          drop on the next tile click. Sits above the block HUD when both
-          are active. Follows the cursor so the user sees what they're
-          placing. Esc cancels. */}
-      {pendingPlacement && (
-        <div style={{
-          position: "fixed",
-          left: Math.min((hoverTile?.screenX ?? 200) + 24, window.innerWidth - 260),
-          top: Math.min((hoverTile?.screenY ?? 200) + 24, window.innerHeight - 70),
-          zIndex: 9997,
-          background: "rgba(20, 20, 30, 0.92)",
-          color: "#22c55e",
-          fontFamily: "monospace",
-          fontSize: 11,
-          padding: "6px 10px",
-          borderRadius: 4,
-          border: "1px solid #22c55e",
-          pointerEvents: "none",
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <img src={pendingPlacement.spriteUrl} alt="" style={{ width: 32, height: 32, imageRendering: "pixelated" }} />
-          <div>
-            <div style={{ fontWeight: 700 }}>{pendingPlacement.name} (#{String(pendingPlacement.dex).padStart(3, "0")})</div>
-            <div style={{ fontSize: 9, color: "#888" }}>Click a tile to place · Esc cancels</div>
+      {/* Pending placement HUD — shows which entity is about to drop on
+          the next tile click. Follows the cursor. Esc cancels. */}
+      {pendingPlacement && (() => {
+        // Compute display info per placement kind.
+        let title = "Place entity";
+        let subtitle = "Click a tile · Esc cancels";
+        let iconUrl: string | null = null;
+        let iconBg = "#22c55e";
+        const pp = pendingPlacement;
+        if (pp.kind === "species") {
+          title = `${pp.species.name} (#${String(pp.species.dex).padStart(3, "0")})`;
+          subtitle = "Place pokémon NPC · Esc cancels";
+          iconUrl = pp.species.spriteUrl;
+        } else if (pp.kind === "wild-pokemon") {
+          title = `Wild ${pp.species.name} (#${String(pp.species.dex).padStart(3, "0")})`;
+          subtitle = "Place wild encounter · Esc cancels";
+          iconUrl = pp.species.spriteUrl;
+          iconBg = "#a855f7";
+        } else if (pp.kind === "pokedex-entry") {
+          title = `${pp.name} (#${String(pp.pokedexNumber).padStart(3, "0")}) · project`;
+          subtitle = "Place portfolio pokémon NPC · Esc cancels";
+          iconUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pp.pokedexNumber}.png`;
+        } else if (pp.kind === "npc") {
+          title = `NPC: ${pp.spriteKey}`;
+          subtitle = "Place NPC · Esc cancels";
+          iconUrl = `/game/sprites/emerald/${pp.spriteKey}.png`;
+          iconBg = "#3b82f6";
+        } else if (pp.kind === "item" || pp.kind === "hidden-item") {
+          title = pp.kind === "hidden-item" ? `Hidden: ${pp.itemName}` : pp.itemName;
+          subtitle = pp.kind === "hidden-item" ? "Place hidden item · Esc cancels" : "Place pickup · Esc cancels";
+          iconBg = pp.kind === "hidden-item" ? "#ec4899" : "#f97316";
+        } else if (pp.kind === "sign") {
+          title = "Sign";
+          subtitle = "Place sign (edit text after) · Esc cancels";
+          iconBg = "#f59e0b";
+        } else if (pp.kind === "warp") {
+          title = "Warp";
+          subtitle = "Place warp (configure target after) · Esc cancels";
+          iconBg = "#8b5cf6";
+        } else if (pp.kind === "gate") {
+          title = "Gate";
+          subtitle = "Place gate (configure after) · Esc cancels";
+          iconBg = "#dc2626";
+        }
+        return (
+          <div style={{
+            position: "fixed",
+            left: Math.min((hoverTile?.screenX ?? 200) + 24, window.innerWidth - 280),
+            top: Math.min((hoverTile?.screenY ?? 200) + 24, window.innerHeight - 70),
+            zIndex: 9997,
+            background: "rgba(20, 20, 30, 0.92)",
+            color: iconBg,
+            fontFamily: "monospace",
+            fontSize: 11,
+            padding: "6px 10px",
+            borderRadius: 4,
+            border: `1px solid ${iconBg}`,
+            pointerEvents: "none",
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            {iconUrl ? (
+              <img src={iconUrl} alt="" style={{ width: 32, height: 32, imageRendering: "pixelated" }} />
+            ) : (
+              <div style={{ width: 32, height: 32, background: iconBg, opacity: 0.3, borderRadius: 4 }} />
+            )}
+            <div>
+              <div style={{ fontWeight: 700 }}>{title}</div>
+              <div style={{ fontSize: 9, color: "#888" }}>{subtitle}</div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Pending multi-select queue HUD (stamp/eraser Shift+click). Commits
           with Enter, cancels with Esc. Sits just below the block HUD. */}
@@ -3938,8 +4130,9 @@ function EditorInner() {
       )}
 
       {/* Tile Tint popup */}
-      {/* Hovered tile coordinate badge — follows the cursor, always visible */}
-      {hoverTile && (
+      {/* Hovered tile coordinate badge — follows the cursor. Hidden
+          during placement mode so the species HUD is unobstructed. */}
+      {hoverTile && !pendingPlacement && (
         <div style={{
           position: "fixed",
           left: Math.min(hoverTile.screenX + 18, window.innerWidth - 180),
