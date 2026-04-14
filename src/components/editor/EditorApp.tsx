@@ -1814,7 +1814,12 @@ function KostasDialogEditor() {
 function TileInspector() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
-  const [tile, setTile] = useState<{ x: number; y: number; layer: "ground" | "top" } | null>(null);
+  // The unified selection — drives every inspector op. Empty = nothing
+  // selected; 1 entry = single tile; N = multi. "primary" is the most
+  // recently interacted-with tile, used for single-tile UI (GID readout,
+  // sprite preview). Batch ops apply to every entry.
+  const [selection, setSelection] = useState<{ x: number; y: number; layer: "ground" | "top" }[]>([]);
+  const [primary, setPrimary] = useState<{ x: number; y: number; layer: "ground" | "top" } | null>(null);
   const [gid, setGid] = useState<number>(0);
   const [blocked, setBlocked] = useState<boolean>(false);
   const [hasTopSprite, setHasTopSprite] = useState<boolean>(false);
@@ -1831,7 +1836,7 @@ function TileInspector() {
       Math.floor(sp.x / 16) === x && Math.floor(sp.y / 16) === y,
     );
     setHasTopSprite(hts);
-    setTile({ x, y, layer: layer ?? (hts ? "top" : "ground") });
+    setPrimary({ x, y, layer: layer ?? (hts ? "top" : "ground") });
   };
 
   useEffect(() => {
@@ -1842,32 +1847,49 @@ function TileInspector() {
     };
     const onCol = (e: Event) => {
       const detail = (e as CustomEvent).detail as { x: number; y: number; blocked: boolean };
-      setTile((prev) => {
+      setPrimary((prev) => {
         if (prev && prev.x === detail.x && prev.y === detail.y) setBlocked(detail.blocked);
         return prev;
       });
     };
+    const onSel = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { tiles: { x: number; y: number; layer: "ground" | "top" }[] };
+      setSelection(detail.tiles);
+      // If nothing is selected, also clear the primary pane.
+      if (detail.tiles.length === 0) setPrimary(null);
+      else if (!detail.tiles.some((t) => primary && t.x === primary.x && t.y === primary.y)) {
+        // Primary no longer in selection — pick the first
+        refresh(detail.tiles[0].x, detail.tiles[0].y, detail.tiles[0].layer);
+      }
+    };
     window.addEventListener("editor:tile-selected", onTile);
     window.addEventListener("editor:collision-toggle", onCol);
+    window.addEventListener("editor:selection-change", onSel);
     return () => {
       window.removeEventListener("editor:tile-selected", onTile);
       window.removeEventListener("editor:collision-toggle", onCol);
+      window.removeEventListener("editor:selection-change", onSel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The active tile set for every batch op: use the full selection when
+  // non-empty, otherwise fall back to just the primary tile so single-
+  // click still works.
+  const activeTiles: { x: number; y: number; layer: "ground" | "top" }[] =
+    selection.length > 0 ? selection : (primary ? [primary] : []);
+
   const toggleCollision = () => {
-    if (!tile) return;
-    // Direct scene event — dispatching a fake KeyboardEvent to window
-    // doesn't reliably reach Phaser's keyboard plugin, which is why the
-    // old checkbox only worked the first time.
-    emitEditorEvent("editor:toggle-collision", { x: tile.x, y: tile.y });
+    for (const t of activeTiles) {
+      emitEditorEvent("editor:toggle-collision", { x: t.x, y: t.y });
+    }
   };
 
   // Tint lookup key format matches editorReducer: "{map}:{layer}:{x},{y}"
   const mapId = typeof localStorage !== "undefined" ? (localStorage.getItem("editor_current_map") || "mauville") : "mauville";
   const storageMapId = mapId === "mauville" ? "overworld" : mapId;
-  const tintKey = tile ? `${storageMapId}:${tile.layer}:${tile.x},${tile.y}` : "";
-  const tintEntry = tile ? state.tileTints[tintKey] : null;
+  const tintKey = primary ? `${storageMapId}:${primary.layer}:${primary.x},${primary.y}` : "";
+  const tintEntry = primary ? state.tileTints[tintKey] : null;
 
   // Resolve HSL adjustment for slider bindings
   const adj = (() => {
@@ -1884,44 +1906,65 @@ function TileInspector() {
   })();
 
   const applyAdj = (next: { h: number; s: number; l: number; a: number; rot?: number; flipX?: boolean; flipY?: boolean }) => {
-    if (!tile) return;
     const isDefault = next.h === 0 && next.s === 0 && next.l === 0 && next.a === 1 && (next.rot ?? 0) === 0 && !next.flipX && !next.flipY;
-    if (isDefault) {
-      dispatch({ type: "SET_TILE_TINT", key: tintKey, entry: null });
-    } else {
-      const entry: any = { h: next.h, s: next.s, l: next.l, a: next.a };
-      if (next.rot) entry.rot = next.rot;
-      if (next.flipX) entry.flipX = true;
-      if (next.flipY) entry.flipY = true;
-      dispatch({ type: "SET_TILE_TINT", key: tintKey, entry });
+    for (const t of activeTiles) {
+      const k = `${storageMapId}:${t.layer}:${t.x},${t.y}`;
+      if (isDefault) {
+        dispatch({ type: "SET_TILE_TINT", key: k, entry: null });
+      } else {
+        const entry: any = { h: next.h, s: next.s, l: next.l, a: next.a };
+        if (next.rot) entry.rot = next.rot;
+        if (next.flipX) entry.flipX = true;
+        if (next.flipY) entry.flipY = true;
+        dispatch({ type: "SET_TILE_TINT", key: k, entry });
+      }
     }
   };
 
-  const copyTileAsBlock = () => {
-    if (!tile) return;
-    emitEditorEvent("editor:copy-single-tile", { x: tile.x, y: tile.y });
+  const copySelectionAsBlock = () => {
+    if (activeTiles.length === 1) {
+      emitEditorEvent("editor:copy-single-tile", { x: activeTiles[0].x, y: activeTiles[0].y });
+    } else if (activeTiles.length > 1) {
+      // Copy the bounding rect's worth of tiles as a block; gaps become
+      // empty cells in the block. User gets back a rectangular stamp
+      // they can paste elsewhere.
+      emitEditorEvent("editor:copy-selection-as-block", { tiles: activeTiles });
+    }
   };
 
-  if (!tile) {
+  const deleteSelection = () => {
+    for (const t of activeTiles) {
+      emitEditorEvent("editor:erase-tile", { x: t.x, y: t.y });
+    }
+  };
+
+  if (!primary) {
     return (
       <div style={{ width: "100%", height: "100%", background: "#1e1e30", padding: 12, color: "#555", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-        Click an entity to inspect it, or click a tile to edit collision / tint / GID.
+        Click an entity to inspect it, or click a tile to edit collision / tint / GID. Shift+click to add tiles to the selection.
       </div>
     );
   }
 
+  const multi = selection.length > 1;
   return (
     <div style={{ width: "100%", height: "100%", background: "#1e1e30", overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #2a2a40", paddingBottom: 4 }}>
         <span style={{ background: "#4a9eed", color: "#fff", fontSize: 8, padding: "1px 5px", borderRadius: 8, fontWeight: 700, textTransform: "uppercase" }}>
-          tile
+          {multi ? `tiles ×${selection.length}` : "tile"}
         </span>
         <span style={{ fontSize: 11, fontWeight: 700, flex: 1, fontFamily: "monospace" }}>
-          ({tile.x}, {tile.y})
+          {multi ? `(${primary.x}, ${primary.y}) + ${selection.length - 1}` : `(${primary.x}, ${primary.y})`}
         </span>
-        <button onClick={copyTileAsBlock}
+        <button onClick={copySelectionAsBlock}
+          title={multi ? `Copy ${selection.length} tiles as a block` : "Copy tile as 1×1 block"}
           style={{ fontSize: 9, background: "#1e3a5f", color: "#4a9eed", border: "1px solid #4a4a6a", borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontFamily: "monospace" }}>
-          Copy tile
+          Copy
+        </button>
+        <button onClick={deleteSelection}
+          title={multi ? `Erase ${selection.length} tiles` : "Erase tile"}
+          style={{ fontSize: 9, background: "#3a1e1e", color: "#ef4444", border: "1px solid #6a3a3a", borderRadius: 3, padding: "3px 8px", cursor: "pointer", fontFamily: "monospace" }}>
+          Delete
         </button>
       </div>
 
@@ -1936,8 +1979,8 @@ function TileInspector() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, fontSize: 10 }}>
           <span style={{ color: "#888", width: 70, textAlign: "right" }}>Layer</span>
-          <select value={tile.layer}
-            onChange={(e) => setTile({ x: tile.x, y: tile.y, layer: e.target.value as "ground" | "top" })}
+          <select value={primary.layer}
+            onChange={(e) => setPrimary({ x: primary.x, y: primary.y, layer: e.target.value as "ground" | "top" })}
             style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, color: "#ccc", fontSize: 10, padding: "2px 5px" }}>
             <option value="ground">ground</option>
             <option value="top" disabled={!hasTopSprite}>top {hasTopSprite ? "" : "(none)"}</option>
