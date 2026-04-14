@@ -165,6 +165,11 @@ export class EditorScene extends Phaser.Scene {
    */
   private isBlockDragPasting: boolean = false;
   private blockDragVisited: Set<string> = new Set();
+  /**
+   * Most-recently-clicked tile (any modifier). Used by the T key shortcut
+   * to open the tint popup without requiring an explicit tool switch.
+   */
+  private lastClickedTile: { x: number; y: number } | null = null;
 
   constructor() {
     super({ key: "EditorScene" });
@@ -320,7 +325,16 @@ export class EditorScene extends Phaser.Scene {
       cam.setZoom(this.currentZoom);
     });
 
-    // Pointer down
+    // Pointer down — unified "Edit" dispatch. Every action is driven by
+    // modifier keys, not a tool mode switch:
+    //   middle / space+left  → pan
+    //   Alt+left             → erase (+ drag = continuous erase)
+    //   Cmd/Ctrl+left        → paint picked GID (+ drag = paint stroke)
+    //                          with block copied: paste block (+ drag = paint-paste)
+    //   Shift+left           → defer for shift+click routing / block copy on drag
+    //   plain left on entity → select entity (+ drag if already selected = move)
+    //   plain left on tile   → pick GID + show info (eyedropper)
+    //   plain left on empty  → pan-on-drag
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       // Middle-click or space+left-click: start panning
       if (pointer.middleButtonDown() || (this.spaceDown && pointer.leftButtonDown())) {
@@ -332,175 +346,122 @@ export class EditorScene extends Phaser.Scene {
 
       // Right-click (handled by interaction for context menu)
       if (pointer.rightButtonDown()) return;
+      if (!pointer.leftButtonDown()) return;
 
-      // Left-click: tool-dependent behavior
-      if (pointer.leftButtonDown()) {
-        const worldX = pointer.worldX;
-        const worldY = pointer.worldY;
-        const tileX = Math.floor(worldX / TILE_SIZE);
-        const tileY = Math.floor(worldY / TILE_SIZE);
+      const worldX = pointer.worldX;
+      const worldY = pointer.worldY;
+      const tileX = Math.floor(worldX / TILE_SIZE);
+      const tileY = Math.floor(worldY / TILE_SIZE);
+      const evt = pointer.event as MouseEvent | PointerEvent | undefined;
+      const altDown = !!evt && evt.altKey;
+      const cmdDown = !!evt && (evt.metaKey || evt.ctrlKey);
+      const shiftDown = !!evt && evt.shiftKey;
 
-        // Shift+drag: start block selection for copy/paste. We set the
-        // flag on pointerdown but defer semantics until pointerup — if
-        // the drag was a real 2+ tile drag we create a block, if it was
-        // a single-tile click we route to the tool's Shift+click handler
-        // (tint multi-select, stamp/eraser queue, eyedropper no-switch).
-        if (this.input.keyboard?.checkDown(this.input.keyboard.addKey("SHIFT")) && this.tilemap) {
-          this.isShiftDragging = true;
-          this.shiftDragStart = { x: tileX, y: tileY };
+      // Shift: defer for block copy vs 1-tile shift-click routing at pointerup
+      if (shiftDown && this.tilemap) {
+        this.isShiftDragging = true;
+        this.shiftDragStart = { x: tileX, y: tileY };
+        return;
+      }
+
+      // Clamp tile coords to map bounds for the paint/erase paths —
+      // putTileAt indexes directly into the layer array and crashes if
+      // the coordinate is out of range.
+      const inBounds = this.tilemap &&
+        tileX >= 0 && tileX < this.tilemap.width &&
+        tileY >= 0 && tileY < this.tilemap.height;
+
+      // Alt: erase the starting tile immediately + enter drag-erase
+      if (altDown && this.tilemap && inBounds) {
+        this.tilemap.putTileAt(0, tileX, tileY, false, "Ground");
+        emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
+        this.isDragPainting = true;
+        this.dragPaintMode = "erase";
+        this.dragPaintVisited.clear();
+        this.dragPaintVisited.add(`${tileX},${tileY}`);
+        return;
+      }
+
+      // Cmd/Ctrl: paint with picked GID, or paste block if one is copied
+      if (cmdDown && this.tilemap && inBounds) {
+        if (this.blockSelection && this.blockSelection.tiles.length > 0) {
+          this.pasteBlockAt(tileX, tileY);
+          this.isBlockDragPasting = true;
+          this.blockDragVisited.clear();
+          this.blockDragVisited.add(`${tileX},${tileY}`);
           return;
         }
-
-        // Ctrl+click: toggle collision on this tile
-        if (this.input.keyboard?.checkDown(this.input.keyboard.addKey("CTRL")) && this.tilemap) {
-          const idx = tileY * MAP_WIDTH + tileX;
-          if (idx >= 0 && idx < this.collisionLayerData.length) {
-            const wasBlocked = this.collisionLayerData[idx] > 0;
-            this.collisionLayerData[idx] = wasBlocked ? 0 : 1;
-            // Update the collision layer in tilemap
-            const collLayer = this.tilemap.getLayer("Collision");
-            if (collLayer) {
-              this.tilemap.putTileAt(wasBlocked ? 0 : 1, tileX, tileY, false, "Collision");
-            }
-            // Re-render collision overlay if visible
-            if (this.collisionVisible) this.renderCollisionOverlay();
-            emitEditorEvent("editor:collision-toggle", { x: tileX, y: tileY, blocked: !wasBlocked });
-          }
-          return;
-        }
-
-        // Helper: start tracking potential pan, with a deferred tool action.
-        // The action only fires on pointerup if the pointer didn't move > PAN_THRESHOLD.
-        const deferToolClick = (action: () => void) => {
-          this.pendingClickAction = action;
-          this.panStart = { x: pointer.x, y: pointer.y };
-          this.camStart = { x: cam.scrollX, y: cam.scrollY };
-          this.panMoved = false;
-        };
-
-        // Stamp tool: block paste uses deferred single-click; single-GID
-        // stamp paints immediately and tracks drag so the user can draw
-        // lines of fences without clicking every tile.
-        if (this.currentTool === "stamp" && this.tilemap) {
-          if (this.blockSelection && this.blockSelection.tiles.length > 0) {
-            // Cmd/Ctrl+drag: continuous block paste along the drag path.
-            // Plain click: defer for single-paste (also allows pan if the
-            // cursor moves significantly before release).
-            const evt = pointer.event as MouseEvent | PointerEvent | undefined;
-            const cmdDown = !!evt && (evt.metaKey || evt.ctrlKey);
-            if (cmdDown) {
-              this.pasteBlockAt(tileX, tileY);
-              this.isBlockDragPasting = true;
-              this.blockDragVisited.clear();
-              this.blockDragVisited.add(`${tileX},${tileY}`);
-              return;
-            }
-            deferToolClick(() => {
-              this.pasteBlockAt(tileX, tileY);
-            });
-            return;
-          }
-          if (this.selectedTileGid > 0) {
-            // Paint the starting tile immediately and enter drag-paint mode.
-            this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
-            emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
-            this.isDragPainting = true;
-            this.dragPaintMode = "paint";
-            this.dragPaintVisited.clear();
-            this.dragPaintVisited.add(`${tileX},${tileY}`);
-          }
-          return;
-        }
-
-        // Eyedropper tool: pick tile GID
-        if (this.currentTool === "eyedropper" && this.tilemap) {
-          deferToolClick(() => {
-            const tile = this.tilemap!.getTileAt(tileX, tileY, false, "Ground");
-            if (tile) {
-              this.selectedTileGid = tile.index;
-              emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: tileX, y: tileY });
-              // Auto-switch to stamp tool after picking
-              this.currentTool = "stamp";
-              emitEditorEvent(SET_TOOL, { tool: "stamp" });
-            }
-          });
-          return;
-        }
-
-        // Eraser tool: clear starting tile immediately and enter drag-erase
-        // so the user can wipe a path by holding the mouse and dragging.
-        if (this.currentTool === "eraser" && this.tilemap) {
-          this.tilemap.putTileAt(0, tileX, tileY, false, "Ground");
-          emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
+        if (this.selectedTileGid > 0) {
+          this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
+          emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
           this.isDragPainting = true;
-          this.dragPaintMode = "erase";
+          this.dragPaintMode = "paint";
           this.dragPaintVisited.clear();
           this.dragPaintVisited.add(`${tileX},${tileY}`);
-          return;
         }
+        return;
+      }
 
-        // Tint tool: open color adjust popup for clicked tile.
-        if (this.currentTool === "tint") {
-          // Capture shift state at pointerdown (before deferring).
-          const evt = pointer.event as MouseEvent | PointerEvent | KeyboardEvent | undefined;
-          const kbShiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT).isDown;
-          const append = !!(evt && (evt as MouseEvent).shiftKey) || !!kbShiftKey;
-          deferToolClick(() => {
-            const hasTopSprite = this.topSprites.some((s) => {
-              const sx = Math.floor((s.x as number) / TILE_SIZE);
-              const sy = Math.floor((s.y as number) / TILE_SIZE);
-              return sx === tileX && sy === tileY;
-            });
-            const layer = hasTopSprite ? "top" : "ground";
-            if (append) this.addTintHighlight(tileX, tileY);
-            else this.showTintHighlight(tileX, tileY);
-            emitEditorEvent("editor:tint-click", {
-              x: tileX, y: tileY, layer,
-              screenX: pointer.x, screenY: pointer.y,
-              append,
-            });
-          });
-          return;
-        }
+      // Helper: start tracking potential pan, with a deferred tool action.
+      // The action only fires on pointerup if the pointer didn't move > PAN_THRESHOLD.
+      const deferToolClick = (action: () => void) => {
+        this.pendingClickAction = action;
+        this.panStart = { x: pointer.x, y: pointer.y };
+        this.camStart = { x: cam.scrollX, y: cam.scrollY };
+        this.panMoved = false;
+      };
 
-        // Check for entity hit
-        let hitEntity: EntityMarker | null = null;
-        let minDist = Infinity;
-        for (const marker of this.markers.values()) {
-          const mx = marker.x * TILE_SIZE + TILE_SIZE / 2;
-          const my = marker.y * TILE_SIZE + TILE_SIZE / 2;
-          const dist = Math.sqrt((worldX - mx) ** 2 + (worldY - my) ** 2);
-          if (dist < 12 && dist < minDist) {
-            hitEntity = marker;
-            minDist = dist;
-          }
-        }
-
-        if (hitEntity) {
-          emitEditorEvent(ENTITY_CLICKED, {
-            entityId: hitEntity.id,
-            entityType: hitEntity.type,
-            x: hitEntity.x,
-            y: hitEntity.y,
-          });
-
-          // Start drag immediately on selected entity
-          if (this.selectedId === hitEntity.id) {
-            this.isDragging = true;
-            this.dragEntityId = hitEntity.id;
-            // Dim the original marker to show it's being dragged
-            const dragMarker = this.markers.get(hitEntity.id);
-            if (dragMarker) dragMarker.container.setAlpha(0.3);
-            emitEditorEvent(DRAG_START, { entityId: hitEntity.id });
-          }
-        } else {
-          // No entity hit — start panning with left-click drag
-          this.isPanning = true;
-          this.panMoved = false;
-          this.panStart = { x: pointer.x, y: pointer.y };
-          this.camStart = { x: cam.scrollX, y: cam.scrollY };
+      // Plain click: entity takes priority over tile.
+      let hitEntity: EntityMarker | null = null;
+      let minDist = Infinity;
+      for (const marker of this.markers.values()) {
+        const mx = marker.x * TILE_SIZE + TILE_SIZE / 2;
+        const my = marker.y * TILE_SIZE + TILE_SIZE / 2;
+        const dist = Math.sqrt((worldX - mx) ** 2 + (worldY - my) ** 2);
+        if (dist < 12 && dist < minDist) {
+          hitEntity = marker;
+          minDist = dist;
         }
       }
+
+      if (hitEntity) {
+        emitEditorEvent(ENTITY_CLICKED, {
+          entityId: hitEntity.id,
+          entityType: hitEntity.type,
+          x: hitEntity.x,
+          y: hitEntity.y,
+        });
+        // Already-selected entity: drag on pointermove
+        if (this.selectedId === hitEntity.id) {
+          this.isDragging = true;
+          this.dragEntityId = hitEntity.id;
+          const dragMarker = this.markers.get(hitEntity.id);
+          if (dragMarker) dragMarker.container.setAlpha(0.3);
+          emitEditorEvent(DRAG_START, { entityId: hitEntity.id });
+        }
+        return;
+      }
+
+      // Plain click on tile: pick GID (eyedropper), remember as most-recent
+      // for tint popup, and defer so drag still pans.
+      if (this.tilemap) {
+        deferToolClick(() => {
+          const tile = this.tilemap!.getTileAt(tileX, tileY, false, "Ground");
+          if (tile) {
+            this.selectedTileGid = tile.index;
+            this.lastClickedTile = { x: tileX, y: tileY };
+            emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: tileX, y: tileY });
+            emitEditorEvent("editor:tile-selected", { x: tileX, y: tileY });
+          }
+        });
+        return;
+      }
+
+      // No tilemap: pure pan on drag.
+      this.isPanning = true;
+      this.panMoved = false;
+      this.panStart = { x: pointer.x, y: pointer.y };
+      this.camStart = { x: cam.scrollX, y: cam.scrollY };
     });
 
     // Pointer move
@@ -530,11 +491,13 @@ export class EditorScene extends Phaser.Scene {
       if (this.isBlockDragPasting && this.tilemap && this.blockSelection) {
         const tx = Math.floor(pointer.worldX / TILE_SIZE);
         const ty = Math.floor(pointer.worldY / TILE_SIZE);
-        const key = `${tx},${ty}`;
-        if (!this.blockDragVisited.has(key)) {
-          this.blockDragVisited.add(key);
-          this.pasteBlockAt(tx, ty);
-          this.updateBlockGhost(tx, ty);
+        if (tx >= 0 && tx < this.tilemap.width && ty >= 0 && ty < this.tilemap.height) {
+          const key = `${tx},${ty}`;
+          if (!this.blockDragVisited.has(key)) {
+            this.blockDragVisited.add(key);
+            this.pasteBlockAt(tx, ty);
+            this.updateBlockGhost(tx, ty);
+          }
         }
         return;
       }
@@ -546,22 +509,25 @@ export class EditorScene extends Phaser.Scene {
       if (this.isDragPainting && this.tilemap) {
         const tx = Math.floor(pointer.worldX / TILE_SIZE);
         const ty = Math.floor(pointer.worldY / TILE_SIZE);
-        const key = `${tx},${ty}`;
-        if (!this.dragPaintVisited.has(key)) {
-          this.dragPaintVisited.add(key);
-          if (this.dragPaintMode === "paint" && this.selectedTileGid > 0) {
-            this.tilemap.putTileAt(this.selectedTileGid, tx, ty, false, "Ground");
-            emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: this.selectedTileGid });
-          } else if (this.dragPaintMode === "erase") {
-            this.tilemap.putTileAt(0, tx, ty, false, "Ground");
-            emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: 0 });
+        if (tx >= 0 && tx < this.tilemap.width && ty >= 0 && ty < this.tilemap.height) {
+          const key = `${tx},${ty}`;
+          if (!this.dragPaintVisited.has(key)) {
+            this.dragPaintVisited.add(key);
+            if (this.dragPaintMode === "paint" && this.selectedTileGid > 0) {
+              this.tilemap.putTileAt(this.selectedTileGid, tx, ty, false, "Ground");
+              emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: this.selectedTileGid });
+            } else if (this.dragPaintMode === "erase") {
+              this.tilemap.putTileAt(0, tx, ty, false, "Ground");
+              emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: 0 });
+            }
           }
         }
         return;
       }
 
-      // Update the block ghost while idly hovering with a stamp block.
-      if (this.currentTool === "stamp" && this.blockSelection && !this.isPanning && !this.isDragging) {
+      // Update the block ghost while idly hovering (any time a block is
+      // copied — unified Edit mode shows paste targets regardless of tool).
+      if (this.blockSelection && !this.isPanning && !this.isDragging) {
         const tx = Math.floor(pointer.worldX / TILE_SIZE);
         const ty = Math.floor(pointer.worldY / TILE_SIZE);
         this.updateBlockGhost(tx, ty);
@@ -640,49 +606,27 @@ export class EditorScene extends Phaser.Scene {
         const w = Math.abs(endX - this.shiftDragStart.x) + 1;
         const h = Math.abs(endY - this.shiftDragStart.y) + 1;
 
-        // Single-tile shift-click is routed to the tool-specific handler:
-        //   tint → append the tile to the popup's multi-select
-        //   stamp → queue for batch paint (Enter commits)
-        //   eraser → queue for batch erase
-        //   eyedropper → pick GID without auto-switching to stamp
-        // A 2×2+ drag still produces a real block selection below.
+        // Single-tile Shift+click in the unified Edit mode: add the tile
+        // to the tint multi-selection. The user can then press T (or
+        // change a slider if the popup is open) to tint every highlighted
+        // tile at once. A 2×2+ drag still produces a block selection.
         if (w === 1 && h === 1) {
           this.isShiftDragging = false;
           this.shiftDragStart = null;
-          if (this.currentTool === "tint") {
-            const hasTopSprite = this.topSprites.some((spr) => {
-              const ssx = Math.floor((spr.x as number) / TILE_SIZE);
-              const ssy = Math.floor((spr.y as number) / TILE_SIZE);
-              return ssx === sx && ssy === sy;
-            });
-            const layer = hasTopSprite ? "top" : "ground";
-            this.addTintHighlight(sx, sy);
-            emitEditorEvent("editor:tint-click", {
-              x: sx, y: sy, layer,
-              screenX: p.x, screenY: p.y,
-              append: true,
-            });
-            return;
-          }
-          if (this.currentTool === "stamp") {
-            this.togglePendingOpTile("paint", sx, sy);
-            return;
-          }
-          if (this.currentTool === "eraser") {
-            this.togglePendingOpTile("erase", sx, sy);
-            return;
-          }
-          if (this.currentTool === "eyedropper") {
-            const tile = this.tilemap.getTileAt(sx, sy, false, "Ground");
-            if (tile) {
-              this.selectedTileGid = tile.index;
-              emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: sx, y: sy });
-              // Shift+click = stay in eyedropper so the user can compare
-              // multiple tiles without the tool jumping to stamp.
-            }
-            return;
-          }
-          // Other tools: fall through to the legacy 1×1 block behaviour
+          const hasTopSprite = this.topSprites.some((spr) => {
+            const ssx = Math.floor((spr.x as number) / TILE_SIZE);
+            const ssy = Math.floor((spr.y as number) / TILE_SIZE);
+            return ssx === sx && ssy === sy;
+          });
+          const layer = hasTopSprite ? "top" : "ground";
+          this.addTintHighlight(sx, sy);
+          this.lastClickedTile = { x: sx, y: sy };
+          emitEditorEvent("editor:tint-click", {
+            x: sx, y: sy, layer,
+            screenX: p.x, screenY: p.y,
+            append: true,
+          });
+          return;
         }
 
         // Capture tile GIDs in the selected region
@@ -822,6 +766,33 @@ export class EditorScene extends Phaser.Scene {
       if (this.pendingOpMode && this.pendingOpTiles.size > 0) {
         this.commitPendingOpQueue();
       }
+    });
+    // T opens the tint popup for the most-recently-clicked tile (or for the
+    // currently highlighted multi-selection if any are active).
+    this.input.keyboard?.on("keydown-T", () => {
+      if (isTypingInField()) return;
+      this.openTintForLastTile();
+    });
+  }
+
+  /**
+   * Open the tint popup for the last tile clicked. If shift-click highlights
+   * already exist, the popup uses them as the multi-selection.
+   */
+  private openTintForLastTile(): void {
+    const tile = this.lastClickedTile;
+    if (!tile || !this.tilemap) return;
+    const hasTopSprite = this.topSprites.some((s) => {
+      const sx = Math.floor((s.x as number) / TILE_SIZE);
+      const sy = Math.floor((s.y as number) / TILE_SIZE);
+      return sx === tile.x && sy === tile.y;
+    });
+    const layer = hasTopSprite ? "top" : "ground";
+    this.showTintHighlight(tile.x, tile.y);
+    emitEditorEvent("editor:tint-click", {
+      x: tile.x, y: tile.y, layer,
+      screenX: window.innerWidth / 2, screenY: window.innerHeight / 2,
+      append: false,
     });
   }
 

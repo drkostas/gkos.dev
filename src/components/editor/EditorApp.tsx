@@ -31,22 +31,30 @@ function MenuSep() {
   return <div style={{ height: 1, background: "#3a3a50", margin: "3px 0" }} />;
 }
 
+/** Section header inside a dropdown — non-interactive, small caps. */
+function MenuHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      padding: "4px 8px 2px",
+      fontSize: 9,
+      color: "#6a8fbf",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      fontWeight: 700,
+    }}>{children}</div>
+  );
+}
+
 /** Toolbar at the top */
 function Toolbar() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [hoveredTool, setHoveredTool] = useState<string | null>(null);
   const [saveDiffChanges, setSaveDiffChanges] = useState<any[] | null>(null);
 
-  const tools = [
-    { id: "select" as const, icon: "⊹", label: "Select", desc: "Click to select entities" },
-    { id: "move" as const, icon: "✥", label: "Move", desc: "Drag entities to reposition" },
-    { id: "stamp" as const, icon: "⊞", label: "Stamp", desc: "Place new entities from library" },
-    { id: "eraser" as const, icon: "⌫", label: "Eraser", desc: "Remove entities/clear tiles" },
-    { id: "eyedropper" as const, icon: "◉", label: "Eyedropper", desc: "Pick tile from map (5)" },
-    { id: "tint" as const, icon: "◐", label: "Tint", desc: "Click tile to adjust color (hue/sat/brightness)" },
-  ];
+  // Tool toolbar removed — the editor has a single unified "Edit" mode and
+  // every action is driven by modifiers (Cmd paint, Alt erase, Shift multi-
+  // select/block, etc.). See the Edit menu for the full shortcut list.
 
   const collectChanges = () => {
     // Collect changes from undo stack, deduplicating to keep only LATEST per entity+field
@@ -167,36 +175,72 @@ function Toolbar() {
     ),
     Edit: (
       <>
+        <MenuHeader>History</MenuHeader>
         <MenuItem label="Undo" shortcut="⌘Z" onClick={handleUndo} disabled={state.undoStack.length === 0} />
-        <MenuItem label="Redo" shortcut="⌘Y" onClick={handleRedo} disabled={state.redoStack.length === 0} />
-        <MenuSep />
-        <MenuItem label="Deselect All" shortcut="Esc" onClick={() => dispatch({ type: "DESELECT" })} />
-        <MenuItem label="Delete Selected" shortcut="Del" disabled={!state.selectedEntityId} onClick={() => {
-          if (state.selectedEntityId) {
-            const e = state.entities.find((x) => x.id === state.selectedEntityId);
-            if (e) dispatch({ type: "DELETE_ENTITY", id: e.id, entity: e });
-          }
-        }} />
-        <MenuSep />
+        <MenuItem label="Redo" shortcut="⌘⇧Z / ⌘Y" onClick={handleRedo} disabled={state.redoStack.length === 0} />
         <MenuItem label="Show History" onClick={() => window.dispatchEvent(new CustomEvent("editor:show-history"))} disabled={state.undoStack.length === 0} />
+
         <MenuSep />
-        <MenuItem label="Duplicate Selected" shortcut="⌘D" disabled={!state.selectedEntityId} onClick={() => {
+        <MenuHeader>Selection</MenuHeader>
+        <MenuItem label="Click tile" shortcut="—" disabled />
+        <MenuItem label="Pick GID (eyedropper)" shortcut="Click tile" disabled />
+        <MenuItem label="Select entity" shortcut="Click entity" disabled />
+        <MenuItem label="Multi-select tile" shortcut="⇧+Click" disabled />
+        <MenuItem label="Deselect all / pop level" shortcut="Esc" onClick={() => dispatch({ type: "DESELECT" })} />
+
+        <MenuSep />
+        <MenuHeader>Tile painting</MenuHeader>
+        <MenuItem label="Paint picked GID" shortcut="⌘+Click" disabled />
+        <MenuItem label="Paint stroke" shortcut="⌘+Drag" disabled />
+        <MenuItem label="Erase tile" shortcut="⌥+Click" disabled />
+        <MenuItem label="Erase stroke" shortcut="⌥+Drag" disabled />
+
+        <MenuSep />
+        <MenuHeader>Block copy / paste</MenuHeader>
+        <MenuItem label="Copy block" shortcut="⇧+Drag (2+ tiles)" disabled />
+        <MenuItem label="Paste block (single)" shortcut="Click (when copied)" disabled />
+        <MenuItem label="Paint-paste block" shortcut="⌘+Drag (when copied)" disabled />
+        <MenuItem label="Rotate block 90°" shortcut="R" disabled />
+        <MenuItem label="Flip block horizontally" shortcut="F" disabled />
+        <MenuItem label="Flip block vertically" shortcut="⇧F" disabled />
+        <MenuItem label="Drop block" shortcut="Esc" onClick={() => emitEditorEvent("editor:clear-block-selection", {})} />
+
+        <MenuSep />
+        <MenuHeader>Tinting (HSL)</MenuHeader>
+        <MenuItem label="Open tint popup for last clicked tile" shortcut="T" onClick={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+        }} />
+        <MenuItem label="Add tile to tint selection" shortcut="⇧+Click" disabled />
+
+        <MenuSep />
+        <MenuHeader>Entity</MenuHeader>
+        <MenuItem label="Move entity" shortcut="Drag selected" disabled />
+        <MenuItem label="Duplicate" shortcut="⌘D" disabled={!state.selectedEntityId} onClick={() => {
           if (state.selectedEntityId) {
             const e = state.entities.find((x) => x.id === state.selectedEntityId);
             if (e) dispatch({ type: "ADD_ENTITY", entity: { ...e, id: e.id + "_copy", x: e.x + 1 } });
           }
         }} />
+        <MenuItem label="Delete" shortcut="Del" disabled={!state.selectedEntityId} onClick={() => {
+          if (state.selectedEntityId) {
+            const e = state.entities.find((x) => x.id === state.selectedEntityId);
+            if (e) dispatch({ type: "DELETE_ENTITY", id: e.id, entity: e });
+          }
+        }} />
         {state.selectedEntityIds.length > 1 && (
-          <>
-            <MenuSep />
-            <MenuItem label={`Batch Delete (${state.selectedEntityIds.length})`} onClick={() => {
-              for (const id of state.selectedEntityIds) {
-                const e = state.entities.find((x) => x.id === id);
-                if (e) dispatch({ type: "DELETE_ENTITY", id: e.id, entity: e });
-              }
-            }} />
-          </>
+          <MenuItem label={`Batch Delete (${state.selectedEntityIds.length})`} onClick={() => {
+            for (const id of state.selectedEntityIds) {
+              const e = state.entities.find((x) => x.id === id);
+              if (e) dispatch({ type: "DELETE_ENTITY", id: e.id, entity: e });
+            }
+          }} />
         )}
+
+        <MenuSep />
+        <MenuHeader>Navigation</MenuHeader>
+        <MenuItem label="Pan" shortcut="Drag / ␣+Drag / middle-click" disabled />
+        <MenuItem label="Zoom" shortcut="Scroll" disabled />
+        <MenuItem label="Arrow keys (step pan)" shortcut="← → ↑ ↓" disabled />
       </>
     ),
     View: (
@@ -265,34 +309,16 @@ function Toolbar() {
         </div>
       ))}
       <div style={{ width: 1, height: 20, background: "#444", margin: "0 4px" }} />
-      {tools.map((t) => (
-        <div
-          key={t.id}
-          onClick={() => { dispatch({ type: "SET_TOOL", tool: t.id }); emitEditorEvent("editor:set-tool", { tool: t.id }); }}
-          onMouseEnter={() => setHoveredTool(t.id)}
-          onMouseLeave={() => setHoveredTool(null)}
-          title={`${t.label}: ${t.desc}`}
-          style={{
-            width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
-            borderRadius: 4, cursor: "pointer", fontSize: 14, position: "relative",
-            color: state.tool === t.id ? "#4a9eed" : hoveredTool === t.id ? "#ccc" : "#888",
-            background: state.tool === t.id ? "#1e3a5f" : hoveredTool === t.id ? "#2a2a40" : "transparent",
-          }}
-        >
-          {t.icon}
-          {hoveredTool === t.id && (
-            <div style={{
-              position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
-              marginTop: 6, background: "#1a1a2e", border: "1px solid #3a3a50", borderRadius: 4,
-              padding: "4px 8px", fontSize: 9, color: "#ccc", whiteSpace: "nowrap",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.4)", pointerEvents: "none", zIndex: 50,
-            }}>
-              <div style={{ fontWeight: 700, marginBottom: 1 }}>{t.label}</div>
-              <div style={{ color: "#888" }}>{t.desc}</div>
-            </div>
-          )}
-        </div>
-      ))}
+      <div
+        title="Unified Edit mode — see the Edit menu (or press ?) for all shortcuts"
+        style={{
+          fontSize: 10, color: "#4a9eed", padding: "4px 10px",
+          border: "1px solid #2a4a6a", borderRadius: 4, background: "#1a2a3a",
+          fontWeight: 600, letterSpacing: 0.3,
+        }}
+      >
+        EDIT
+      </div>
       <div style={{ flex: 1 }} />
       {/* Global search */}
       <input
@@ -2705,11 +2731,7 @@ function EditorInner() {
           return;
         }
       }
-      if (e.key === "1") dispatch({ type: "SET_TOOL", tool: "select" });
-      if (e.key === "2") dispatch({ type: "SET_TOOL", tool: "move" });
-      if (e.key === "3") dispatch({ type: "SET_TOOL", tool: "stamp" });
-      if (e.key === "4") dispatch({ type: "SET_TOOL", tool: "eraser" });
-      if (e.key === "5") dispatch({ type: "SET_TOOL", tool: "eyedropper" });
+      // Old tool-switch shortcuts (1–5) removed — there's a single Edit mode now
       if (e.key === "?" || (e.shiftKey && e.key === "/")) setShowShortcuts((p) => !p);
       if (e.key === "Delete" || e.key === "Backspace") {
         if (state.selectedEntityId) {
