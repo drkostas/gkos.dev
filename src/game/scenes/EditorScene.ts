@@ -22,6 +22,7 @@ import {
   SWITCH_MAP,
   SET_TOOL,
 } from "../editor/EditorEvents";
+import { applyAdjustToFX, type TintAdjust } from "../data/tintPresets";
 
 const TILE_SIZE = 16;
 let MAP_WIDTH = 140;
@@ -113,6 +114,15 @@ export class EditorScene extends Phaser.Scene {
   private collisionLayerData: number[] = [];
   private foregroundImage: Phaser.GameObjects.Image | null = null;
   private topSprites: Phaser.GameObjects.Sprite[] = [];
+  /**
+   * Overlay sprites used to render tinted ground tiles with per-tile preFX.
+   * Phaser tilemap layers share a single FX pipeline across all tiles, so we
+   * can't apply a per-tile ColorMatrix to tilemap tiles directly. Instead,
+   * when a ground tile is tinted we create an overlay Sprite showing the
+   * same tile graphics, apply preFX to the overlay, and hide the underlying
+   * tilemap tile (alpha = 0). Keyed by "x,y".
+   */
+  private groundTintOverlays: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private tintHighlights: Map<string, { gfx: Phaser.GameObjects.Graphics; tween: Phaser.Tweens.Tween }> = new Map();
   private foregroundVisible: boolean = true;
   private hoverTooltip: Phaser.GameObjects.Container | null = null;
@@ -670,9 +680,6 @@ export class EditorScene extends Phaser.Scene {
       onEditorEvent("editor:tint-close", () => {
         this.clearTintHighlight();
       }),
-      onEditorEvent("editor:apply-tile-tint", (detail: { x: number; y: number; layer: string; rgb: number | null; alpha: number }) => {
-        this.applySingleTileTint(detail.x, detail.y, detail.layer, detail.rgb, detail.alpha);
-      }),
       onEditorEvent("editor:refresh-tints", () => {
         this.refreshAllTints();
       }),
@@ -698,6 +705,8 @@ export class EditorScene extends Phaser.Scene {
     if (this.gridGraphics) { this.gridGraphics.destroy(); this.gridGraphics = null; }
     for (const s of this.topSprites) s.destroy();
     this.topSprites = [];
+    for (const overlay of this.groundTintOverlays.values()) overlay.destroy();
+    this.groundTintOverlays.clear();
 
     // Create new tilemap
     this.tilemap = this.make.tilemap({ key: cfg.key });
@@ -1196,76 +1205,142 @@ export class EditorScene extends Phaser.Scene {
     this.tintHighlights.clear();
   }
 
-  applySingleTileTint(x: number, y: number, layer: string, rgb: number | null, alpha: number, extra?: { rot?: number; flipX?: boolean; flipY?: boolean }): void {
+  /**
+   * Apply an HSL adjustment to a single tile.
+   *
+   * Uses Phaser's `preFX.addColorMatrix()` pipeline for true HSL — hue
+   * rotation, desaturation, and brightening all work (unlike the legacy
+   * multiplicative `setTint`). For ground tiles, an overlay sprite is
+   * created on demand since tilemap layers share one FX pipeline.
+   *
+   * Pass `adj = null` to clear any tint at (x, y).
+   */
+  applySingleTileTint(
+    x: number,
+    y: number,
+    layer: string,
+    adj: TintAdjust | null,
+    extra?: { rot?: number; flipX?: boolean; flipY?: boolean },
+  ): void {
     if (layer === "top") {
-      // Find ALL top sprites at that tile — could be both a ground-decor sprite
-      // (from mauville_bottom_decor) and a foreground sprite (from mauville_bottom_fg).
-      // Both should be tinted together.
       for (const s of this.topSprites) {
         const sx = Math.floor((s.x as number) / TILE_SIZE);
         const sy = Math.floor((s.y as number) / TILE_SIZE);
         if (sx === x && sy === y) {
-          if (rgb == null) s.clearTint();
-          else s.setTint(rgb);
-          s.setAlpha(alpha);
-          const rot = extra?.rot ?? 0;
-          s.setAngle(rot);
+          applyAdjustToFX(s, adj);
+          s.setAngle(extra?.rot ?? 0);
           s.setFlip(extra?.flipX ?? false, extra?.flipY ?? false);
-          // NO BREAK — tint all matching sprites
+          // NO BREAK — apply to every matching sprite (ground-decor + foreground)
         }
       }
-    } else if (layer === "ground" && this.tilemap) {
+      return;
+    }
+
+    if (layer === "ground" && this.tilemap) {
+      const key = `${x},${y}`;
+      if (!adj) {
+        // Remove overlay and restore the underlying tile
+        const existing = this.groundTintOverlays.get(key);
+        if (existing) { existing.destroy(); this.groundTintOverlays.delete(key); }
+        const tile = this.tilemap.getTileAt(x, y, false, "Ground");
+        if (tile) { tile.alpha = 1; tile.flipX = false; tile.flipY = false; }
+        return;
+      }
+      // Ensure we have an overlay sprite covering this tile
+      let overlay: Phaser.GameObjects.Sprite | null = this.groundTintOverlays.get(key) ?? null;
+      if (!overlay) {
+        overlay = this.createGroundTintOverlay(x, y);
+        if (overlay) this.groundTintOverlays.set(key, overlay);
+      }
       const tile = this.tilemap.getTileAt(x, y, false, "Ground");
-      if (tile) {
-        tile.tint = rgb == null ? 0xffffff : rgb;
-        tile.alpha = alpha;
-        // Ground rotation: Tiled tiles support rotation via 90° increments via flip flags
-        const rot = extra?.rot ?? 0;
-        const flipX = extra?.flipX ?? false;
-        const flipY = extra?.flipY ?? false;
-        // Phaser tiles don't directly support 90° rotation; approximate via flipX/flipY
-        // Rot 180° = flipX+flipY. 90/270 aren't supported natively on tilemap tiles.
-        if (rot === 180) {
-          tile.flipX = !flipX;
-          tile.flipY = !flipY;
-        } else {
-          tile.flipX = flipX;
-          tile.flipY = flipY;
-        }
+      if (!overlay) {
+        // Couldn't build an overlay — fall back to the multiplier on the tile.
+        if (tile) tile.alpha = adj.a ?? 1;
+        return;
       }
+      // Hide the underlying tile so the overlay is the only thing visible.
+      if (tile) tile.alpha = 0;
+      applyAdjustToFX(overlay, adj);
+      overlay.setAngle(extra?.rot ?? 0);
+      overlay.setFlip(extra?.flipX ?? false, extra?.flipY ?? false);
     }
   }
 
   /**
+   * Build a sprite that mirrors the ground tile at (x, y), used as a
+   * per-tile surface for preFX manipulation. Returns null if the tile is
+   * empty or the tileset texture isn't loaded.
+   */
+  private createGroundTintOverlay(x: number, y: number): Phaser.GameObjects.Sprite | null {
+    if (!this.tilemap) return null;
+    const tile = this.tilemap.getTileAt(x, y, false, "Ground");
+    if (!tile || tile.index <= 0) return null;
+    const cfg = MAP_CONFIGS[this.currentMapId];
+    if (!cfg) return null;
+    const tilesetKey = cfg.tilesetName;
+    const texture = this.textures.get(tilesetKey);
+    if (!texture || !texture.getSourceImage) return null;
+
+    const tileset = this.tilemap.getTileset(tilesetKey);
+    if (!tileset) return null;
+    const margin = (tileset as unknown as { tileMargin?: number }).tileMargin ?? 0;
+    const spacing = (tileset as unknown as { tileSpacing?: number }).tileSpacing ?? 0;
+    const cols = tileset.columns;
+    const firstgid = tileset.firstgid;
+    const localGid = tile.index - firstgid;
+    if (localGid < 0 || cols <= 0) return null;
+    const srcCol = localGid % cols;
+    const srcRow = Math.floor(localGid / cols);
+    const srcX = margin + srcCol * (TILE_SIZE + spacing);
+    const srcY = margin + srcRow * (TILE_SIZE + spacing);
+
+    const frameKey = `gt_${localGid}`;
+    if (!texture.has(frameKey)) {
+      texture.add(frameKey, 0, srcX, srcY, TILE_SIZE, TILE_SIZE);
+    }
+    const sprite = this.add.sprite(
+      x * TILE_SIZE + TILE_SIZE / 2,
+      y * TILE_SIZE + TILE_SIZE / 2,
+      tilesetKey,
+      frameKey,
+    );
+    // Depth: sit just above the ground tilemap (which is at depth 0) but
+    // below ground-decor sprites (depth 50+) so decor still renders above.
+    sprite.setDepth(10 + y);
+    return sprite;
+  }
+
+  /**
    * Re-apply all stored tints for the current map. Called after map
-   * switch or after bulk tint changes. React passes the full tint map
-   * via the "editor:refresh-tints" event (detail.tints on window).
+   * switch or after any change to `state.tileTints`. React stashes the
+   * resolved HSL adjusts on `window.__EDITOR_TILE_TINTS__` then fires
+   * `editor:refresh-tints`.
+   *
+   * Entries on window are `{ adjust: TintAdjust, rot?, flipX?, flipY? }`.
    */
   refreshAllTints(): void {
-    const tints = (window as any).__EDITOR_TILE_TINTS__ || {};
+    const tints = (window as unknown as { __EDITOR_TILE_TINTS__?: Record<string, { adjust: TintAdjust; rot?: number; flipX?: boolean; flipY?: boolean }> }).__EDITOR_TILE_TINTS__ || {};
     const mapId = this.currentMapId;
     const prefix = mapId === "mauville" ? "overworld:" : `${mapId}:`;
 
-    // Reset everything first
-    if (this.tilemap) {
-      const gl = this.tilemap.getLayer("Ground")?.tilemapLayer;
-      if (gl) {
-        for (let y = 0; y < this.tilemap.height; y++) {
-          for (let x = 0; x < this.tilemap.width; x++) {
-            const t = gl.getTileAt(x, y);
-            if (t) { t.tint = 0xffffff; t.alpha = 1; t.flipX = false; t.flipY = false; }
-          }
-        }
-      }
-    }
+    // Reset every top sprite.
     for (const s of this.topSprites) {
-      s.clearTint();
-      s.setAlpha(1);
+      applyAdjustToFX(s, null);
       s.setAngle(0);
       s.setFlip(false, false);
     }
+    // Tear down every ground overlay and restore the tiles beneath.
+    for (const [key, overlay] of this.groundTintOverlays) {
+      overlay.destroy();
+      const [xs, ys] = key.split(",");
+      const x = parseInt(xs, 10);
+      const y = parseInt(ys, 10);
+      const tile = this.tilemap?.getTileAt(x, y, false, "Ground");
+      if (tile) { tile.alpha = 1; tile.flipX = false; tile.flipY = false; }
+    }
+    this.groundTintOverlays.clear();
 
-    // Re-apply from stored tints (resolve via adjustToRgb in React before sending)
+    // Re-apply from stored tints.
     for (const key in tints) {
       if (!key.startsWith(prefix)) continue;
       const [, layer, xy] = key.split(":");
@@ -1273,10 +1348,8 @@ export class EditorScene extends Phaser.Scene {
       const x = parseInt(xs, 10);
       const y = parseInt(ys, 10);
       const entry = tints[key];
-      if (!entry) continue;
-      const rgb = typeof entry.rgb === "number" ? entry.rgb : null;
-      const alpha = typeof entry.alpha === "number" ? entry.alpha : 1;
-      this.applySingleTileTint(x, y, layer, rgb, alpha, {
+      if (!entry || !entry.adjust) continue;
+      this.applySingleTileTint(x, y, layer, entry.adjust, {
         rot: entry.rot,
         flipX: entry.flipX,
         flipY: entry.flipY,

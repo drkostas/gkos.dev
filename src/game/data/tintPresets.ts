@@ -48,25 +48,57 @@ export function getTintPreset(id: string | undefined): TintPreset | undefined {
 }
 
 /**
- * Convert an HSL adjustment into a 24-bit RGB multiplier that Phaser's
- * `tile.tint = 0xrrggbb` treats as a per-channel multiplier.
+ * True-HSL tint: apply the adjustment to a Phaser sprite via the preFX
+ * ColorMatrix pipeline. This supports full hue rotation, saturation
+ * (positive = more saturated, negative = desaturate toward grey), and
+ * brightness (positive brightens, negative darkens) — unlike the
+ * multiplicative `setTint()` which can only darken toward black.
  *
- * The tint is a *multiplier* — 0xffffff preserves original colors, darker
- * values dim, and applying a hue blends the tile toward that color.
+ * Alpha is applied as the sprite's opacity (separate from the color matrix).
  *
- * Behavior:
- *   - All deltas zero → 0xffffff (no change)
- *   - Lightness < 0 → dims (e.g., l=-0.5 → 0x808080 grey multiplier)
- *   - Lightness > 0 → no useful effect (Phaser tint can't brighten)
- *   - Hue + Sat>0 → blends white toward the hue color (strength = sat)
+ * Pass `null` for `adj` to clear any existing FX.
+ */
+export function applyAdjustToFX(
+  sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image,
+  adj: TintAdjust | null,
+): void {
+  // preFX is only available on the WebGL renderer. In canvas mode, fall back
+  // to clearing — callers can use adjustToRgb() as a partial fallback if needed.
+  const preFX = (sprite as unknown as { preFX?: Phaser.GameObjects.Components.FX | null }).preFX;
+  if (!preFX) return;
+  // Always clear first so sliders don't accumulate.
+  (preFX as unknown as { clear: () => void }).clear();
+  if (!adj) {
+    sprite.setAlpha(1);
+    return;
+  }
+  sprite.setAlpha(adj.a ?? 1);
+  const hasChange = adj.h !== 0 || adj.s !== 0 || adj.l !== 0;
+  if (!hasChange) return;
+  const addMatrix = (preFX as unknown as { addColorMatrix: () => Phaser.Display.ColorMatrix }).addColorMatrix;
+  if (!addMatrix) return;
+  const cm = addMatrix.call(preFX) as Phaser.Display.ColorMatrix;
+  // Reset the matrix to identity, then compose the requested ops. Passing
+  // multiply=true on each op keeps prior ops in the matrix.
+  cm.reset();
+  if (adj.l !== 0) cm.brightness(1 + adj.l, true);
+  if (adj.s !== 0) cm.saturate(adj.s, true);
+  if (adj.h !== 0) cm.hue(adj.h, true);
+}
+
+/**
+ * Legacy RGB multiplier — kept for code paths that can't use preFX
+ * (e.g. Canvas renderer fallback, individual tilemap tiles that share a
+ * single FX pipeline). Real HSL goes through `applyAdjustToFX` instead.
+ *
+ * This is a best-effort approximation: it only darkens (Phaser tint can't
+ * brighten), and hue requires saturation > 0 to express.
  */
 export function adjustToRgb(adj: TintAdjust): number {
   if (adj.h === 0 && adj.s === 0 && adj.l === 0) return 0xffffff;
 
-  // Brightness multiplier from lightness delta
   const lightFactor = Math.max(0, Math.min(2, 1 + adj.l));
 
-  // Determine the hue color as a "target" to blend toward
   let targetR = 1, targetG = 1, targetB = 1;
   const sat = Math.max(0, Math.min(1, adj.s));
   if (sat > 0) {
@@ -80,7 +112,6 @@ export function adjustToRgb(adj: TintAdjust): number {
     else if (hueNorm < 240) { g = x; b = c; }
     else if (hueNorm < 300) { r = x; b = c; }
     else { r = c; b = x; }
-    // Linear blend from white (1,1,1) toward hue color by saturation
     targetR = 1 - sat + r * sat;
     targetG = 1 - sat + g * sat;
     targetB = 1 - sat + b * sat;
