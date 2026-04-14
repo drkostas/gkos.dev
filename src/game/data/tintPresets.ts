@@ -44,33 +44,44 @@ export function getTintPreset(id: string | undefined): TintPreset | undefined {
 /**
  * Convert an HSL adjustment into a 24-bit RGB multiplier that Phaser's
  * `tile.tint = 0xrrggbb` treats as a per-channel multiplier.
- * Returns 0xffffff (no change) when all deltas are zero.
+ *
+ * The tint is a *multiplier* — 0xffffff preserves original colors, darker
+ * values dim, and applying a hue blends the tile toward that color.
+ *
+ * Behavior:
+ *   - All deltas zero → 0xffffff (no change)
+ *   - Lightness < 0 → dims (e.g., l=-0.5 → 0x808080 grey multiplier)
+ *   - Lightness > 0 → no useful effect (Phaser tint can't brighten)
+ *   - Hue + Sat>0 → blends white toward the hue color (strength = sat)
  */
 export function adjustToRgb(adj: TintAdjust): number {
-  // Convert HSL deltas into an RGB tint. Phaser multiplies channel values
-  // by tint/255, so we construct an RGB that approximates the HSL change.
-  // Start from white (1,1,1), apply the delta.
-  let h = adj.h;
-  let s = 1 + adj.s; // >1 saturates beyond neutral
-  let l = 0.5 + adj.l; // 0.5 = neutral gray midpoint
+  if (adj.h === 0 && adj.s === 0 && adj.l === 0) return 0xffffff;
 
-  // Clamp
-  h = ((h % 360) + 360) % 360;
-  s = Math.max(0, Math.min(2, s));
-  l = Math.max(0, Math.min(1, l));
+  // Brightness multiplier from lightness delta
+  const lightFactor = Math.max(0, Math.min(2, 1 + adj.l));
 
-  const c = (1 - Math.abs(2 * l - 1)) * Math.min(s, 1);
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = l - c / 2;
-  let r = 0, g = 0, b = 0;
-  if (h < 60) { r = c; g = x; b = 0; }
-  else if (h < 120) { r = x; g = c; b = 0; }
-  else if (h < 180) { r = 0; g = c; b = x; }
-  else if (h < 240) { r = 0; g = x; b = c; }
-  else if (h < 300) { r = x; g = 0; b = c; }
-  else { r = c; g = 0; b = x; }
-  const R = Math.round((r + m) * 255);
-  const G = Math.round((g + m) * 255);
-  const B = Math.round((b + m) * 255);
+  // Determine the hue color as a "target" to blend toward
+  let targetR = 1, targetG = 1, targetB = 1;
+  const sat = Math.max(0, Math.min(1, adj.s));
+  if (sat > 0) {
+    const hueNorm = ((adj.h % 360) + 360) % 360;
+    const c = 1;
+    const x = c * (1 - Math.abs(((hueNorm / 60) % 2) - 1));
+    let r = 0, g = 0, b = 0;
+    if (hueNorm < 60) { r = c; g = x; }
+    else if (hueNorm < 120) { r = x; g = c; }
+    else if (hueNorm < 180) { g = c; b = x; }
+    else if (hueNorm < 240) { g = x; b = c; }
+    else if (hueNorm < 300) { r = x; b = c; }
+    else { r = c; b = x; }
+    // Linear blend from white (1,1,1) toward hue color by saturation
+    targetR = 1 - sat + r * sat;
+    targetG = 1 - sat + g * sat;
+    targetB = 1 - sat + b * sat;
+  }
+
+  const R = Math.max(0, Math.min(255, Math.round(targetR * 255 * lightFactor)));
+  const G = Math.max(0, Math.min(255, Math.round(targetG * 255 * lightFactor)));
+  const B = Math.max(0, Math.min(255, Math.round(targetB * 255 * lightFactor)));
   return (R << 16) | (G << 8) | B;
 }
