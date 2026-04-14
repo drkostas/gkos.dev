@@ -104,19 +104,21 @@ export default function EditorViewport() {
         }
       }),
       onEditorEvent(DRAG_END, (detail: any) => {
-        if (detail?.entityId) {
-          const entity = state.entities.find((e) => e.id === detail.entityId);
-          if (entity) {
-            dispatch({
-              type: "MOVE_ENTITY",
-              id: detail.entityId,
-              x: detail.tileX,
-              y: detail.tileY,
-              oldX: entity.x,
-              oldY: entity.y,
-            });
-          }
-        }
+        if (!detail?.entityId) return;
+        const entity = state.entities.find((e) => e.id === detail.entityId);
+        if (!entity) return;
+        // Skip if the pointer never left the starting tile — the click
+        // was a plain select, not a drag. Otherwise we'd push a no-op
+        // MOVE_ENTITY onto the undo stack every time the user selects.
+        if (entity.x === detail.tileX && entity.y === detail.tileY) return;
+        dispatch({
+          type: "MOVE_ENTITY",
+          id: detail.entityId,
+          x: detail.tileX,
+          y: detail.tileY,
+          oldX: entity.x,
+          oldY: entity.y,
+        });
       }),
     ];
 

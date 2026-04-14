@@ -520,14 +520,16 @@ export class EditorScene extends Phaser.Scene {
           emitEditorEvent("editor:entity-double-click", { entityId: hitEntity.id });
           return;
         }
-        // Already-selected entity: drag on pointermove
-        if (this.selectedId === hitEntity.id) {
-          this.isDragging = true;
-          this.dragEntityId = hitEntity.id;
-          const dragMarker = this.markers.get(hitEntity.id);
-          if (dragMarker) dragMarker.container.setAlpha(0.3);
-          emitEditorEvent(DRAG_START, { entityId: hitEntity.id });
-        }
+        // Enter drag mode immediately on any entity click. Pointermove
+        // will show the ghost, pointerup commits the move (or falls back
+        // to a plain select if the cursor never left the starting tile).
+        // Without this, the user had to click once to select then again
+        // to drag — "click+drag doesn't work" in a single gesture.
+        this.isDragging = true;
+        this.dragEntityId = hitEntity.id;
+        const dragMarker = this.markers.get(hitEntity.id);
+        if (dragMarker) dragMarker.container.setAlpha(0.3);
+        emitEditorEvent(DRAG_START, { entityId: hitEntity.id });
         return;
       }
 
