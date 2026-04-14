@@ -91,10 +91,11 @@ export class EditorScene extends Phaser.Scene {
    * For tools that fire on click (stamp/eraser/eyedropper/tint), we defer
    * execution to pointerup so left-drag can pan the camera in those modes.
    * If pointer moves > PAN_THRESHOLD pixels before release, the click is
-   * cancelled and we pan instead.
+   * cancelled and we pan instead. Threshold needs to be forgiving for
+   * real human clicks which have natural micro-movement.
    */
   private pendingClickAction: (() => void) | null = null;
-  private static readonly PAN_THRESHOLD = 4;
+  private static readonly PAN_THRESHOLD = 10;
   private spaceDown: boolean = false;
   private isDragging: boolean = false;
   private dragEntityId: string | null = null;
