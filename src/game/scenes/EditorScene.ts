@@ -240,6 +240,20 @@ export class EditorScene extends Phaser.Scene {
     // Listen for React events
     this.setupEventListeners();
 
+    // When the mouse leaves the canvas, hide the hover badge in React.
+    // (Phaser keeps pointer.x/y at the last canvas-clamped position when the
+    // pointer is outside, so we have to listen to the DOM mouseleave directly.)
+    const canvas = this.game.canvas;
+    if (canvas) {
+      const onLeave = () => {
+        this.lastEmittedTile = "OUT";
+        this.coordText.setText("");
+        emitEditorEvent("editor:hover-tile", null);
+      };
+      canvas.addEventListener("mouseleave", onLeave);
+      this.events.once("shutdown", () => canvas.removeEventListener("mouseleave", onLeave));
+    }
+
     // Emit ready after create() fully completes (next tick)
     this.time.delayedCall(0, () => {
       emitEditorEvent(VIEWPORT_READY, {});
@@ -761,41 +775,54 @@ export class EditorScene extends Phaser.Scene {
   update(): void {
     // Update coordinate display with tile GID info
     const pointer = this.input.activePointer;
-    if (pointer) {
-      const tileX = Math.floor(pointer.worldX / TILE_SIZE);
-      const tileY = Math.floor(pointer.worldY / TILE_SIZE);
-      const clampedX = Math.max(0, Math.min(MAP_WIDTH - 1, tileX));
-      const clampedY = Math.max(0, Math.min(MAP_HEIGHT - 1, tileY));
+    if (!pointer) return;
 
-      // Get tile GID from tilemap
-      let gidInfo = "";
-      let groundGid = 0;
-      let topSpriteAt = false;
-      if (this.tilemap) {
-        const groundTile = this.tilemap.getTileAt(clampedX, clampedY, false, "Ground");
-        if (groundTile) { gidInfo = ` GID:${groundTile.index}`; groundGid = groundTile.index; }
-        const isCollision = this.collisionLayerData[clampedY * MAP_WIDTH + clampedX] > 0;
-        if (isCollision) gidInfo += " [BLOCKED]";
+    const tileX = Math.floor(pointer.worldX / TILE_SIZE);
+    const tileY = Math.floor(pointer.worldY / TILE_SIZE);
+    const mapW = this.tilemap?.width ?? MAP_WIDTH;
+    const mapH = this.tilemap?.height ?? MAP_HEIGHT;
+
+    // Outside the map bounds OR pointer left the canvas → emit null so the
+    // React hover badge disappears. We also clear the in-scene coordText.
+    const inBounds = tileX >= 0 && tileX < mapW && tileY >= 0 && tileY < mapH;
+    const inCanvas = pointer.x >= 0 && pointer.y >= 0 &&
+                     pointer.x <= this.scale.width && pointer.y <= this.scale.height;
+    if (!inBounds || !inCanvas) {
+      if (this.lastEmittedTile !== "OUT") {
+        this.lastEmittedTile = "OUT";
+        this.coordText.setText("");
+        emitEditorEvent("editor:hover-tile", null);
       }
-      // Detect top sprite at hover
-      topSpriteAt = this.topSprites.some((s) => {
-        const sx = Math.floor((s.x as number) / TILE_SIZE);
-        const sy = Math.floor((s.y as number) / TILE_SIZE);
-        return sx === clampedX && sy === clampedY;
-      });
-
-      this.coordText.setText(`Tile: (${clampedX}, ${clampedY})${gidInfo}${topSpriteAt ? " [FG]" : ""}`);
-
-      // Emit to React so the EditorApp can render a visible overlay
-      const sig = `${clampedX},${clampedY},${groundGid},${topSpriteAt}`;
-      if (sig !== this.lastEmittedTile) {
-        this.lastEmittedTile = sig;
-        emitEditorEvent("editor:hover-tile", {
-          x: clampedX, y: clampedY, gid: groundGid, hasTopSprite: topSpriteAt,
-          screenX: pointer.x, screenY: pointer.y,
-        });
-      }
+      return;
     }
+
+    // Get tile GID from tilemap
+    let gidInfo = "";
+    let groundGid = 0;
+    let topSpriteAt = false;
+    if (this.tilemap) {
+      const groundTile = this.tilemap.getTileAt(tileX, tileY, false, "Ground");
+      if (groundTile) { gidInfo = ` GID:${groundTile.index}`; groundGid = groundTile.index; }
+      const isCollision = this.collisionLayerData[tileY * mapW + tileX] > 0;
+      if (isCollision) gidInfo += " [BLOCKED]";
+    }
+    // Detect top sprite at hover
+    topSpriteAt = this.topSprites.some((s) => {
+      const sx = Math.floor((s.x as number) / TILE_SIZE);
+      const sy = Math.floor((s.y as number) / TILE_SIZE);
+      return sx === tileX && sy === tileY;
+    });
+
+    this.coordText.setText(`Tile: (${tileX}, ${tileY})${gidInfo}${topSpriteAt ? " [FG]" : ""}`);
+
+    // Emit to React every frame the pointer is inside the map. Cheaper than
+    // tracking signatures and ensures the badge reappears when the cursor
+    // re-enters the canvas at the same tile it was at when leaving.
+    this.lastEmittedTile = `${tileX},${tileY}`;
+    emitEditorEvent("editor:hover-tile", {
+      x: tileX, y: tileY, gid: groundGid, hasTopSprite: topSpriteAt,
+      screenX: pointer.x, screenY: pointer.y,
+    });
   }
 
   // --- Entity Marker Management ---

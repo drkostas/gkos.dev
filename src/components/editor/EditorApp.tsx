@@ -2389,16 +2389,41 @@ function EditorInner() {
     };
     window.addEventListener("editor:set-tool", onSetTool);
 
+    // Track whether the cursor is inside the main game canvas. Both Phaser's
+    // hover events AND the visibility check use this flag — so when outside
+    // the canvas, no badge ever shows even if Phaser emits a stale event.
+    const insideCanvas = { current: true };
+
     const onHoverTile = (e: Event) => {
       const detail = (e as CustomEvent).detail;
+      // Drop the event if cursor isn't inside the canvas right now
+      if (!insideCanvas.current) { setHoverTile(null); return; }
       setHoverTile(detail);
     };
     window.addEventListener("editor:hover-tile", onHoverTile);
+
+    const onMouseMove = (e: MouseEvent) => {
+      let mainCanvas: HTMLCanvasElement | null = null;
+      let maxArea = 0;
+      for (const c of document.querySelectorAll("canvas")) {
+        const r = c.getBoundingClientRect();
+        const a = r.width * r.height;
+        if (a > maxArea) { maxArea = a; mainCanvas = c as HTMLCanvasElement; }
+      }
+      if (!mainCanvas) return;
+      const r = mainCanvas.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right &&
+                     e.clientY >= r.top && e.clientY <= r.bottom;
+      insideCanvas.current = inside;
+      if (!inside) setHoverTile(null);
+    };
+    window.addEventListener("mousemove", onMouseMove);
 
     return () => {
       window.removeEventListener("editor:tint-click", onTintClick);
       window.removeEventListener("editor:set-tool", onSetTool);
       window.removeEventListener("editor:hover-tile", onHoverTile);
+      window.removeEventListener("mousemove", onMouseMove);
     };
   }, []);
 
