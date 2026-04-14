@@ -87,6 +87,14 @@ export class EditorScene extends Phaser.Scene {
   private panMoved: boolean = false;
   private panStart: { x: number; y: number } = { x: 0, y: 0 };
   private camStart: { x: number; y: number } = { x: 0, y: 0 };
+  /**
+   * For tools that fire on click (stamp/eraser/eyedropper/tint), we defer
+   * execution to pointerup so left-drag can pan the camera in those modes.
+   * If pointer moves > PAN_THRESHOLD pixels before release, the click is
+   * cancelled and we pan instead.
+   */
+  private pendingClickAction: (() => void) | null = null;
+  private static readonly PAN_THRESHOLD = 4;
   private spaceDown: boolean = false;
   private isDragging: boolean = false;
   private dragEntityId: string | null = null;
@@ -301,74 +309,82 @@ export class EditorScene extends Phaser.Scene {
           return;
         }
 
+        // Helper: start tracking potential pan, with a deferred tool action.
+        // The action only fires on pointerup if the pointer didn't move > PAN_THRESHOLD.
+        const deferToolClick = (action: () => void) => {
+          this.pendingClickAction = action;
+          this.panStart = { x: pointer.x, y: pointer.y };
+          this.camStart = { x: cam.scrollX, y: cam.scrollY };
+          this.panMoved = false;
+        };
+
         // Stamp tool: paste block or paint single tile
         if (this.currentTool === "stamp" && this.tilemap) {
-          if (this.blockSelection && this.blockSelection.tiles.length > 0) {
-            // Paste copied block at cursor position
-            const { tiles } = this.blockSelection;
-            for (let dy = 0; dy < tiles.length; dy++) {
-              for (let dx = 0; dx < tiles[dy].length; dx++) {
-                if (tiles[dy][dx] > 0) {
-                  this.tilemap.putTileAt(tiles[dy][dx], tileX + dx, tileY + dy, false, "Ground");
+          deferToolClick(() => {
+            if (this.blockSelection && this.blockSelection.tiles.length > 0) {
+              const { tiles } = this.blockSelection;
+              for (let dy = 0; dy < tiles.length; dy++) {
+                for (let dx = 0; dx < tiles[dy].length; dx++) {
+                  if (tiles[dy][dx] > 0) {
+                    this.tilemap!.putTileAt(tiles[dy][dx], tileX + dx, tileY + dy, false, "Ground");
+                  }
                 }
               }
+              emitEditorEvent("editor:block-pasted", { x: tileX, y: tileY, w: tiles[0].length, h: tiles.length });
+              return;
             }
-            emitEditorEvent("editor:block-pasted", { x: tileX, y: tileY, w: tiles[0].length, h: tiles.length });
-            return;
-          }
-          if (this.selectedTileGid > 0) {
-            this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
-            emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
-          }
+            if (this.selectedTileGid > 0) {
+              this.tilemap!.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
+              emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
+            }
+          });
           return;
         }
 
         // Eyedropper tool: pick tile GID
         if (this.currentTool === "eyedropper" && this.tilemap) {
-          const tile = this.tilemap.getTileAt(tileX, tileY, false, "Ground");
-          if (tile) {
-            this.selectedTileGid = tile.index;
-            emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: tileX, y: tileY });
-            // Auto-switch to stamp tool after picking
-            this.currentTool = "stamp";
-            emitEditorEvent(SET_TOOL, { tool: "stamp" });
-          }
+          deferToolClick(() => {
+            const tile = this.tilemap!.getTileAt(tileX, tileY, false, "Ground");
+            if (tile) {
+              this.selectedTileGid = tile.index;
+              emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: tileX, y: tileY });
+              // Auto-switch to stamp tool after picking
+              this.currentTool = "stamp";
+              emitEditorEvent(SET_TOOL, { tool: "stamp" });
+            }
+          });
           return;
         }
 
         // Eraser tool: clear tile
         if (this.currentTool === "eraser" && this.tilemap) {
-          this.tilemap.putTileAt(0, tileX, tileY, false, "Ground");
-          emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
+          deferToolClick(() => {
+            this.tilemap!.putTileAt(0, tileX, tileY, false, "Ground");
+            emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: 0 });
+          });
           return;
         }
 
         // Tint tool: open color adjust popup for clicked tile.
-        // Detects topmost non-ground element (top sprite) or falls back to ground.
         if (this.currentTool === "tint") {
-          // Check if there's a top sprite at this tile
-          const hasTopSprite = this.topSprites.some((s) => {
-            const sx = Math.floor((s.x as number) / TILE_SIZE);
-            const sy = Math.floor((s.y as number) / TILE_SIZE);
-            return sx === tileX && sy === tileY;
-          });
-          const layer = hasTopSprite ? "top" : "ground";
-          // Detect Shift via multiple sources — browser event, Phaser keyboard state.
+          // Capture shift state at pointerdown (before deferring).
           const evt = pointer.event as MouseEvent | PointerEvent | KeyboardEvent | undefined;
           const kbShiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT).isDown;
           const append = !!(evt && (evt as MouseEvent).shiftKey) || !!kbShiftKey;
-          if (append) {
-            this.addTintHighlight(tileX, tileY);
-          } else {
-            this.showTintHighlight(tileX, tileY); // resets and sets one
-          }
-          emitEditorEvent("editor:tint-click", {
-            x: tileX,
-            y: tileY,
-            layer,
-            screenX: pointer.x,
-            screenY: pointer.y,
-            append,
+          deferToolClick(() => {
+            const hasTopSprite = this.topSprites.some((s) => {
+              const sx = Math.floor((s.x as number) / TILE_SIZE);
+              const sy = Math.floor((s.y as number) / TILE_SIZE);
+              return sx === tileX && sy === tileY;
+            });
+            const layer = hasTopSprite ? "top" : "ground";
+            if (append) this.addTintHighlight(tileX, tileY);
+            else this.showTintHighlight(tileX, tileY);
+            emitEditorEvent("editor:tint-click", {
+              x: tileX, y: tileY, layer,
+              screenX: pointer.x, screenY: pointer.y,
+              append,
+            });
           });
           return;
         }
@@ -432,6 +448,20 @@ export class EditorScene extends Phaser.Scene {
         this.blockSelectionGraphics.fillStyle(0x4a9eed, 0.1);
         this.blockSelectionGraphics.fillRect(sx * TILE_SIZE, sy * TILE_SIZE, w * TILE_SIZE, h * TILE_SIZE);
         return;
+      }
+
+      // Pending click action (stamp/eraser/eyedropper/tint deferred): if
+      // the pointer moves beyond PAN_THRESHOLD, cancel the click and start
+      // panning instead. This makes left-drag pan in every tool mode.
+      if (this.pendingClickAction && !this.isPanning) {
+        const dx = pointer.x - this.panStart.x;
+        const dy = pointer.y - this.panStart.y;
+        if (Math.sqrt(dx * dx + dy * dy) > EditorScene.PAN_THRESHOLD) {
+          this.pendingClickAction = null;
+          this.isPanning = true;
+          this.panMoved = true;
+          // panStart and camStart already set in deferToolClick
+        }
       }
 
       // Panning (left-click drag, middle-click drag, or space+drag)
@@ -521,10 +551,21 @@ export class EditorScene extends Phaser.Scene {
       this.isDragging = false;
       this.dragEntityId = null;
       this.clearDragGhost();
+      // Cancel any deferred click — leaving the canvas means user changed mind
+      this.pendingClickAction = null;
     });
 
     // Pointer up
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      // If a tool click was deferred and pointer never moved enough to pan,
+      // execute the tool action now.
+      if (this.pendingClickAction) {
+        const action = this.pendingClickAction;
+        this.pendingClickAction = null;
+        action();
+        return;
+      }
+
       if (this.isPanning) {
         const wasPanMove = this.panMoved;
         this.isPanning = false;
