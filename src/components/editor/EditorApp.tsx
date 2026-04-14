@@ -3121,6 +3121,12 @@ function EditorInner() {
   } | null>(null);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number; gid: number; hasTopSprite: boolean; screenX: number; screenY: number } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /**
+   * Pending pokémon placement. Set when the user picks a species from the
+   * command palette (or any library) without an entity selected; the next
+   * tile click drops a new pokémon-npc entity at that tile. Esc cancels.
+   */
+  const [pendingPlacement, setPendingPlacement] = useState<PokemonSpecies | null>(null);
   /** Shadow of the Phaser stamp block state. null = no block. */
   const [blockStatus, setBlockStatus] = useState<{ width: number; height: number } | null>(null);
   /** Shadow of the Phaser multi-select queue for stamp/eraser. */
@@ -3149,6 +3155,60 @@ function EditorInner() {
       window.removeEventListener("editor:pending-op-status", onPending);
     };
   }, []);
+
+  // Pokémon placement — when `pendingPlacement` is set, the next tile
+  // click drops a new pokémon-npc entity at that tile, then exits
+  // placement mode. The Phaser scene emits `editor:tile-selected` on
+  // every plain-click tile pick; we intercept only while a placement
+  // is pending.
+  useEffect(() => {
+    if (!pendingPlacement) return;
+    const onTileSelected = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { x: number; y: number } | null;
+      if (!detail) return;
+      const sp = pendingPlacement;
+      const id = `pkmn_${sp.slug}_${detail.x}_${detail.y}_${Date.now().toString(36)}`;
+      dispatch({
+        type: "ADD_ENTITY",
+        entity: {
+          id,
+          type: "pokemon-npc",
+          x: detail.x,
+          y: detail.y,
+          pokedexNumber: sp.dex,
+          pokemon: {
+            pokedexNumber: sp.dex,
+            speciesName: sp.name,
+            projectName: sp.name,
+          },
+          spriteKey: sp.slug,
+        },
+      });
+      setPendingPlacement(null);
+      emitEditorEvent("editor:placement-preview", null);
+    };
+    window.addEventListener("editor:tile-selected", onTileSelected);
+    // Push the preview sprite URL to the scene so it renders a ghost
+    emitEditorEvent("editor:placement-preview", { spriteUrl: pendingPlacement.spriteUrl, name: pendingPlacement.name });
+    return () => {
+      window.removeEventListener("editor:tile-selected", onTileSelected);
+    };
+  }, [pendingPlacement, dispatch]);
+
+  // Esc cancels placement before it hits any other tier (popup, block,
+  // selection). Also clears if user switches map etc.
+  useEffect(() => {
+    if (!pendingPlacement) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setPendingPlacement(null);
+        emitEditorEvent("editor:placement-preview", null);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [pendingPlacement]);
 
   // Double-click on an entity → open (un-collapse) the right properties
   // panel and make sure the entity is selected. Mirrors Adobe's
@@ -3536,8 +3596,9 @@ function EditorInner() {
             },
             applySpecies: (sp) => {
               // If a pokémon entity is selected, re-link it to the chosen
-              // species. Otherwise drop the user at the Pokédex tab so
-              // they can attach it manually or add a new dex entry.
+              // species. Otherwise enter placement mode: the cursor
+              // becomes a ghost of the species sprite, next click on the
+              // map drops a new pokémon-npc entity at that tile.
               const sel = state.selectedEntityId
                 ? state.entities.find((e) => e.id === state.selectedEntityId)
                 : null;
@@ -3553,10 +3614,9 @@ function EditorInner() {
                   },
                   oldValue: sel.pokemon,
                 });
-              } else {
-                // No target entity — show a toast-ish notice via alert
-                window.dispatchEvent(new CustomEvent("editor:species-clicked", { detail: sp }));
+                return;
               }
+              setPendingPlacement(sp);
             },
           })}
           onClose={() => setPaletteOpen(false)}
@@ -3799,6 +3859,34 @@ function EditorInner() {
           </>
         );
       })()}
+
+      {/* Pending pokémon placement HUD — shows which species is about to
+          drop on the next tile click. Sits above the block HUD when both
+          are active. Follows the cursor so the user sees what they're
+          placing. Esc cancels. */}
+      {pendingPlacement && (
+        <div style={{
+          position: "fixed",
+          left: Math.min((hoverTile?.screenX ?? 200) + 24, window.innerWidth - 260),
+          top: Math.min((hoverTile?.screenY ?? 200) + 24, window.innerHeight - 70),
+          zIndex: 9997,
+          background: "rgba(20, 20, 30, 0.92)",
+          color: "#22c55e",
+          fontFamily: "monospace",
+          fontSize: 11,
+          padding: "6px 10px",
+          borderRadius: 4,
+          border: "1px solid #22c55e",
+          pointerEvents: "none",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <img src={pendingPlacement.spriteUrl} alt="" style={{ width: 32, height: 32, imageRendering: "pixelated" }} />
+          <div>
+            <div style={{ fontWeight: 700 }}>{pendingPlacement.name} (#{String(pendingPlacement.dex).padStart(3, "0")})</div>
+            <div style={{ fontSize: 9, color: "#888" }}>Click a tile to place · Esc cancels</div>
+          </div>
+        </div>
+      )}
 
       {/* Pending multi-select queue HUD (stamp/eraser Shift+click). Commits
           with Enter, cancels with Esc. Sits just below the block HUD. */}
