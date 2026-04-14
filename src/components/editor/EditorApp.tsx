@@ -2456,8 +2456,10 @@ function EditorInner() {
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number; gid: number; hasTopSprite: boolean; screenX: number; screenY: number } | null>(null);
   /** Shadow of the Phaser stamp block state. null = no block. */
   const [blockStatus, setBlockStatus] = useState<{ width: number; height: number } | null>(null);
+  /** Shadow of the Phaser multi-select queue for stamp/eraser. */
+  const [pendingOp, setPendingOp] = useState<{ mode: "paint" | "erase"; count: number } | null>(null);
 
-  // Listen for stamp block state changes (copy, rotate, flip, clear).
+  // Listen for stamp block + pending-op state changes.
   useEffect(() => {
     const onBlock = (e: Event) => {
       const d = (e as CustomEvent).detail as { width: number; height: number } | null;
@@ -2467,11 +2469,17 @@ function EditorInner() {
       const d = (e as CustomEvent).detail as { width: number; height: number };
       setBlockStatus({ width: d.width, height: d.height });
     };
+    const onPending = (e: Event) => {
+      const d = (e as CustomEvent).detail as { mode: "paint" | "erase"; count: number } | null;
+      setPendingOp(d);
+    };
     window.addEventListener("editor:block-status", onBlock);
     window.addEventListener("editor:block-copied", onCopied);
+    window.addEventListener("editor:pending-op-status", onPending);
     return () => {
       window.removeEventListener("editor:block-status", onBlock);
       window.removeEventListener("editor:block-copied", onCopied);
+      window.removeEventListener("editor:pending-op-status", onPending);
     };
   }, []);
 
@@ -2674,7 +2682,12 @@ function EditorInner() {
           return;
         }
         if (contextMenu) { setContextMenu(null); return; }
-        // Level 2: copied stamp block (tells Phaser to drop it)
+        // Level 2: Shift+click multi-select queue (stamp/eraser)
+        if (pendingOp) {
+          emitEditorEvent("editor:clear-pending-ops", {});
+          return;
+        }
+        // Level 3: copied stamp block (tells Phaser to drop it)
         if (blockStatus) {
           emitEditorEvent("editor:clear-block-selection", {});
           return;
@@ -2708,7 +2721,7 @@ function EditorInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [
     state.selectedEntityId, state.selectedEntityIds, state.entities,
-    blockStatus, tintPopup, contextMenu, deleteConfirm,
+    blockStatus, pendingOp, tintPopup, contextMenu, deleteConfirm,
     showShortcuts, showHistory, showRelationships, dialogPreview,
   ]);
 
@@ -3058,6 +3071,31 @@ function EditorInner() {
           </>
         );
       })()}
+
+      {/* Pending multi-select queue HUD (stamp/eraser Shift+click). Commits
+          with Enter, cancels with Esc. Sits just below the block HUD. */}
+      {pendingOp && (
+        <div style={{
+          position: "fixed",
+          left: 240, top: blockStatus ? 74 : 48, zIndex: 9996,
+          background: "rgba(20, 20, 30, 0.85)",
+          color: pendingOp.mode === "paint" ? "#22c55e" : "#ef4444",
+          fontFamily: "monospace",
+          fontSize: 11,
+          padding: "4px 8px",
+          borderRadius: 4,
+          border: "1px solid #3a3a50",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}>
+          <span style={{ fontWeight: 700 }}>
+            {pendingOp.count} tile{pendingOp.count === 1 ? "" : "s"} queued for {pendingOp.mode}
+          </span>
+          <span style={{ color: "#888", marginLeft: 10, fontSize: 10 }}>
+            Enter = commit · Esc = cancel · Shift+click to toggle
+          </span>
+        </div>
+      )}
 
       {/* Stamp block status HUD — sits in the top-left of the viewport and
           shows dimensions plus keyboard hints for rotate/flip. Hidden when
