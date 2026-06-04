@@ -1,12 +1,12 @@
-# CLAUDE.md (Draft for portfolio-v2 repo)
+# CLAUDE.md
 
 ## Project Overview
 
-This is the new portfolio + blog for Kostas Georgiou (gkos.dev), built with Astro. It replaces the previous VSCode-themed Next.js portfolio.
+This is the portfolio + blog for Kostas Georgiou (gkos.dev), built with Astro. It replaced the previous VSCode-themed Next.js portfolio.
 
-**Live site (old, still running):** https://gkos.dev (served by Vercel from `drkostas/vscode-portfolio`)
-**This repo:** `drkostas/portfolio-v2` (private until launch)
-**Target URL:** https://gkos.dev (will switch Vercel to this repo when ready)
+**Live site:** https://gkos.dev (served by Vercel from `drkostas/drkostas.github.io`)
+**Previous portfolio (archived):** `drkostas/vscode-portfolio`
+**Local folder:** still `portfolio-v2/` (GitHub name and disk name don't have to match).
 
 ## About the Owner
 
