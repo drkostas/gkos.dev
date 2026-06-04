@@ -139,6 +139,28 @@ export async function getTopBrowsers(days = 30, limit = 5): Promise<UmamiMetric[
   return data ?? [];
 }
 
+/** Top devices (desktop / mobile / tablet) for the last N days. */
+export async function getTopDevices(days = 30, limit = 5): Promise<UmamiMetric[]> {
+  const data = await umamiFetch<UmamiMetric[]>("/metrics", {
+    startAt: daysAgoMs(days),
+    endAt: nowMs(),
+    type: "device",
+    limit: String(limit),
+  });
+  return data ?? [];
+}
+
+/** Top operating systems for the last N days. */
+export async function getTopOS(days = 30, limit = 5): Promise<UmamiMetric[]> {
+  const data = await umamiFetch<UmamiMetric[]>("/metrics", {
+    startAt: daysAgoMs(days),
+    endAt: nowMs(),
+    type: "os",
+    limit: String(limit),
+  });
+  return data ?? [];
+}
+
 /** Top countries for the last N days. */
 export async function getTopCountries(days = 30, limit = 10): Promise<UmamiMetric[]> {
   const data = await umamiFetch<UmamiMetric[]>("/metrics", {

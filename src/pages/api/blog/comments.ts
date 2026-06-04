@@ -16,8 +16,11 @@ import {
   getCommentsForPost,
   getTopCommentedPosts,
   getTotalCommentCount,
+  logModerationBlock,
 } from "@/lib/supabase";
 import { checkContent } from "@/lib/moderation";
+import { getVisitorInfo } from "@/lib/visitor";
+import { notify } from "@/lib/notify";
 
 export const prerender = false;
 
@@ -142,6 +145,7 @@ export const POST: APIRoute = async ({ request }) => {
   const ip = getClientIp(request);
   const ua = request.headers.get("user-agent") ?? "";
   const ipHash = hashIp(ip, ua);
+  const visitor = getVisitorInfo(request);
 
   // In-memory cooldown — atomic CHECK + RESERVE before any await.
   const last = lastSubmit.get(ipHash) ?? 0;
@@ -189,6 +193,14 @@ export const POST: APIRoute = async ({ request }) => {
   );
   if (!check.ok) {
     recordBlock(ipHash);
+    // Log for the daily digest (fire-and-forget)
+    void logModerationBlock({
+      source: "comment",
+      reason: check.reason ?? "blocked by moderation",
+      ip_hash: ipHash,
+      country: visitor.country,
+      preview: `${author || "anon"}: ${commentBody}`.slice(0, 400),
+    });
     const remaining = MAX_BLOCKS_PER_DAY - getRecentBlocks(ipHash);
     const suffix =
       remaining > 0
@@ -202,7 +214,20 @@ export const POST: APIRoute = async ({ request }) => {
     author || null,
     commentBody,
     ipHash,
+    visitor,
   );
   if (!comment) return json({ error: "Could not save comment" }, 500);
+
+  // Fire-and-forget notification email — never block the response on it.
+  void notify({
+    kind: "comment",
+    data: {
+      postSlug,
+      authorName: comment.authorName,
+      body: comment.body,
+      country: visitor.country,
+    },
+  });
+
   return json({ comment }, 201);
 };

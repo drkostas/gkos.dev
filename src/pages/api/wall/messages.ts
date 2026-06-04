@@ -1,7 +1,14 @@
 import type { APIRoute } from "astro";
 import { createHash } from "node:crypto";
-import { getSupabasePublic, getSupabaseAdmin, type WallMessage } from "@/lib/supabase";
+import {
+  getSupabasePublic,
+  getSupabaseAdmin,
+  logModerationBlock,
+  type WallMessage,
+} from "@/lib/supabase";
 import { checkContent } from "@/lib/moderation";
+import { getVisitorInfo } from "@/lib/visitor";
+import { notify } from "@/lib/notify";
 
 export const prerender = false;
 
@@ -252,6 +259,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const ip = getClientIp(request);
   const ipHash = hashIp(ip);
+  const visitor = getVisitorInfo(request);
 
   // ---- 5. Turnstile (Cloudflare bot wall) ----
   const turnstileToken = String(body.turnstile ?? "");
@@ -339,6 +347,13 @@ export const POST: APIRoute = async ({ request }) => {
   const check = await checkContent(`${name}: ${message}`, "strict");
   if (!check.ok) {
     recordBlock(ipHash);
+    void logModerationBlock({
+      source: "wall",
+      reason: check.reason ?? "blocked by moderation",
+      ip_hash: ipHash,
+      country: visitor.country,
+      preview: `${name}: ${message}`.slice(0, 400),
+    });
     const remaining = MAX_BLOCKS_PER_DAY - getRecentBlocks(ipHash);
     const suffix =
       remaining > 0
@@ -361,6 +376,9 @@ export const POST: APIRoute = async ({ request }) => {
       y,
       rotation,
       ip_hash: ipHash,
+      country: visitor.country,
+      device_type: visitor.deviceType,
+      browser_family: visitor.browserFamily,
     })
     .select("id, name, message, color, x, y, rotation, created_at")
     .single();
@@ -372,6 +390,12 @@ export const POST: APIRoute = async ({ request }) => {
       headers: { "Content-Type": "application/json" },
     });
   }
+
+  // Fire-and-forget notification email.
+  void notify({
+    kind: "wall",
+    data: { name, message, color, country: visitor.country },
+  });
 
   return new Response(JSON.stringify({ message: rowToMessage(data) }), {
     status: 201,

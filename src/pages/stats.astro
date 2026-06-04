@@ -10,6 +10,7 @@ import { UmamiStatsReact } from "@/components/UmamiStatsReact";
 import { GitHubStatsReact, PyPIStatsReact, CoffeeCupsReact } from "@/components/LiveStatsReact";
 import { ReactionsStatsCardReact } from "@/components/ReactionsStatsCardReact";
 import { CommentsStatsCardReact } from "@/components/CommentsStatsCardReact";
+import { EngagementCountriesCardReact } from "@/components/EngagementCountriesCardReact";
 import { TopArticlesCardReact } from "@/components/TopArticlesCardReact";
 import { projects } from "@/data/projects";
 
@@ -347,6 +348,11 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
           <!-- Comments — live from Supabase. Full width on its own row. -->
           <div class="md:col-span-12">
             <CommentsStatsCardReact client:load />
+          </div>
+
+          <!-- Engagement geography — countries that have commented/reacted/messaged -->
+          <div class="md:col-span-12">
+            <EngagementCountriesCardReact client:load />
           </div>
         </div>
       </GridWrapper>

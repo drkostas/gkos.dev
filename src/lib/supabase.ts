@@ -121,31 +121,46 @@ export async function getTopReactedPosts(limit = 5): Promise<TopReactedPost[]> {
 }
 
 /**
- * Insert a reaction. Returns the new total counts for the post. Service-role
- * required because anon doesn't have insert permission on the table.
+ * Insert a reaction. Returns { counts, isNew } — counts always reflects the
+ * current totals, isNew distinguishes a fresh row from a deduped retry.
  *
- * `ipHash` should already be sha256(ip + UA + salt). Caller hashes; this
- * function never sees the raw IP.
+ * Service-role required (anon has no insert permission). `ipHash` should
+ * already be sha256(ip + UA + salt). `visitor` is optional demographics.
  *
  * Duplicate inserts (same post + emoji + ipHash) are silently ignored thanks
- * to the unique index — we just return the existing counts.
+ * to the unique index — we return isNew=false so the caller can skip the
+ * notification email.
  */
 export async function addReaction(
   postSlug: string,
   emoji: EmojiType,
   ipHash: string,
-): Promise<ReactionCounts | null> {
+  visitor?: { country: string | null; deviceType: string; browserFamily: string } | null,
+): Promise<{ counts: ReactionCounts; isNew: boolean } | null> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
-  const { error } = await supabase
-    .from("reactions")
-    .insert({ post_slug: postSlug, emoji_type: emoji, ip_hash: ipHash });
-  // 23505 = unique_violation — duplicate reaction, treat as success.
-  if (error && error.code !== "23505") {
-    console.warn("[supabase] addReaction:", error);
-    return null;
+  const row: Record<string, unknown> = {
+    post_slug: postSlug,
+    emoji_type: emoji,
+    ip_hash: ipHash,
+  };
+  if (visitor) {
+    row.country = visitor.country;
+    row.device_type = visitor.deviceType;
+    row.browser_family = visitor.browserFamily;
   }
-  return getReactionCounts(postSlug);
+  const { error } = await supabase.from("reactions").insert(row);
+  let isNew = true;
+  if (error) {
+    if (error.code === "23505") {
+      isNew = false; // duplicate — counts unchanged, skip notification
+    } else {
+      console.warn("[supabase] addReaction:", error);
+      return null;
+    }
+  }
+  const counts = await getReactionCounts(postSlug);
+  return { counts, isNew };
 }
 
 // ----------------------------------------------------------------------------
@@ -158,6 +173,7 @@ export interface BlogComment {
   authorName: string | null;
   body: string;
   createdAt: string; // ISO
+  country?: string | null;
 }
 
 export interface TopCommentedPost {
@@ -172,6 +188,7 @@ function rowToComment(row: any): BlogComment {
     authorName: row.author_name ?? null,
     body: row.body,
     createdAt: row.created_at,
+    country: row.country ?? null,
   };
 }
 
@@ -226,24 +243,34 @@ export async function getTopCommentedPosts(limit = 5): Promise<TopCommentedPost[
 /**
  * Insert a comment. Returns the new row on success. Service-role required.
  * Caller is responsible for moderation + rate limit checks; this just writes.
+ *
+ * `visitor` is optional demographics (country / device / browser) pulled from
+ * request headers; passing null is fine — the columns are nullable.
  */
 export async function addComment(
   postSlug: string,
   authorName: string | null,
   body: string,
   ipHash: string,
+  visitor?: { country: string | null; deviceType: string; browserFamily: string } | null,
 ): Promise<BlogComment | null> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
+  const row: Record<string, unknown> = {
+    post_slug: postSlug,
+    author_name: authorName,
+    body,
+    ip_hash: ipHash,
+  };
+  if (visitor) {
+    row.country = visitor.country;
+    row.device_type = visitor.deviceType;
+    row.browser_family = visitor.browserFamily;
+  }
   const { data, error } = await supabase
     .from("blog_comments")
-    .insert({
-      post_slug: postSlug,
-      author_name: authorName,
-      body,
-      ip_hash: ipHash,
-    })
-    .select("id, post_slug, author_name, body, created_at")
+    .insert(row)
+    .select("id, post_slug, author_name, body, created_at, country")
     .single();
   if (error || !data) {
     console.warn("[supabase] addComment:", error);
@@ -251,6 +278,96 @@ export async function addComment(
   }
   return rowToComment(data);
 }
+
+// ----------------------------------------------------------------------------
+// Moderation blocks — fire-and-forget log of rejected submissions for the
+// daily digest email. Failure here never blocks the user-facing handler.
+// ----------------------------------------------------------------------------
+
+export type ModerationSource = "comment" | "wall" | "reaction" | "cv";
+
+export interface ModerationBlock {
+  source: ModerationSource;
+  reason: string;
+  ip_hash?: string | null;
+  country?: string | null;
+  preview?: string | null;
+}
+
+export async function logModerationBlock(b: ModerationBlock): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from("moderation_blocks").insert({
+      source: b.source,
+      reason: b.reason.slice(0, 200),
+      ip_hash: b.ip_hash ?? null,
+      country: b.country ?? null,
+      preview: b.preview ? b.preview.slice(0, 400) : null,
+    });
+    if (error) console.warn("[supabase] logModerationBlock:", error);
+  } catch (err) {
+    console.warn("[supabase] logModerationBlock unexpected:", err);
+  }
+}
+
+export interface ModerationBlockRow {
+  id: string;
+  source: ModerationSource;
+  reason: string;
+  preview: string | null;
+  country: string | null;
+  created_at: string;
+}
+
+export async function getRecentModerationBlocks(
+  sinceISO: string,
+  limit = 50,
+): Promise<ModerationBlockRow[]> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("moderation_blocks")
+    .select("id, source, reason, preview, country, created_at")
+    .gte("created_at", sinceISO)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) {
+    console.warn("[supabase] getRecentModerationBlocks:", error);
+    return [];
+  }
+  return data as ModerationBlockRow[];
+}
+
+// ----------------------------------------------------------------------------
+// Country-aggregation views (populated by the demographics-migration.sql)
+// ----------------------------------------------------------------------------
+
+export interface CountryCount {
+  country: string;
+  count: number;
+}
+
+async function countryCountsFromView(view: string, valueColumn: string): Promise<CountryCount[]> {
+  const supabase = getSupabasePublic();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from(view)
+    .select(`country, ${valueColumn}`)
+    .limit(50);
+  if (error || !data) {
+    console.warn(`[supabase] ${view}:`, error);
+    return [];
+  }
+  return data.map((r: any) => ({ country: r.country, count: r[valueColumn] ?? 0 }));
+}
+
+export const getCommentCountries = () =>
+  countryCountsFromView("blog_comments_countries", "comment_count");
+export const getReactionCountries = () =>
+  countryCountsFromView("reactions_countries", "reaction_count");
+export const getWallCountries = () =>
+  countryCountsFromView("wall_messages_countries", "message_count");
 
 // ----------------------------------------------------------------------------
 // Wall message types

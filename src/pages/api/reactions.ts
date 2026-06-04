@@ -23,6 +23,8 @@ import {
   EMOJI_TYPES,
   type EmojiType,
 } from "@/lib/supabase";
+import { getVisitorInfo } from "@/lib/visitor";
+import { notify } from "@/lib/notify";
 
 export const prerender = false;
 
@@ -98,10 +100,27 @@ export const POST: APIRoute = async ({ request }) => {
   const ip = getClientIp(request);
   const ua = request.headers.get("user-agent") ?? "";
   const ipHash = hashIp(ip, ua);
+  const visitor = getVisitorInfo(request);
 
-  const counts = await addReaction(post, emoji, ipHash);
-  if (!counts) {
+  const result = await addReaction(post, emoji, ipHash, visitor);
+  if (!result) {
     return json({ error: "Could not record reaction" }, 500);
   }
+  const { counts, isNew } = result;
+
+  // Notify only on the first reaction from this IP+emoji, not on retries.
+  if (isNew) {
+    const total = counts.like + counts.heart + counts.celebrate + counts.insightful;
+    void notify({
+      kind: "reaction",
+      data: {
+        postSlug: post,
+        emoji,
+        postTotalAfter: total,
+        country: visitor.country,
+      },
+    });
+  }
+
   return json({ post, counts });
 };

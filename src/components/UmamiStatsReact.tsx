@@ -14,7 +14,25 @@ type UmamiData = {
   topPages: UmamiMetric[];
   topReferrers: UmamiMetric[];
   topCountries: UmamiMetric[];
+  topBrowsers?: UmamiMetric[];
+  topDevices?: UmamiMetric[];
+  topOS?: UmamiMetric[];
 };
+
+// Two-letter ISO → flag emoji. Each codepoint = 0x1F1E6 + (letter - 'A').
+function countryFlag(iso: string): string {
+  if (!iso || iso.length !== 2) return "";
+  const codepoints = iso
+    .toUpperCase()
+    .split("")
+    .map((c) => 0x1f1e6 + c.charCodeAt(0) - 65);
+  return String.fromCodePoint(...codepoints);
+}
+
+function titleCase(s: string): string {
+  if (!s) return "—";
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
 
 function formatPath(path: string): string {
   if (path === "/") return "Home";
@@ -55,8 +73,12 @@ export function UmamiStatsReact({ demoData }: { demoData?: UmamiData } = {}) {
   const topPages = data?.topPages ?? [];
   const topReferrers = data?.topReferrers ?? [];
   const topCountries = data?.topCountries ?? [];
+  const topBrowsers = data?.topBrowsers ?? [];
+  const topDevices = data?.topDevices ?? [];
+  const topOS = data?.topOS ?? [];
   const hasData = stats && stats.pageviews > 0;
   const maxPageViews = topPages.length > 0 ? Math.max(...topPages.map((p) => p.y)) : 1;
+  const totalCountryVisits = topCountries.reduce((sum, c) => sum + c.y, 0);
 
   return (
     <div className="grid grid-cols-1 gap-2 md:grid-cols-12">
@@ -148,6 +170,116 @@ export function UmamiStatsReact({ demoData }: { demoData?: UmamiData } = {}) {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Countries */}
+      <div className="md:col-span-4">
+        <BreakdownCard
+          title={`Countries (${topCountries.length})`}
+          loading={isLoading}
+          items={topCountries}
+          emptyLabel="No country data yet"
+          renderLabel={(c) => (
+            <span>
+              <span className="mr-1.5">{countryFlag(c.x) || "🌐"}</span>
+              {c.x || "Unknown"}
+            </span>
+          )}
+          totalForPct={totalCountryVisits}
+        />
+      </div>
+
+      {/* Devices */}
+      <div className="md:col-span-4">
+        <BreakdownCard
+          title="Devices"
+          loading={isLoading}
+          items={topDevices}
+          emptyLabel="No device data yet"
+          renderLabel={(d) => titleCase(d.x)}
+          totalForPct={topDevices.reduce((s, d) => s + d.y, 0)}
+        />
+      </div>
+
+      {/* Browsers */}
+      <div className="md:col-span-4">
+        <BreakdownCard
+          title="Browsers"
+          loading={isLoading}
+          items={topBrowsers}
+          emptyLabel="No browser data yet"
+          renderLabel={(b) => titleCase(b.x)}
+          totalForPct={topBrowsers.reduce((s, b) => s + b.y, 0)}
+        />
+      </div>
+
+      {/* OS */}
+      <div className="md:col-span-4">
+        <BreakdownCard
+          title="Operating systems"
+          loading={isLoading}
+          items={topOS}
+          emptyLabel="No OS data yet"
+          renderLabel={(o) => o.x}
+          totalForPct={topOS.reduce((s, o) => s + o.y, 0)}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Small reusable breakdown card with horizontal-bar list. */
+function BreakdownCard({
+  title,
+  loading,
+  items,
+  emptyLabel,
+  renderLabel,
+  totalForPct,
+}: {
+  title: string;
+  loading: boolean;
+  items: UmamiMetric[];
+  emptyLabel: string;
+  renderLabel: (item: UmamiMetric) => React.ReactNode;
+  totalForPct: number;
+}) {
+  const max = items.length > 0 ? Math.max(...items.map((i) => i.y)) : 1;
+  return (
+    <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
+      <div className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="relative z-20 flex h-full flex-col">
+        <h2 className="mb-4 font-medium text-text-primary">{title}</h2>
+        {loading ? (
+          <p className="text-sm text-text-tertiary">Loading...</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-text-tertiary">{emptyLabel}</p>
+        ) : (
+          <div className="space-y-2.5">
+            {items.slice(0, 6).map((item, i) => (
+              <div key={item.x || "unknown"}>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-medium text-text-secondary">
+                    {renderLabel(item)}
+                  </span>
+                  <span className="ml-2 shrink-0 text-xs font-semibold tabular-nums text-text-tertiary">
+                    {totalForPct > 0
+                      ? `${Math.round((item.y / totalForPct) * 100)}%`
+                      : item.y}
+                  </span>
+                </div>
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-border-primary/30">
+                  <motion.div
+                    className="absolute inset-y-0 left-0 rounded-full bg-indigo-500"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(item.y / max) * 100}%` }}
+                    transition={{ duration: 0.5, delay: i * 0.04 }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
