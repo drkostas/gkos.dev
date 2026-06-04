@@ -365,23 +365,35 @@ export const POST: APIRoute = async ({ request }) => {
     });
   }
 
-  // ---- 12. Insert ----
-  const { data, error } = await admin
+  // ---- 12. Insert (defensive: retry without demographics if columns absent) ----
+  const baseInsert = {
+    name,
+    message,
+    color,
+    x,
+    y,
+    rotation,
+    ip_hash: ipHash,
+  };
+  const fullInsert = {
+    ...baseInsert,
+    country: visitor.country,
+    device_type: visitor.deviceType,
+    browser_family: visitor.browserFamily,
+  };
+  let { data, error } = await admin
     .from("wall_messages")
-    .insert({
-      name,
-      message,
-      color,
-      x,
-      y,
-      rotation,
-      ip_hash: ipHash,
-      country: visitor.country,
-      device_type: visitor.deviceType,
-      browser_family: visitor.browserFamily,
-    })
+    .insert(fullInsert)
     .select("id, name, message, color, x, y, rotation, created_at")
     .single();
+  if (error?.code === "42703" || error?.code === "PGRST204") {
+    console.warn("[api/wall/messages POST] wall_messages demographics columns missing; falling back");
+    ({ data, error } = await admin
+      .from("wall_messages")
+      .insert(baseInsert)
+      .select("id, name, message, color, x, y, rotation, created_at")
+      .single());
+  }
 
   if (error) {
     console.error("[api/wall/messages POST]", error);

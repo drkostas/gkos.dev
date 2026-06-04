@@ -131,6 +131,9 @@ export async function getTopReactedPosts(limit = 5): Promise<TopReactedPost[]> {
  * to the unique index — we return isNew=false so the caller can skip the
  * notification email.
  */
+// See blogCommentsLacksDemographics. Same idea for the reactions table.
+let reactionsLacksDemographics = false;
+
 export async function addReaction(
   postSlug: string,
   emoji: EmojiType,
@@ -139,21 +142,31 @@ export async function addReaction(
 ): Promise<{ counts: ReactionCounts; isNew: boolean } | null> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
-  const row: Record<string, unknown> = {
+  const baseRow: Record<string, unknown> = {
     post_slug: postSlug,
     emoji_type: emoji,
     ip_hash: ipHash,
   };
-  if (visitor) {
-    row.country = visitor.country;
-    row.device_type = visitor.deviceType;
-    row.browser_family = visitor.browserFamily;
-  }
-  const { error } = await supabase.from("reactions").insert(row);
+  const fullRow =
+    visitor && !reactionsLacksDemographics
+      ? {
+          ...baseRow,
+          country: visitor.country,
+          device_type: visitor.deviceType,
+          browser_family: visitor.browserFamily,
+        }
+      : baseRow;
+
+  let { error } = await supabase.from("reactions").insert(fullRow);
   let isNew = true;
+  if (error?.code === "42703" || error?.code === "PGRST204") {
+    reactionsLacksDemographics = true;
+    console.warn("[supabase] reactions demographics columns missing; falling back");
+    ({ error } = await supabase.from("reactions").insert(baseRow));
+  }
   if (error) {
     if (error.code === "23505") {
-      isNew = false; // duplicate — counts unchanged, skip notification
+      isNew = false;
     } else {
       console.warn("[supabase] addReaction:", error);
       return null;
@@ -247,6 +260,12 @@ export async function getTopCommentedPosts(limit = 5): Promise<TopCommentedPost[
  * `visitor` is optional demographics (country / device / browser) pulled from
  * request headers; passing null is fine — the columns are nullable.
  */
+// Module-level flag — flips to true the first time we discover the
+// demographics columns don't exist, so subsequent inserts skip them.
+// Resets to false on cold start; if the migration is applied later, the
+// next cold instance will start writing demographics again automatically.
+let blogCommentsLacksDemographics = false;
+
 export async function addComment(
   postSlug: string,
   authorName: string | null,
@@ -256,22 +275,35 @@ export async function addComment(
 ): Promise<BlogComment | null> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
-  const row: Record<string, unknown> = {
+  const baseRow: Record<string, unknown> = {
     post_slug: postSlug,
     author_name: authorName,
     body,
     ip_hash: ipHash,
   };
-  if (visitor) {
-    row.country = visitor.country;
-    row.device_type = visitor.deviceType;
-    row.browser_family = visitor.browserFamily;
+  const fullRow =
+    visitor && !blogCommentsLacksDemographics
+      ? {
+          ...baseRow,
+          country: visitor.country,
+          device_type: visitor.deviceType,
+          browser_family: visitor.browserFamily,
+        }
+      : baseRow;
+  const tryInsert = (row: Record<string, unknown>) =>
+    supabase
+      .from("blog_comments")
+      .insert(row)
+      .select("id, post_slug, author_name, body, created_at")
+      .single();
+
+  let { data, error } = await tryInsert(fullRow);
+  if (error?.code === "42703" || error?.code === "PGRST204") {
+    // Demographics columns don't exist yet — set flag, retry with base row.
+    blogCommentsLacksDemographics = true;
+    console.warn("[supabase] blog_comments demographics columns missing; falling back");
+    ({ data, error } = await tryInsert(baseRow));
   }
-  const { data, error } = await supabase
-    .from("blog_comments")
-    .insert(row)
-    .select("id, post_slug, author_name, body, created_at, country")
-    .single();
   if (error || !data) {
     console.warn("[supabase] addComment:", error);
     return null;
