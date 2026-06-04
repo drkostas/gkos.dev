@@ -346,24 +346,15 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
       </GridWrapper>
     </section>
 
-    <!-- Traffic Section — collapses to a single empty-state card until
-         production traffic accumulates. Re-expand when Umami starts returning
-         non-zero data. -->
+    <!-- Traffic Section — live from Umami Cloud -->
     <section>
       <GridWrapper>
         <SectionEyebrow
           eyebrow="Traffic"
           title="Visitors and referrers"
-          subtitle="Live from Umami. Numbers populate after launch."
+          subtitle="Live from Umami."
         />
-        <div class="rounded-2xl border border-dashed border-border-primary bg-bg-primary/50 px-6 py-10 text-center">
-          <p class="font-mono text-xs uppercase tracking-widest text-text-tertiary">
-            Tracking begins after launch
-          </p>
-          <p class="mx-auto mt-2 max-w-md text-sm text-text-secondary">
-            Top pages, referrers, and unique-visitor counts populate once visitors arrive in production.
-          </p>
-        </div>
+        <UmamiStatsReact client:load />
       </GridWrapper>
     </section>
 
