@@ -1,4 +1,6 @@
-# drkostas.github.io
+# gkos.dev
+
+![Home page of gkos.dev](./public/readme-hero.png)
 
 The source for [gkos.dev](https://gkos.dev), my personal portfolio + blog. Built with Astro, deployed on Vercel.
 

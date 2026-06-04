@@ -4,7 +4,7 @@
 
 This is the portfolio + blog for Kostas Georgiou (gkos.dev), built with Astro. It replaced the previous VSCode-themed Next.js portfolio.
 
-**Live site:** https://gkos.dev (served by Vercel from `drkostas/drkostas.github.io`)
+**Live site:** https://gkos.dev (served by Vercel from `drkostas/gkos.dev`)
 **Previous portfolio (archived):** `drkostas/vscode-portfolio`
 **Local folder:** still `portfolio-v2/` (GitHub name and disk name don't have to match).
 
