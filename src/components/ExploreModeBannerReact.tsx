@@ -200,7 +200,7 @@ export function ExploreModeBannerReact() {
           <a href="/explore" className="group relative block" data-umami-event="explore-banner-click">
             <motion.div
               ref={cardRef}
-              className="dark-panel drama-shadow relative overflow-hidden rounded-2xl bg-dark-primary p-14 md:p-[100px]"
+              className="rss-card-light drama-shadow relative overflow-hidden rounded-2xl border border-border-primary p-14 transition-colors hover:border-indigo-300/60 md:p-[100px]"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
@@ -208,40 +208,40 @@ export function ExploreModeBannerReact() {
               transition={{ duration: 0.6, ease: "easeOut" }}
             >
             {/* Lines */}
-            <div className="pointer-events-none absolute left-0 right-0 top-[34px] z-10 h-px w-full bg-zinc-600 md:top-[48px]" />
-            <div className="pointer-events-none absolute bottom-0 right-[34px] top-0 z-10 h-full w-px bg-zinc-600 md:right-[48px]" />
-            <div className="pointer-events-none absolute bottom-[34px] left-0 right-0 z-10 h-px w-full bg-zinc-600 md:bottom-[48px]" />
-            <div className="pointer-events-none absolute bottom-0 left-[34px] top-0 z-10 h-full w-px bg-zinc-600 md:left-[48px]" />
+            <div className="pointer-events-none absolute left-0 right-0 top-[34px] z-10 h-px w-full bg-border-primary md:top-[48px]" />
+            <div className="pointer-events-none absolute bottom-0 right-[34px] top-0 z-10 h-full w-px bg-border-primary md:right-[48px]" />
+            <div className="pointer-events-none absolute bottom-[34px] left-0 right-0 z-10 h-px w-full bg-border-primary md:bottom-[48px]" />
+            <div className="pointer-events-none absolute bottom-0 left-[34px] top-0 z-10 h-full w-px bg-border-primary md:left-[48px]" />
 
             {/* Crosses */}
-            <div className="pointer-events-none absolute right-[44.5px] top-[48px] z-20 hidden h-px w-2 bg-zinc-300 md:block" />
-            <div className="pointer-events-none absolute right-[48px] top-[44.5px] z-20 hidden h-2 w-px bg-zinc-300 md:block" />
-            <div className="pointer-events-none absolute left-[44.5px] right-0 top-[48px] z-20 hidden h-px w-2 bg-zinc-300 md:block" />
-            <div className="pointer-events-none absolute left-[48px] right-0 top-[44.5px] z-20 hidden h-2 w-px bg-zinc-300 md:block" />
-            <div className="pointer-events-none absolute bottom-[48px] left-[44.5px] right-0 z-20 hidden h-px w-2 bg-zinc-300 md:block" />
-            <div className="pointer-events-none absolute bottom-[44.5px] left-[48px] right-0 z-20 hidden h-2 w-px bg-zinc-300 md:block" />
-            <div className="pointer-events-none absolute bottom-[48px] right-[44.5px] z-20 hidden h-px w-2 bg-zinc-300 md:block" />
-            <div className="pointer-events-none absolute bottom-[44.5px] right-[48px] z-20 hidden h-2 w-px bg-zinc-300 md:block" />
+            <div className="pointer-events-none absolute right-[44.5px] top-[48px] z-20 hidden h-px w-2 bg-indigo-300 md:block" />
+            <div className="pointer-events-none absolute right-[48px] top-[44.5px] z-20 hidden h-2 w-px bg-indigo-300 md:block" />
+            <div className="pointer-events-none absolute left-[44.5px] right-0 top-[48px] z-20 hidden h-px w-2 bg-indigo-300 md:block" />
+            <div className="pointer-events-none absolute left-[48px] right-0 top-[44.5px] z-20 hidden h-2 w-px bg-indigo-300 md:block" />
+            <div className="pointer-events-none absolute bottom-[48px] left-[44.5px] right-0 z-20 hidden h-px w-2 bg-indigo-300 md:block" />
+            <div className="pointer-events-none absolute bottom-[44.5px] left-[48px] right-0 z-20 hidden h-2 w-px bg-indigo-300 md:block" />
+            <div className="pointer-events-none absolute bottom-[48px] right-[44.5px] z-20 hidden h-px w-2 bg-indigo-300 md:block" />
+            <div className="pointer-events-none absolute bottom-[44.5px] right-[48px] z-20 hidden h-2 w-px bg-indigo-300 md:block" />
 
             {/* Secret-mode label */}
-            <div className="relative z-30 mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-3 py-1 font-mono text-xs uppercase tracking-widest text-white/80">
+            <div className="relative z-30 mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 font-mono text-xs uppercase tracking-widest text-indigo-700">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-500 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
               </span>
               Secret Mode
             </div>
 
-            <h2 className="relative z-30 mb-4 max-w-[520px] text-3xl font-medium leading-tight text-slate-50 md:text-4xl">
+            <h2 className="relative z-30 mb-4 max-w-[520px] text-3xl font-medium leading-tight text-text-primary md:text-4xl">
               Try the playable version of my portfolio.
             </h2>
-            <p className="relative z-30 mb-8 max-w-[480px] text-base leading-8 text-gray-300 md:mb-12">
+            <p className="relative z-30 mb-8 max-w-[480px] text-base leading-8 text-text-secondary md:mb-12">
               Walk around a pixel-art world where buildings are pages, Pokemon are my projects, and NPCs hand out my papers and blog posts. The portfolio you deserved.
             </p>
 
-            {/* CTA button */}
+            {/* CTA button — matches the indigo Send button on the Get-in-Touch widget */}
             <div className="relative z-30 mb-4 flex flex-wrap items-center gap-3">
-              <span className="group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden rounded-full bg-slate-100 px-5 py-3 text-sm font-medium text-slate-900 shadow-[0_1px_theme(colors.white/0.07)_inset,0_1px_3px_theme(colors.gray.900/0.2)] ring-1 ring-white transition duration-300 ease-[cubic-bezier(0.4,0.36,0,1)] before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-full before:bg-gradient-to-b before:from-white/20 before:opacity-50 before:transition-opacity before:duration-300 group-hover:before:opacity-100 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:rounded-full after:bg-gradient-to-b after:from-white/10 after:from-[46%] after:to-[54%] after:mix-blend-overlay">
+              <span className="inline-flex items-center justify-center gap-2 rounded-full bg-indigo-100 px-5 py-3 text-sm font-medium text-indigo-700 transition hover:bg-indigo-200 dark:bg-indigo-500 dark:text-white dark:hover:bg-indigo-600">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <line x1="6" x2="10" y1="11" y2="11" />
                   <line x1="8" x2="8" y1="9" y2="13" />
@@ -255,45 +255,45 @@ export function ExploreModeBannerReact() {
                   <path d="m12 5 7 7-7 7" />
                 </svg>
               </span>
-              <span className="font-mono text-xs uppercase tracking-widest text-gray-500">
+              <span className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
                 No install needed
               </span>
             </div>
 
-            {/* Subtle scrolling dotted grid — "game world" map panning effect */}
+            {/* Subtle scrolling dotted grid — "game world" map panning effect, indigo on light */}
             <motion.div
-              className="pointer-events-none absolute inset-0 opacity-[0.08]"
+              className="pointer-events-none absolute inset-0 opacity-[0.18]"
               style={{
                 backgroundImage:
-                  "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)",
+                  "radial-gradient(rgba(99,102,241,0.45) 1px, transparent 1px)",
                 backgroundSize: "16px 16px",
               }}
               animate={{ backgroundPosition: ["0px 0px", "16px 16px"] }}
               transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
             />
 
-            {/* Glow pulse behind the CTA button — neutral white */}
+            {/* Glow pulse behind the CTA button — soft indigo */}
             <motion.div
-              className="pointer-events-none absolute left-[56px] bottom-[100px] z-0 h-24 w-56 rounded-full bg-white blur-3xl md:left-[100px] md:bottom-[140px]"
-              animate={{ opacity: [0.04, 0.12, 0.04], scale: [0.95, 1.05, 0.95] }}
+              className="pointer-events-none absolute left-[56px] bottom-[100px] z-0 h-24 w-56 rounded-full bg-indigo-300 blur-3xl md:left-[100px] md:bottom-[140px]"
+              animate={{ opacity: [0.08, 0.22, 0.08], scale: [0.95, 1.05, 0.95] }}
               transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
             />
 
-            {/* Dynamic sparkle twinkles — ambient when idle, mouse-trail when hovering */}
+            {/* Dynamic sparkle twinkles — indigo on light */}
             <AnimatePresence>
               {sparkles.map((s) => (
                 <motion.span
                   key={s.id}
-                  className="pointer-events-none absolute z-20 h-1.5 w-1.5 rounded-full bg-white"
+                  className="pointer-events-none absolute z-20 h-1.5 w-1.5 rounded-full bg-indigo-400"
                   style={{ top: `${s.y}%`, left: `${s.x}%` }}
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{
                     opacity: [0, 1, 0],
                     scale: [0, 1.3, 0],
                     boxShadow: [
-                      "0 0 0 0 rgba(255, 255, 255, 0)",
-                      "0 0 10px 2px rgba(255, 255, 255, 0.7)",
-                      "0 0 0 0 rgba(255, 255, 255, 0)",
+                      "0 0 0 0 rgba(99, 102, 241, 0)",
+                      "0 0 10px 2px rgba(99, 102, 241, 0.7)",
+                      "0 0 0 0 rgba(99, 102, 241, 0)",
                     ],
                   }}
                   exit={{ opacity: 0 }}
