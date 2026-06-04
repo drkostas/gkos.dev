@@ -4,20 +4,23 @@ import GridWrapper from "@/components/GridWrapper.astro";
 import { CommunityWallReact } from "@/components/CommunityWallReact";
 ---
 
-<Layout title="Community Wall | Kostas Georgiou">
+<Layout
+  title="Community Wall | Kostas Georgiou"
+  description="Leave a message, share your thoughts, or just say hello."
+>
   <!-- Page Header -->
   <div class="mt-14 pb-8 md:mt-16">
     <GridWrapper>
       <div class="space-y-6">
         <div class="space-y-3">
-          <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
+          <h1 class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]">
             Community Wall
           </h1>
-          <p class="mx-auto max-w-2xl text-center text-lg text-text-secondary">
+          <p class="mx-auto max-w-2xl text-center text-base text-text-secondary">
             Leave a message, share your thoughts, or just say hello.
           </p>
-          <p class="mx-auto hidden max-w-2xl text-center text-sm text-text-tertiary md:block">
-            Click and drag to explore all the messages scattered across the canvas.
+          <p class="mx-auto max-w-2xl text-center text-sm text-text-tertiary">
+            Drag to explore.
           </p>
         </div>
       </div>

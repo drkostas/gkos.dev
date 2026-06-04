@@ -215,7 +215,7 @@ export const workbenchItems: WorkbenchItem[] = [
   {
     title: "AWS",
     description:
-      "S3, Lambda, ECS, and RDS for production workloads. My daily infrastructure at Amazon and for side projects like XpensAI.",
+      "S3, Lambda, ECS, and RDS for production workloads. My daily infrastructure for the day job and side projects.",
     imgSrc: iconify("logos:aws"),
     link: "https://aws.amazon.com/",
     category: "Cloud & Infra",

@@ -126,6 +126,20 @@ export interface CatalogTintPreset {
   adjust: { h: number; s: number; l: number; a: number };
 }
 
+/**
+ * One cell's snapshot inside a paste undo action. Captures everything the
+ * paste path touches so ⌘Z can fully restore OR re-apply the operation.
+ * `decor` is null when no top-sprite existed; `blocked` travels so a
+ * pasted "make-this-walkable" state round-trips through undo/redo.
+ */
+export interface PasteCell {
+  x: number;
+  y: number;
+  gid: number;
+  decor: { textureKey: string; frameKey: string; depth: number; rotation?: number; flipX?: boolean; flipY?: boolean } | null;
+  blocked: boolean;
+}
+
 /** Per-tile tint entry — either references a preset or inlines the adjust. */
 export interface TileTintEntry {
   presetId?: string;
@@ -175,6 +189,21 @@ export type EditorTool = "select" | "move" | "stamp" | "eraser" | "eyedropper" |
 export interface UndoEntry {
   action: EditorAction;
   inverse: EditorAction;
+  /**
+   * Consecutive entries with the same `coalesceKey` inside the same
+   * `coalesceMs` window merge into one — so a ⇧+drag-rect that adds
+   * 50 tiles one event at a time collapses to a single undo step, and
+   * a burst of keystrokes in a dialog field collapses to one edit.
+   * Undefined = never coalesce.
+   */
+  coalesceKey?: string;
+  /** Wall-clock timestamp of the push; used by the coalesce window. */
+  timestamp?: number;
+  /**
+   * Per-entry override for the coalesce window. Typing wants 800ms
+   * (humans pause); drag-rect wants 400ms (fast pixel fire).
+   */
+  coalesceMs?: number;
 }
 
 export interface EditorState {
@@ -218,4 +247,24 @@ export type EditorAction =
   | { type: "MARK_CLEAN" }
   | { type: "SET_ERROR"; error: string | null }
   | { type: "LOAD_TILE_TINTS"; tints: Record<string, TileTintEntry> }
-  | { type: "SET_TILE_TINT"; key: string; entry: TileTintEntry | null };
+  | { type: "SET_TILE_TINT"; key: string; entry: TileTintEntry | null }
+  // Tile-level edits — pushed to the undo stack so ⌘Z can reverse a
+  // ⌘+click paint or ⌥+click erase, matching entity-edit behavior. The
+  // reducer doesn't own the tile data (Phaser does), it just bookkeeps
+  // the inverse; execution is replayed via the editor:paint-tile event.
+  | { type: "PAINT_TILE"; x: number; y: number; newGid: number; oldGid: number }
+  // Batched stroke — every tile touched during a single ⌘+drag (or ⌥+drag
+  // erase, or fill bucket) collapses into ONE undo entry so ⌘Z reverts
+  // the entire stroke at once instead of tile-by-tile.
+  | { type: "PAINT_TILE_BATCH"; changes: Array<{ x: number; y: number; newGid: number; oldGid: number }> }
+  // ⌘V paste — captures the full region state before + after so a single
+  // ⌘Z can restore ground GIDs, decor sprites, and collision flags in
+  // one shot. Tints already travel via SET_TILE_TINT (separately undoable).
+  | { type: "PASTE_SNAPSHOT"; before: PasteCell[]; after: PasteCell[] }
+  // Collision flag flip — previously mutated `collisionLayerData` silently;
+  // now every C key / sidebar checkbox / context-menu toggle pushes one
+  // entry so ⌘Z reverses it.
+  | { type: "TOGGLE_COLLISION"; x: number; y: number; blocked: boolean; oldBlocked: boolean }
+  // Tile selection replaced with a new set. Consecutive SET_SELECTION
+  // entries coalesce so a ⇧+drag that adds 50 cells = 1 undo step.
+  | { type: "SET_SELECTION"; tiles: Array<{ x: number; y: number }>; oldTiles: Array<{ x: number; y: number }> };

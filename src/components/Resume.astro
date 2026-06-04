@@ -1,40 +1,45 @@
 ---
+// Work history pulled from kostas-georgiou-resume.pdf. Ordered newest → oldest
+// by start date. FleetSmart is a B2B contract (Jan-May 2026) so it's most
+// recent. The granular PhD milestones (start/XPensAI/Amazon/graduation) live
+// in the narrative story section below, not here.
 const experiences = [
   {
-    company: "Amazon",
-    period: "2025 - Present",
-    positions: [
-      {
-        title: "Applied Scientist L5",
-        description: [
-          "Designed and deployed multi-agent LLM framework converting natural language to executable code, improving functional success rates by 12%.",
-          "Built real-time detection system correctly identifying 93% of unfeasible requests with 4.5x performance improvement.",
-        ],
-      },
-    ],
-  },
-  {
     company: "FleetSmart.ai",
-    period: "2025 - 2026",
+    period: "Jan - May 2026",
     positions: [
       {
         title: "AI Engineer (B2B Contract)",
         description: [
-          "Built AI-powered maritime decision engine with hybrid LLM + deterministic recommendation system, deployed on GCP Cloud Run.",
-          "Developed scoring experiment harness across 4 architecture variants, KPI computation engine, and world news intelligence pipeline.",
+          "Designed and built FleetSmart's AI decision platform for maritime fleet operators: a multi-objective optimization engine that ranks vessel-opportunity matches across cost, speed, risk, and environmental targets, with A/B-testable scoring architectures and a fleet KPI engine for benchmarking and anomaly detection.",
+          "Architected the data and reasoning stack: 9+ real-time pipelines (dual-provider AIS vessel tracking, Baltic Exchange bunker prices, FIS Live forward freight curves, MABUX fuel spreads, AXS vessel profiles and port congestion, news sentiment), multi-provider LLM tool calls (Gemini / OpenAI / Anthropic via MCP), voyage simulation for what-if planning, and post-voyage cost feedback loops.",
         ],
       },
     ],
   },
   {
-    company: "XPensAI",
-    period: "2024 - 2026",
+    company: "Amazon",
+    period: "May - Aug 2025",
+    positions: [
+      {
+        title: "Applied Scientist - L5",
+        description: [
+          "Architected a multi-agent LLM framework for natural language to executable code, achieving 82% functional success on smart home automations and 87.6% on MBPP.",
+          "Engineered an impossibility detector that flagged over 93% of unfeasible requests (4.5x over baseline), preventing hallucinated code.",
+          "Surfaced a critical misalignment between heuristic LLM scores (98%) and functional correctness (79% pass), exposing limits of current code assessment.",
+        ],
+      },
+    ],
+  },
+  {
+    company: "XPensAI Ltd",
+    period: "2024 - 2025",
     positions: [
       {
         title: "Co-Founder & ML Engineer",
         description: [
-          "Launched AI-powered SaaS platform used by 30+ businesses, reducing manual expense entry by 65%.",
-          "Built deep learning solutions achieving 95% accuracy on receipt scanning.",
+          "Launched an AI-powered SaaS platform used by over 30 small and medium-sized businesses, reducing manual expense entry by an estimated 65%.",
+          "Led the development and deployment of core AI algorithms for automated expense tracking, real-time analytics, and receipt processing, improving processing speed by 120% over the baseline implementation.",
         ],
       },
     ],
@@ -46,21 +51,46 @@ const experiences = [
       {
         title: "Machine Learning Researcher (PhD)",
         description: [
-          "Published at NeurIPS 2023, WACV 2023, IEEE IGARSS 2024. 10 papers, 102+ citations.",
-          "Developed self-supervised frameworks for remote sensing achieving state-of-the-art results.",
+          "Developed a multi-objective CLIP distillation framework using Soft MoE for per-patch loss weighting (85.3% accuracy, 52.8% mIoU on ImageNet, MEDiC arXiv 2026, ExPLoRe ECCV 2026).",
+          "Engineered Cross-Scale MAE, a multi-resolution masked autoencoder for remote sensing achieving 5% accuracy improvement across 4 benchmarks (NeurIPS 2023), with follow-up strategies cutting training time 32% (IEEE IGARSS 2024).",
+          "Authored a comparative analysis of LLM code generation security across 4 major models and 9 tasks (\"Occasionally Secure,\" arXiv 2024), uncovering up to 22 vulnerabilities per model and a 40% security regression in Gemini under security-focused prompts.",
         ],
       },
     ],
   },
   {
-    company: "Performance Technologies",
+    company: "Performance Technologies S.A",
     period: "2019 - 2021",
     positions: [
       {
         title: "Data Engineer",
         description: [
-          "Led terabyte-scale data replication reducing processing time from days to minutes.",
-          "Developed ML model delivering 34% improvement over baseline.",
+          "Led the rapid completion of a critical terabyte-scale data replication project for Greece's leading telecommunications provider, reducing replication time from days to minutes and ensuring real-time views for ETL and analytics.",
+          "Spearheaded an ML model to predict order fulfillment times, delivering a 34% reduction over the previous baseline.",
+        ],
+      },
+    ],
+  },
+  {
+    company: "University of Patras",
+    period: "2018 - 2019",
+    positions: [
+      {
+        title: "Machine Learning Researcher",
+        description: [
+          "Developed a distributed hybrid Girvan-Newman variant on Apache Spark, achieving an 84% runtime reduction on large social graphs without accuracy loss (Algorithms journal, 2019).",
+        ],
+      },
+    ],
+  },
+  {
+    company: "Global Voices Ltd",
+    period: "2017 - 2018",
+    positions: [
+      {
+        title: "Software Engineer",
+        description: [
+          "Shipped 20+ features for the company's translation CMS, building Python services and SQL-backed workflows used by 300+ translators across 150+ language pairs.",
         ],
       },
     ],
@@ -84,6 +114,11 @@ const avatarUrl = "/kostas_neurips_square.jpg";
             <div />
 
             <div class="space-y-6">
+              {/* Mobile-only company + period header. Desktop shows these in the left column instead. */}
+              <div class="md:hidden">
+                <h3 class="text-lg font-bold text-text-primary">{experience.company}</h3>
+                <p class="text-xs text-gray-600">{experience.period}</p>
+              </div>
               {experience.positions.map((position) => (
                 <div class="space-y-4">
                   <h4 class="text-lg font-semibold text-text-primary">{position.title}</h4>

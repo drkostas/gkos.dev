@@ -1,0 +1,41 @@
+---
+export const prerender = false;
+
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { ImageLibrary } from "@/components/admin/ImageLibrary";
+import { getCollection } from "astro:content";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
+// Admin tools — local-only. In production builds the route returns 404.
+// Guard goes AFTER imports so Astro's compiler can wire up client:only
+// component imports correctly; otherwise it treats them as unreachable.
+if (import.meta.env.PROD) {
+  return new Response(null, { status: 404 });
+}
+
+// Folders are the existing post slugs PLUS any additional directories
+// that already exist under /public/blog.
+const posts = await getCollection("blog");
+const blogSlugs = posts.map((p) => p.id);
+
+let existingFolders: string[] = [];
+try {
+  const dir = path.join(process.cwd(), "public/blog");
+  const entries = await fs.readdir(dir);
+  for (const entry of entries) {
+    if (entry.startsWith(".")) continue;
+    const stat = await fs.stat(path.join(dir, entry));
+    if (stat.isDirectory()) existingFolders.push(entry);
+  }
+} catch {
+  // /public/blog may not exist yet
+}
+
+const folders = Array.from(new Set([...blogSlugs, ...existingFolders])).sort();
+---
+
+<AdminLayout title="Image library — Admin" pageLabel="Image library">
+  <h1 class="mb-6 text-3xl font-medium tracking-tight">Image library</h1>
+  <ImageLibrary folders={folders} client:only="react" />
+</AdminLayout>

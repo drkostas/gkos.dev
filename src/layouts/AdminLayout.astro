@@ -1,0 +1,193 @@
+---
+interface Props {
+  title: string;
+  pageLabel?: string;
+}
+const { title, pageLabel } = Astro.props;
+const path = Astro.url.pathname;
+
+function linkClass(match: string) {
+  const active = path === match || (match !== "/admin" && path.startsWith(match));
+  return active
+    ? "rounded-full bg-purple-primary/20 px-3 py-1.5 text-sm font-medium text-purple-primary"
+    : "rounded-full px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary";
+}
+---
+
+<style is:global>
+  /* Show an affordance on editor images so users know to double-click */
+  .mdxeditor img {
+    cursor: zoom-in;
+    transition: outline 120ms ease, outline-offset 120ms ease;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+  .mdxeditor img:hover {
+    outline: 2px dashed rgb(155 123 247 / 0.65);
+    outline-offset: 4px;
+  }
+
+  /* Keep the B / I / U / Link / Image toolbar visible when scrolling.
+     @mdxeditor/editor uses CSS modules, so we target via partial class match
+     and ARIA role to survive library class-name hashing. */
+  .mdxeditor [role="toolbar"],
+  .mdxeditor [class*="toolbarRoot"],
+  .mdxeditor [class*="toolbar"] {
+    position: sticky !important;
+    top: 56px; /* clear the admin header (~48px + a little padding) */
+    z-index: 40; /* keep above editor internals so native tooltips aren't clipped */
+    background: white;
+    border-bottom: 1px solid rgb(228 228 231);
+    overflow: visible; /* native title tooltips were being clipped by overflow */
+  }
+  /* Some toolbar wrappers have overflow:hidden or clip — force visible so
+     native `title` tooltips can render outside their button. */
+  .mdxeditor [role="toolbar"] > *,
+  .mdxeditor [class*="toolbar"] > * {
+    overflow: visible !important;
+  }
+
+  /* Force contenteditable padding to match the published post so line
+     wrapping is identical side-by-side. mdxeditor's own stylesheet sets
+     12px padding with a specific selector, so we need !important. */
+  .mdxeditor [contenteditable="true"] {
+    padding: 2rem 1rem !important; /* py-8 px-4 */
+  }
+
+  /* The editor card is wide enough to hold the img-row breakout (~1132px),
+     but regular prose text should wrap at the published column width
+     (768px - 32px padding = 736px) so authored lines match the blog. */
+  .mdxeditor [contenteditable="true"] > :is(p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, hr, table) {
+    max-width: 736px;
+    margin-inline: auto;
+  }
+
+  /* Mirror the published blog CSS so alignment is visually previewed in the
+     admin editor. mdxeditor wraps <img> in a `_imageWrapper_*` div that
+     blocks float, so we apply alignment to the wrapper too (via the
+     MutationObserver in PostEditor). */
+
+  /* Left / right: float the WRAPPER so text can wrap around it.
+     Size is driven by the image itself (either its natural width or the
+     inline width/height that mdxeditor's drag handles apply) — we don't
+     force any width on the wrapper or img so resizing stays interactive. */
+  .mdxeditor [class*="imageWrapper"].img-wrap-left {
+    float: left;
+    margin: 0.5em 1.5em 1em 0;
+    clear: left;
+    max-width: 100%;
+  }
+  .mdxeditor [class*="imageWrapper"].img-wrap-right {
+    float: right;
+    margin: 0.5em 0 1em 1.5em;
+    clear: right;
+    max-width: 100%;
+  }
+
+  /* Center: center horizontally; keep whatever size the image has. */
+  .mdxeditor [class*="imageWrapper"].img-wrap-center {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+    float: none;
+  }
+
+  /* Full width: stretch the image to the editor width. */
+  .mdxeditor [class*="imageWrapper"].img-wrap-fullwidth {
+    display: block;
+    width: 100%;
+    float: none;
+    max-width: none;
+  }
+  .mdxeditor [class*="imageWrapper"].img-wrap-fullwidth img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Horizontal rule clears floats to keep section boundaries clean. */
+  .mdxeditor hr {
+    clear: both;
+  }
+
+  /* Side-by-side image grid. Uses the same breakout formula as the
+     published page so the row width and column widths are identical
+     on both. The admin section is wide enough to contain the breakout
+     at any viewport. */
+  .mdxeditor .img-row {
+    --img-row-max: min(1100px, 100vw - 2rem);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 1rem;
+    margin-block: 1.5em;
+    width: var(--img-row-max);
+    margin-inline: calc((100% - var(--img-row-max)) / 2);
+  }
+  /* Images default to filling their column; when a per-image width is
+     set the inline-block _imageWrapper_ shrinks to the image. Use
+     text-align: center on the grid cell (the Lexical decorator span)
+     to center the inline-block wrapper in the remaining cell space. */
+  .mdxeditor .img-row img {
+    margin: 0;
+    max-width: 100%;
+    height: auto;
+  }
+  .mdxeditor .img-row > [data-lexical-decorator] {
+    text-align: center;
+  }
+  /* Lexical inserts a trailing <br> as a grid item, which steals a
+     column and shrinks the images. Hide it so the grid only sees the
+     image-containing children. */
+  .mdxeditor .img-row > br {
+    display: none;
+  }
+
+  /* Invisible float-breaker inserted by the "Break wrap" toolbar button.
+     Anything after this element falls BELOW floated images. */
+  .mdxeditor .clear-wrap {
+    clear: both;
+    display: block;
+    height: 0;
+    margin: 0;
+    border: 0;
+  }
+</style>
+
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+  </head>
+  <body class="min-h-screen bg-bg-primary font-sans text-text-primary antialiased">
+    <header class="sticky top-0 z-40 border-b border-border-primary bg-bg-primary/80 backdrop-blur">
+      <div class="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+        <a href="/admin" class="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-purple-primary text-[10px] font-bold text-white">CMS</span>
+          Admin
+        </a>
+        <span class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-amber-400">
+          Dev-only
+        </span>
+        <nav class="ml-auto flex items-center gap-1">
+          <a href="/admin" class={linkClass("/admin")}>Dashboard</a>
+          <a href="/admin/blog/new" class={linkClass("/admin/blog/new")}>New post</a>
+          <a href="/admin/images" class={linkClass("/admin/images")}>Images</a>
+          <a href="/" class="ml-3 rounded-full border border-border-primary px-3 py-1.5 text-sm font-medium text-text-secondary hover:border-purple-primary hover:text-purple-primary">View site →</a>
+        </nav>
+      </div>
+    </header>
+    <main class="mx-auto max-w-6xl px-4 py-10">
+      {pageLabel && (
+        <p class="mb-2 font-mono text-xs uppercase tracking-widest text-text-tertiary">
+          {pageLabel}
+        </p>
+      )}
+      <slot />
+    </main>
+  </body>
+</html>

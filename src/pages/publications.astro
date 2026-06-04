@@ -1,162 +1,46 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
-import { publications, isTier1 } from "@/data/publications";
-import { getCitationsByTitles } from "@/lib/citations";
+import PageHeader from "@/components/PageHeader.astro";
+import PubList from "@/components/PubList.astro";
+import { PeopleGridBentoReact } from "@/components/PeopleGridBentoReact";
+import { RSSSubscribeCard } from "@/components/RSSSubscribeCard";
+import { ContactCompactReact } from "@/components/ContactCompactReact";
+import { COAUTHORS } from "@/data/coauthors";
+import { siteMetadata } from "@/data/siteMetadata";
 
-// Live citation counts from OpenAlex, fetched per paper by title at build time.
-// Author verification (Georgiou name check) filters out false positives where
-// the search landed on an unrelated high-ranking paper because the real one
-// isn't indexed yet (e.g. under-review preprints).
-const liveCitations = await getCitationsByTitles(publications.map((p) => p.title));
-
-// arXiv links live in publications.ts as `arxiv:` fields. They're hardcoded
-// rather than auto-fetched because arXiv rate-limits at ~3.5s/request and
-// added 33s to every build for only 2 matches. To discover IDs for new papers,
-// run the helper in src/lib/arxiv.ts manually and paste results into the data.
-
-// Enrich: take max(live, hardcoded) so we never downgrade from curated counts
-// (OpenAlex has less coverage than Google Scholar for highly-cited papers),
-// but automatically pick up increases as OpenAlex catches up over time.
-const publicationsEnriched = publications.map((p) => {
-  const live = liveCitations.get(p.title);
-  const liveCount = live?.citationCount ?? 0;
-  return {
-    ...p,
-    citations: Math.max(liveCount, p.citations),
-  };
-});
-
-const totalCitations = publicationsEnriched.reduce((sum, p) => sum + p.citations, 0);
-const totalPapers = publicationsEnriched.length;
-
-// Group by year for section headers
-const byYear = publicationsEnriched.reduce<Record<number, typeof publicationsEnriched>>((acc, pub) => {
-  if (!acc[pub.year]) acc[pub.year] = [];
-  acc[pub.year].push(pub);
-  return acc;
-}, {});
-const years = Object.keys(byYear)
-  .map(Number)
-  .sort((a, b) => b - a);
+const coauthorPeople = COAUTHORS.map((c) => ({
+  name: c.name,
+  role: c.role,
+  url: c.url,
+  badge: c.papersTogether ? `${c.papersTogether} paper${c.papersTogether === 1 ? "" : "s"}` : undefined,
+}));
 ---
 
 <Layout title="Publications | Kostas Georgiou">
-  <div class="mt-14 space-y-16 md:mt-16">
+  <div class="mt-14 space-y-12 md:mt-16">
     <GridWrapper>
-      <div class="text-center">
-        <div class="mb-4 text-xs font-semibold uppercase tracking-widest text-purple-primary">
-          <span>Research</span>
-        </div>
-        <h1 class="mx-auto max-w-3xl text-balance text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
-          Peer-reviewed publications and preprints
-        </h1>
-        <p class="mx-auto mt-6 max-w-2xl leading-8 text-text-secondary">
-          {totalPapers} papers across NeurIPS, WACV, IGARSS, CHASE, and ECCV, with {totalCitations}+ total citations. My research focuses on self-supervised learning, computer vision, and remote sensing.
-        </p>
-      </div>
+      <PageHeader
+        title="Things I've published"
+        subtitle="Mostly self-supervised learning, LLMs, computer vision, and remote sensing. A bit of medical AI too."
+      />
     </GridWrapper>
 
-    <div>
-      <ul class="flex flex-col">
-        {years.map((year) => (
-          <>
-            <li class="px-4 pb-4 pt-10 first:pt-0">
-              <h2 class="font-mono text-xs uppercase tracking-widest text-text-secondary">
-                {year}
-              </h2>
-            </li>
-            {byYear[year].map((pub) => (
-              <li>
-                <article class="block rounded-lg transition-colors hover:bg-white/60">
-                  <div class="grid h-full grid-cols-1 md:grid-cols-12">
-                    <div class="hidden space-y-2 p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-2">
-                      <div
-                        class:list={[
-                          "font-mono text-sm leading-none",
-                          isTier1(pub.conference) ? "text-purple-primary" : "text-text-secondary",
-                        ]}
-                      >
-                        {pub.conference}
-                      </div>
-                      {pub.citations > 0 && (
-                        <span class="font-mono text-xs text-text-secondary">
-                          {pub.citations} citation{pub.citations === 1 ? "" : "s"}
-                        </span>
-                      )}
-                    </div>
-                    <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
-                    <div class="col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
-                      <div class="z-10 text-balance">
-                        <h3 class="mb-3 text-base font-medium leading-6 tracking-tight text-text-primary md:text-lg md:leading-tight">
-                          {pub.title}
-                        </h3>
-                        <div class="mb-3 flex flex-wrap items-center gap-3 md:hidden">
-                          <span
-                            class:list={[
-                              "font-mono text-sm",
-                              isTier1(pub.conference) ? "text-purple-primary" : "text-text-secondary",
-                            ]}
-                          >
-                            {pub.conference}
-                          </span>
-                          {pub.citations > 0 && (
-                            <span class="font-mono text-xs text-text-secondary">
-                              {pub.citations} citations
-                            </span>
-                          )}
-                        </div>
-                        <p class="mb-3 text-base leading-6 text-text-secondary">
-                          {pub.abstract}
-                        </p>
-                        <div class="flex flex-wrap gap-4">
-                          {pub.link && (
-                            <a
-                              href={pub.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="flex items-center text-sm font-medium text-indigo-600"
-                            >
-                              <span class="text-sm leading-6">Paper</span>
-                              <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
-                            </a>
-                          )}
-                          {pub.code && (
-                            <a
-                              href={pub.code}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="flex items-center text-sm font-medium text-indigo-600"
-                            >
-                              <span class="text-sm leading-6">Code</span>
-                              <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
-                            </a>
-                          )}
-                          {pub.arxiv && (
-                            <a
-                              href={pub.arxiv}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="flex items-center text-sm font-medium text-indigo-600"
-                            >
-                              <span class="text-sm leading-6">arXiv</span>
-                              <svg class="relative ml-2.5 mt-px overflow-visible" width="3" height="6" viewBox="0 0 3 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M0 0L3 3L0 6"></path></svg>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-                <div class="h-0 w-full border-t border-border-primary/50"></div>
-              </li>
-            ))}
-          </>
-        ))}
-      </ul>
-    </div>
+    <GridWrapper><PubList /></GridWrapper>
 
-    <GetInTouchReact client:visible />
+    <GridWrapper>
+      <div class="grid gap-4 md:grid-cols-2 md:items-stretch">
+        <div class="flex flex-col gap-4">
+          <ContactCompactReact client:visible />
+          <RSSSubscribeCard client:visible siteUrl={siteMetadata.siteUrl} />
+        </div>
+        <PeopleGridBentoReact
+          client:visible
+          heading="Frequent co-authors"
+          subhead="People I've published with"
+          people={coauthorPeople}
+        />
+      </div>
+    </GridWrapper>
   </div>
 </Layout>

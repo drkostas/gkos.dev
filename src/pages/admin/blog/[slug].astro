@@ -1,0 +1,42 @@
+---
+export const prerender = false;
+
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { PostEditor } from "@/components/admin/PostEditor";
+import { getCollection, getEntry } from "astro:content";
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect("/admin");
+
+const post = await getEntry("blog", slug);
+if (!post) return Astro.redirect("/admin");
+
+const posts = await getCollection("blog");
+const categorySet = new Set<string>();
+for (const p of posts) for (const c of p.data.categories || []) categorySet.add(c.toLowerCase());
+const knownCategories = Array.from(categorySet).sort();
+
+const publishedAt = post.data.publishedAt instanceof Date
+  ? post.data.publishedAt.toISOString().replace(/\.\d{3}Z$/, "")
+  : String(post.data.publishedAt);
+
+const initialFrontmatter = {
+  title: post.data.title,
+  publishedAt,
+  summary: post.data.summary || "",
+  imageName: post.data.imageName || "",
+  categories: post.data.categories || [],
+  draft: post.data.draft ?? false,
+};
+---
+
+<AdminLayout title={`Edit: ${post.data.title} — Admin`} pageLabel={`Edit post — ${slug}`}>
+  <h1 class="mb-6 text-3xl font-medium tracking-tight">{post.data.title}</h1>
+  <PostEditor
+    slug={slug}
+    initialFrontmatter={initialFrontmatter}
+    initialBody={post.body || ""}
+    knownCategories={knownCategories}
+    client:only="react"
+  />
+</AdminLayout>

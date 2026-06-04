@@ -1,5 +1,18 @@
 ---
+/**
+ * Pokémon explore-mode level editor.
+ * Dev-only: this is a content-authoring tool, not something visitors should see.
+ * In production builds the route returns 404 so it doesn't ship publicly.
+ */
+export const prerender = false;
+
 import EditorApp from "@/components/editor/EditorApp";
+
+// Guard goes AFTER imports so Astro's compiler doesn't treat them as
+// unreachable.
+if (import.meta.env.PROD) {
+  return new Response(null, { status: 404 });
+}
 ---
 <!DOCTYPE html>
 <html lang="en">

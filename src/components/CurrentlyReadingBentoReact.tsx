@@ -8,10 +8,10 @@ type CurrentlyReading = {
 };
 
 const DEFAULT: CurrentlyReading = {
-  title: "On Intelligence",
-  author: "Jeff Hawkins",
-  cover: "https://m.media-amazon.com/images/I/71lVIKzk9TL._AC_UF1000,1000_QL80_.jpg",
-  url: "https://www.amazon.com/Intelligence-Jeff-Hawkins/dp/0805078533",
+  title: "The Origin of Consciousness in the Breakdown of the Bicameral Mind",
+  author: "Julian Jaynes",
+  cover: "/inspirations/book-bicameral-mind.jpg",
+  url: "https://www.goodreads.com/book/show/22478.The_Origin_of_Consciousness_in_the_Breakdown_of_the_Bicameral_Mind",
 };
 
 export function CurrentlyReadingBentoReact({

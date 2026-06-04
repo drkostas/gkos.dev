@@ -1,249 +1,49 @@
 ---
+/* About page.
+ *
+ * Layout shape (top → bottom):
+ *   - Hero: title + subtitle
+ *   - Work history (Resume widget with the rail timeline)
+ *   - Hinge: "Want the story behind it?"
+ *   - 8-section narrative with the dynamic narrative curve weaving around photos
+ *   - Bento section ("A bit more about me, in widgets") — Inspirations card
+ *   - Contact card
+ *
+ * Shared partials live at src/components/about/.
+ * Dynamic narrative curve at src/components/AboutNarrativeTrack.tsx.
+ */
 import Layout from "@/layouts/Layout.astro";
-import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
-import Resume from "@/components/Resume.astro";
-import { ConnectionsBentoReact } from "@/components/ConnectionsBentoReact";
-import { StatsBentoReact } from "@/components/StatsBentoReact";
-import { StravaActivityBentoReact } from "@/components/StravaActivityBentoReact";
-import { AboutTrackPattern } from "@/components/AboutTrackPattern";
-import { TimelineReact } from "@/components/TimelineReact";
-import { Photo } from "@/components/Photo";
-
-// Time-of-day greeting (matches Kostas's getTimeOfDayGreeting util)
-const hour = new Date().getHours();
-let timeOfDayGreeting = "Good morning";
-if (hour >= 12 && hour < 18) timeOfDayGreeting = "Good afternoon";
-else if (hour >= 18 || hour < 5) timeOfDayGreeting = "Good evening";
-
-// Reusable ShadowBox + photo snippet
-const shadowBoxWidth = 188;
-const shadowBoxHeight = 278;
+import { AboutNarrativeTrack } from "@/components/AboutNarrativeTrack";
+import HeroAbout from "@/components/about/HeroAbout.astro";
+import NarrativeSection from "@/components/about/NarrativeSection.astro";
+import ResumeSection from "@/components/about/ResumeSection.astro";
+import BentoBottom from "@/components/about/BentoBottom.astro";
 ---
-
 <Layout title="About | Kostas Georgiou">
   <div class="relative mt-14">
     <div class="relative space-y-10 md:space-y-16">
-      <!-- Title -->
-      <GridWrapper class="space-y-12">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-around lg:px-24">
-          <div class="order-2 mx-auto max-w-lg lg:order-1 lg:m-0 lg:max-w-3xl lg:pr-12">
-            <div class="text-center text-xs font-semibold uppercase tracking-widest text-purple-primary lg:text-left">
-              <span>{timeOfDayGreeting}</span>
-            </div>
-            <h1 class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl lg:text-left lg:text-6xl lg:leading-[64px]">
-              I'm Kostas, a PhD ML Engineer and Applied Scientist.
-            </h1>
-          </div>
-          <div class="order-1 my-12 flex-shrink-0 lg:order-2 lg:my-0">
-            <div class="relative mx-auto w-full max-w-[320px] sm:max-w-[400px]">
-              <div class="relative grid grid-cols-3 gap-1 sm:gap-0">
-                <div class="relative z-20 -translate-y-2">
-                  <Photo width={140} height={140} src="/kostas_neurips_square.jpg" alt="Kostas Georgiou" direction="left" client:visible />
-                </div>
-                <div class="relative z-30">
-                  <Photo width={140} height={140} src="/kostas_poster.jpg" alt="Kostas Georgiou" direction="right" client:visible />
-                </div>
-                <div class="relative z-20 translate-y-4">
-                  <Photo width={140} height={140} src="/kostas_poster.jpg" alt="Kostas Georgiou" direction="left" client:visible />
-                </div>
-              </div>
-            </div>
-          </div>
+      <HeroAbout tldr={false} />
+      <ResumeSection eyebrow="Work history" heading="Where I've been." />
+      <!-- Hinge pill -->
+      <div class="relative flex flex-col items-center py-4">
+        <div class="rounded-full border border-border-primary bg-bg-secondary/40 px-5 py-2 text-sm font-medium text-text-primary">
+          Want the story behind it?
         </div>
-      </GridWrapper>
-
-      <span class="absolute left-1/2 top-40 -translate-y-1/2 translate-x-1/2">
-        <span class="absolute left-1/2 h-px w-full -translate-x-1/2 transform bg-border-primary/50"></span>
-      </span>
-
-      <!-- About narrative -->
+      </div>
       <div class="relative space-y-8 text-center">
-        <div class="space-y-4">
-          <GridWrapper>
-            <div class="text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
-              <span>About</span>
-            </div>
-          </GridWrapper>
-          <GridWrapper>
-            <h2 class="mx-auto max-w-xl text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-              Here's a quick intro about me and what I love to do
-            </h2>
-          </GridWrapper>
-        </div>
-        <div class="relative h-fit w-full overflow-hidden">
-          <div class="absolute left-0 top-0 w-full md:left-4 lg:left-[355px] xl:left-[455px]">
-            <AboutTrackPattern client:visible />
-          </div>
-
-          <!-- Section 1: Where it started -->
-          <div class="grid grid-cols-1 gap-8 py-12 px-4 md:pr-12 md:pl-0 lg:grid-cols-2 lg:items-center lg:justify-between lg:py-32 lg:pb-20 xl:py-32">
-            <div class="flex flex-col items-center text-left lg:order-2 lg:items-start">
-              <div class="mb-8 lg:hidden">
-                <div class="relative mx-auto w-fit">
-                  <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                    <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                  </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_poster_portrait.jpg" alt="Kostas at a poster session" />
-                </div>
-              </div>
-              <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                Where it started
-              </h2>
-              <p class="mb-6 text-base leading-8 text-text-secondary">
-                I grew up in Greece where I first fell in love with programming, writing scripts to automate things, building small tools, and endlessly tinkering. I studied Computer Science and quickly gravitated toward machine learning, fascinated by the idea of teaching machines to see and understand the world.
-              </p>
-            </div>
-            <div class="hidden lg:order-1 lg:block">
-              <div class="relative mx-auto w-fit">
-                <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                  <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_poster_portrait.jpg" alt="Kostas at a poster session" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Section 2: The research path -->
-          <div class="grid grid-cols-1 gap-8 py-24 px-4 md:pl-12 md:pr-0 lg:grid-cols-2 lg:items-center lg:justify-between">
-            <div class="flex flex-col items-center text-left lg:items-start">
-              <div class="mb-8 lg:hidden">
-                <div class="relative mx-auto w-fit">
-                  <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                    <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                  </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_igarss_portrait.jpg" alt="Presenting at IGARSS" />
-                </div>
-              </div>
-              <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                The research path
-              </h2>
-              <p class="mb-6 text-base leading-8 text-text-secondary">
-                I moved to the US to pursue my PhD at the University of Tennessee's Bredesen Center, working with Dr. Hairong Qi on computer vision and self-supervised learning. That journey led to 10 published papers at venues like NeurIPS, WACV, and IGARSS, and taught me how to push the boundaries of what's possible with limited labeled data.
-              </p>
-            </div>
-            <div class="hidden lg:block">
-              <div class="relative mx-auto w-fit">
-                <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                  <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_igarss_portrait.jpg" alt="Presenting at IGARSS" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Section 3: Building and shipping -->
-          <div class="grid grid-cols-1 gap-8 px-4 md:pr-12 md:pl-0 lg:grid-cols-2 lg:items-center lg:justify-between xl:py-24">
-            <div class="flex flex-col items-center text-left lg:order-2 lg:items-start">
-              <div class="mb-8 lg:hidden">
-                <div class="relative mx-auto w-fit">
-                  <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                    <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                  </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_neurips_portrait.jpg" alt="At NeurIPS" />
-                </div>
-              </div>
-              <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                Building and shipping
-              </h2>
-              <p class="mb-6 text-base leading-8 text-text-secondary">
-                Research is only half the story. I love shipping things. At Amazon as an Applied Scientist, I build AI products that serve millions. On the side, I've co-founded FleetSmart.ai for maritime AI, built ShiftMD for shift scheduling, and created XpensAI for expense management. I've published 7 PyPI packages and maintain open-source projects that have earned me 8,300+ GitHub followers.
-              </p>
-            </div>
-            <div class="hidden lg:block">
-              <div class="relative mx-auto w-fit">
-                <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                  <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[-8deg] rounded-lg object-cover shadow" src="/kostas_neurips_portrait.jpg" alt="At NeurIPS" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Section 4: Beyond the terminal -->
-          <div class="grid grid-cols-1 gap-8 px-4 md:pl-12 md:pr-0 lg:grid-cols-2 lg:items-center lg:justify-between lg:py-32 xl:py-24">
-            <div class="flex flex-col items-center text-left lg:items-start">
-              <div class="mb-8 lg:hidden">
-                <div class="relative mx-auto w-fit">
-                  <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                    <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                  </div>
-                  <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="Surfing" />
-                </div>
-              </div>
-              <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-                Beyond the terminal
-              </h2>
-              <p class="mb-6 text-base leading-8 text-text-secondary">
-                When I'm not training models or reviewing PRs, you'll find me surfing, exploring new places, or getting way too competitive at board games. I'm originally from Greece, currently based in the US, and always chasing the next thing that excites me, whether that's a new research direction, a side project idea, or a wave.
-              </p>
-            </div>
-            <div class="hidden lg:block">
-              <div class="relative mx-auto w-fit">
-                <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${shadowBoxWidth}px; height: ${shadowBoxHeight}px;`}>
-                  <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
-                </div>
-                <img class="absolute left-0 top-0 h-[270px] w-[180px] rotate-[8deg] rounded-lg object-cover shadow" src="/kostas_photo_2.jpg" alt="Surfing" />
-              </div>
-            </div>
-          </div>
+        <div class="relative h-fit w-full overflow-hidden" data-narrative-wrapper="true">
+          <AboutNarrativeTrack client:load />
+          <NarrativeSection title="Origins" body="I grew up in Greece. I did my Integrated Master's in Computer Science &amp; Engineering at the University of Patras and graduated in 2019. The final year was spent on a research project, a distributed Girvan-Newman variant for community detection in social graphs. That work doubled as my master's thesis and became my first published paper." photo="/blog/how-i-got-here/patras-graduation.jpg" alt="Patras" side="left" rotate={-8} padY="py-12 lg:py-32 lg:pb-20 xl:py-32" focal="center 35%" />
+          <NarrativeSection title="The pre-PhD years" body="During my master's I spent a year in the UK as a Software Developer at Global Voices, mostly Python services for a translation CMS used by a few hundred translators. Then back to Athens at Performance Technologies as a Data Engineer. The main thing there was a terabyte-scale data replication for OTE (Greece's biggest telco): replication times went from days down to minutes. A bit of ML too: an order-fulfillment-time model that came in 34% better than the baseline they had." photo="/kostas_neurips_square.jpg" alt="Kostas" side="right" rotate={8} focal="right center" />
+          <NarrativeSection title="Start of PhD" body="In 2021 I moved from Athens to Knoxville to start my PhD at UTK under Dr. Hairong Qi at the Bredesen Center. The research direction was mostly self-supervised learning, LLM security, and a bit of trustworthy AI." photo="/blog/how-i-got-here/utk-campus-720.jpg" alt="UTK campus" side="left" rotate={-8} focal="center" />
+          <NarrativeSection title="XPensAI" body="In 2024 I co-founded XPensAI, an AI-powered SaaS for expense management. A small team, B2B customers, a lot of computer vision plumbing under the hood (receipt scanning, expense categorization, real-time analytics). 30+ businesses use it so far, and the receipt-scan accuracy is around 95%." photo="/kostas_speaking.jpg" alt="Kostas speaking" side="right" rotate={8} focal="center" />
+          <NarrativeSection title="Amazon" body="Summer 2025 I interned at Amazon as an Applied Scientist on multi-agent LLM systems for Alexa. The main thing was a framework converting natural language to executable code: 82% functional success on smart home automations and 87.6% on MBPP. The other half was an impossibility detector that flagged unfeasible requests at ~93% (about 4.5x over the baseline they had), which kept the model from hallucinating code for things it couldn't actually do." photo="/blog/how-i-got-here/amazon-backdrop.jpg" alt="Amazon" side="left" rotate={-8} focal="left center" />
+          <NarrativeSection title="FleetSmart.ai" body="Early 2026 I took on FleetSmart.ai, one of my main freelance contract projects: an AI Engineer role on a maritime logistics platform. The system helps commercial fleet operators decide where to position their vessels next: a multi-objective optimization engine ranks vessel-opportunity matches across cost, speed, risk, and environmental targets, running on 9+ real-time data pipelines (AIS vessel tracking, Baltic Exchange bunker prices, freight curves, port congestion, news sentiment) and multi-provider LLM tool calls (Gemini, OpenAI, Claude via MCP). Plus a fleet KPI engine for benchmarking, voyage simulation for what-if planning, and post-voyage cost feedback loops." photo="/kostas_igarss_portrait.jpg" alt="FleetSmart" side="right" rotate={8} focal="center" />
+          <NarrativeSection title="PhD graduation" body="May 2026: defended after five years. The two main research lines were Cross-Scale MAE for remote sensing and MEDiC / ExPLoRe for broader image modeling. A few papers along the way and a fellowship at the Bredesen Center." photo="/kostas_poster_portrait.jpg" alt="PhD defense" side="left" rotate={-8} focal="center" />
+          <NarrativeSection title="Weekends and waves" body="When I'm not at the keyboard I'm usually outside. Surfing when I can, walking somewhere new, losing at board games. Originally from Greece, currently in the US." photo="/kostas_photo_2.jpg" alt="Outside" side="right" rotate={8} padY="xl:py-24" focal="center" />
         </div>
       </div>
-
-      <!-- Experience -->
-      <div class="relative space-y-8 text-center">
-        <div class="space-y-4">
-          <GridWrapper>
-            <div class="text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
-              <span>Experience</span>
-            </div>
-          </GridWrapper>
-          <GridWrapper>
-            <h2 class="mx-auto max-w-lg text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">
-              My work history and achievements timeline.
-            </h2>
-          </GridWrapper>
-        </div>
-      </div>
-      <div class="space-y-16">
-        <GridWrapper>
-          <Resume>
-            <TimelineReact slot="timeline" avatarUrl="/kostas_neurips_square.jpg" client:visible />
-          </Resume>
-        </GridWrapper>
-      </div>
-
-      <!-- More / Bento grid -->
-      <section class="relative space-y-16">
-        <div class="space-y-4">
-          <GridWrapper>
-            <div class="text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
-              <span>More</span>
-            </div>
-          </GridWrapper>
-          <GridWrapper>
-            <h2 class="mx-auto max-w-lg text-balance text-center text-3xl font-medium leading-10 tracking-tight text-text-primary">
-              A bit more about me, in widgets
-            </h2>
-          </GridWrapper>
-        </div>
-
-        <GridWrapper>
-          <div class="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:grid-rows-8">
-            <div class="lg:col-span-9 lg:row-span-8">
-              <ConnectionsBentoReact variant="inspirations" linkTo="/inspirations" client:visible />
-            </div>
-            <div class="lg:col-span-3 lg:row-span-4">
-              <StatsBentoReact client:visible />
-            </div>
-            <div class="lg:col-span-3 lg:row-span-4">
-              <StravaActivityBentoReact client:visible />
-            </div>
-          </div>
-        </GridWrapper>
-      </section>
-
-      <GetInTouchReact client:visible />
+      <BentoBottom />
     </div>
   </div>
 </Layout>

@@ -6,6 +6,7 @@ const changelog = defineCollection({
   schema: z.object({
     title: z.string(),
     publishedAt: z.coerce.date(),
+    summary: z.string().optional(),
     imageName: z.string().optional(),
     draft: z.boolean().default(false),
   }),

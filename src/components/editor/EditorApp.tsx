@@ -4,6 +4,7 @@ import type { EditorEntity } from "./state/editorTypes";
 import EditorViewport from "./EditorViewport";
 import { emitEditorEvent, onEditorEvent, TOGGLE_LAYER as TOGGLE_LAYER_EVENT, JUMP_TO_TILE, SWITCH_MAP, VIEWPORT_READY } from "../../game/editor/EditorEvents";
 import { POKEMON_SPECIES, type PokemonSpecies } from "../../game/data/pokemonSpecies";
+import { describeAction, peekReplayAndDispatch } from "./state/commandBus";
 
 /** Dropdown menu item */
 function MenuItem({ label, shortcut, onClick, disabled }: { label: string; shortcut?: string; onClick?: () => void; disabled?: boolean }) {
@@ -32,6 +33,97 @@ function MenuSep() {
   return <div style={{ height: 1, background: "#3a3a50", margin: "3px 0" }} />;
 }
 
+// describeAction moved to commandBus.ts — one source of truth for UI strings.
+
+/**
+ * Toolbar chip with a custom dark-themed tooltip — replaces the native
+ * browser `title=` tooltip that was inconsistent with the editor theme
+ * and had a 500ms delay. Shows richer content (action preview, change
+ * counts) than a plain string could.
+ */
+function ToolbarChip({ label, onClick, disabled, tooltipTitle, tooltipBody, accent }: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  tooltipTitle: string;
+  tooltipBody: string;
+  accent?: string;
+}) {
+  const [hover, setHover] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  return (
+    <span
+      ref={ref}
+      onClick={disabled ? undefined : onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: "relative",
+        cursor: disabled ? "default" : "pointer",
+        background: "#1e1e2e",
+        border: `1px solid ${accent ?? (disabled ? "#2a2a40" : "#444")}`,
+        borderRadius: 2, padding: "1px 5px", fontFamily: "monospace",
+        color: disabled ? "#444" : accent ?? "#555",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {label}
+      {hover && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 10000,
+          background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 4,
+          padding: "6px 10px", fontFamily: "monospace", fontSize: 10,
+          color: "#ccc", whiteSpace: "nowrap",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.6)", pointerEvents: "none",
+        }}>
+          <div style={{ color: accent ?? "#4a9eed", fontWeight: 700, marginBottom: 2 }}>{tooltipTitle}</div>
+          <div style={{ color: "#888", fontSize: 9 }}>{tooltipBody}</div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Tiny toast system — appends a message, auto-dismisses after 2.5s.
+ * Used for soft-fail hints ("click a tile first" etc.) so the user gets
+ * feedback when a gesture silently no-ops because a precondition was
+ * missing. Emit via `window.dispatchEvent("editor:toast", { message })`.
+ */
+function ToastHost() {
+  const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
+  useEffect(() => {
+    const onToast = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { message: string };
+      if (!detail?.message) return;
+      const id = Date.now() + Math.random();
+      setToasts((prev) => [...prev, { id, message: detail.message }]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 2500);
+    };
+    window.addEventListener("editor:toast", onToast);
+    return () => window.removeEventListener("editor:toast", onToast);
+  }, []);
+  if (toasts.length === 0) return null;
+  return (
+    <div style={{
+      position: "fixed", right: 16, top: 100, zIndex: 10000,
+      display: "flex", flexDirection: "column", gap: 6, pointerEvents: "none",
+    }}>
+      {toasts.map((t) => (
+        <div key={t.id} style={{
+          background: "rgba(20, 20, 30, 0.94)", color: "#f59e0b",
+          fontSize: 11, fontFamily: "monospace",
+          padding: "8px 14px", borderRadius: 4,
+          border: "1px solid #f59e0b", maxWidth: 320,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+        }}>{t.message}</div>
+      ))}
+    </div>
+  );
+}
+
 /** Section header inside a dropdown — non-interactive, small caps. */
 function MenuHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -52,6 +144,23 @@ function Toolbar() {
   const dispatch = useEditorDispatch();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [saveDiffChanges, setSaveDiffChanges] = useState<any[] | null>(null);
+
+  // Esc closes any open top-bar menu. The Esc-tier system runs inside the
+  // scene/canvas focus context and doesn't see key events when a menu is
+  // open, so the menu owns its own dismissal — otherwise keyboard-only users
+  // have no way to close a File/Edit/View dropdown besides clicking outside.
+  useEffect(() => {
+    if (!openMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpenMenu(null);
+        e.stopPropagation();
+      }
+    };
+    // Capture phase so this runs before the scene's Esc handler grabs it.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [openMenu]);
 
   // Tool toolbar removed — the editor has a single unified "Edit" mode and
   // every action is driven by modifiers (Cmd paint, Alt erase, Shift multi-
@@ -154,8 +263,16 @@ function Toolbar() {
     return () => window.removeEventListener("keydown", handler, true);
   }, [saveDiffChanges]);
 
-  const handleUndo = () => dispatch({ type: "UNDO" });
-  const handleRedo = () => dispatch({ type: "REDO" });
+  // All three entry points (toolbar chip, ⌘Z keyboard, Edit menu) now
+  // flow through the command bus. Adding a new undoable action means
+  // editing ONLY commandBus.ts — no more "forgot to update handleUndo"
+  // regressions.
+  const emitFn = (event: string, detail: unknown) =>
+    window.dispatchEvent(new CustomEvent(event, { detail }));
+  const handleUndo = () =>
+    peekReplayAndDispatch("UNDO", state.undoStack, state.redoStack, dispatch, emitFn);
+  const handleRedo = () =>
+    peekReplayAndDispatch("REDO", state.undoStack, state.redoStack, dispatch, emitFn);
 
   const toggleLayer = (layer: string) => {
     const newVisible = !state.layers[layer as keyof typeof state.layers];
@@ -167,26 +284,16 @@ function Toolbar() {
     File: (
       <>
         <MenuItem label="Save" shortcut="⌘S" onClick={handleSave} />
-        <MenuItem label="Export JSON..." onClick={() => {
-          const blob = new Blob([JSON.stringify(state.entities, null, 2)], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a"); a.href = url; a.download = "editor-entities.json"; a.click();
-          URL.revokeObjectURL(url);
-        }} />
-        <MenuItem label="Export CSV..." onClick={() => {
-          const header = "id,type,x,y,spriteKey,facingDirection,movementBehavior";
-          const rows = state.entities.map((e) => `${e.id},${e.type},${e.x},${e.y},${e.spriteKey || ""},${e.facingDirection || ""},${e.movementBehavior || ""}`);
-          const csv = [header, ...rows].join("\n");
-          const blob = new Blob([csv], { type: "text/csv" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a"); a.href = url; a.download = "editor-entities.csv"; a.click();
-          URL.revokeObjectURL(url);
-        }} />
         <MenuSep />
         <MenuItem label="Regenerate Data" onClick={async () => {
           const r = await fetch("/api/editor/analyze", { method: "POST" });
           const data = await r.json();
           console.log("Analysis:", data);
+        }} />
+        <MenuSep />
+        <MenuItem label="Show Getting Started" onClick={() => {
+          try { localStorage.removeItem("editor_onboarding_done"); } catch {}
+          window.dispatchEvent(new CustomEvent("editor:show-onboarding"));
         }} />
       </>
     ),
@@ -273,6 +380,21 @@ function Toolbar() {
         <MenuSep />
         <MenuHeader>Export</MenuHeader>
         <MenuItem label="Export map as PNG" onClick={() => emitEditorEvent("editor:export-png", {})} />
+        <MenuItem label="Export entities as JSON" onClick={() => {
+          const blob = new Blob([JSON.stringify(state.entities, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = "editor-entities.json"; a.click();
+          URL.revokeObjectURL(url);
+        }} />
+        <MenuItem label="Export entities as CSV" onClick={() => {
+          const header = "id,type,x,y,spriteKey,facingDirection,movementBehavior";
+          const rows = state.entities.map((e) => `${e.id},${e.type},${e.x},${e.y},${e.spriteKey || ""},${e.facingDirection || ""},${e.movementBehavior || ""}`);
+          const csv = [header, ...rows].join("\n");
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = "editor-entities.csv"; a.click();
+          URL.revokeObjectURL(url);
+        }} />
       </>
     ),
     View: (
@@ -351,6 +473,19 @@ function Toolbar() {
       >
         EDIT
       </div>
+      <div
+        onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+        title="Open Command Palette (⌘K) — search every action / entity / species / preset"
+        style={{
+          fontSize: 10, color: "#aaa", padding: "4px 10px", marginLeft: 6,
+          border: "1px solid #3a3a50", borderRadius: 4, background: "#161626",
+          fontWeight: 600, cursor: "pointer", userSelect: "none",
+          display: "flex", alignItems: "center", gap: 6,
+        }}
+      >
+        <span>⌘K</span>
+        <span style={{ color: "#666" }}>commands</span>
+      </div>
       <div style={{ flex: 1 }} />
       {/* Global search */}
       <input
@@ -379,9 +514,35 @@ function Toolbar() {
         }}
       />
       <div style={{ display: "flex", gap: 4, fontSize: 9, color: "#555", marginLeft: 6 }}>
-        <span onClick={handleUndo} title="Undo (⌘Z)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Z</span>
-        <span onClick={handleRedo} title="Redo (⌘Y)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘Y</span>
-        <span onClick={handleSave} title="Save (⌘S)" style={{ cursor: "pointer", background: "#1e1e2e", border: "1px solid #444", borderRadius: 2, padding: "1px 5px", fontFamily: "monospace" }}>⌘S</span>
+        <ToolbarChip
+          label="⌘Z"
+          onClick={handleUndo}
+          disabled={state.undoStack.length === 0}
+          tooltipTitle="Undo (⌘Z)"
+          tooltipBody={state.undoStack.length === 0
+            ? "Nothing to undo yet"
+            : describeAction(state.undoStack[state.undoStack.length - 1].action)}
+        />
+        <ToolbarChip
+          label="⌘Y"
+          onClick={handleRedo}
+          disabled={state.redoStack.length === 0}
+          tooltipTitle="Redo (⌘Y)"
+          tooltipBody={state.redoStack.length === 0
+            ? "Nothing to redo"
+            : describeAction(state.redoStack[state.redoStack.length - 1].action)}
+        />
+        <ToolbarChip
+          label="⌘S"
+          onClick={handleSave}
+          tooltipTitle="Save (⌘S)"
+          tooltipBody={(() => {
+            const n = collectChanges().length;
+            if (n === 0) return "No unsaved entity changes";
+            return `${n} unsaved change${n === 1 ? "" : "s"} — click to review & save`;
+          })()}
+          accent={collectChanges().length > 0 ? "#22c55e" : undefined}
+        />
       </div>
       {/* Save Diff Viewer Modal */}
       {saveDiffChanges && (
@@ -423,6 +584,194 @@ function Toolbar() {
 }
 
 /** NPC sprite preview — renders first frame using canvas for universal sprite sizes */
+// Fast lookup: slug → pokédex number. Rebuilt once at module load so that
+// SpritePreview can route pokémon species directly to the PokeAPI CDN
+// instead of 404'ing on `/game/sprites/emerald/{slug}.png`.
+const POKEMON_SLUG_TO_DEX = new Map<string, number>(
+  POKEMON_SPECIES.map((s) => [s.slug, s.dex]),
+);
+
+/**
+ * One-stop sprite-URL resolver. Pass any `spriteKey` (or entity) and get
+ * back the correct URL — PokeAPI CDN for pokémon slugs (or entities with
+ * a `pokedexNumber`), local `/game/sprites/emerald/` path otherwise.
+ *
+ * Used by every icon/thumbnail call site (SpritePreview, palette
+ * iconUrl, placement-preview bubble, SpritePicker, Minimap). Before
+ * this helper, each site built the URL inline and the PokeAPI fallback
+ * lived in only one of them — placing a new pokémon triggered a 404
+ * in every OTHER site until it fell back manually.
+ */
+function spriteUrlFor(opts: { spriteKey?: string; pokedexNumber?: number }): string | null {
+  if (opts.pokedexNumber) {
+    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${opts.pokedexNumber}.png`;
+  }
+  if (!opts.spriteKey) return null;
+  const dex = POKEMON_SLUG_TO_DEX.get(opts.spriteKey);
+  if (dex) return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${dex}.png`;
+  return `/game/sprites/emerald/${opts.spriteKey}.png`;
+}
+
+/**
+ * Placement payload — a pending entity waiting on a tile click to
+ * commit. Lifted to module scope so the config table + entity factory
+ * can be shared by multiple call sites (palette, previews, tests).
+ */
+export type Placement =
+  | { kind: "species"; species: PokemonSpecies }
+  | { kind: "npc"; spriteKey: string }
+  | { kind: "item"; itemId: string; itemName: string; itemIcon?: string }
+  | { kind: "sign" }
+  | { kind: "wild-pokemon"; species: PokemonSpecies }
+  | { kind: "hidden-item"; itemId: string; itemName: string }
+  | { kind: "warp" }
+  | { kind: "gate" }
+  | { kind: "pokedex-entry"; pokedexNumber: number; name: string; pokemon: string };
+
+/**
+ * One-stop placement config. For each placement kind: how to render the
+ * preview bubble (title/subtitle/icon/accent) AND how to materialize
+ * the entity once the user clicks a tile. Before this table, those two
+ * decisions lived in two separate switch statements that drifted —
+ * hidden-item had no preview case, for example, so its preview bubble
+ * silently rendered the wrong accent.
+ */
+interface PlacementConfig {
+  title: string;
+  subtitle: string;
+  iconUrl?: string;
+  iconBg: string;
+  createEntity: (x: number, y: number, tag: string) => EditorEntity;
+}
+
+function getPlacementConfig(pp: Placement): PlacementConfig {
+  switch (pp.kind) {
+    case "species":
+      return {
+        title: `${pp.species.name} (#${String(pp.species.dex).padStart(3, "0")})`,
+        subtitle: "Place pokémon NPC · Esc cancels",
+        iconUrl: pp.species.spriteUrl,
+        iconBg: "#22c55e",
+        createEntity: (x, y, tag) => ({
+          id: `pkmn_${pp.species.slug}_${x}_${y}_${tag}`,
+          type: "pokemon-npc",
+          x, y,
+          pokedexNumber: pp.species.dex,
+          pokemon: { pokedexNumber: pp.species.dex, speciesName: pp.species.name, projectName: pp.species.name },
+          spriteKey: pp.species.slug,
+        }),
+      };
+    case "pokedex-entry":
+      return {
+        title: `${pp.name} (#${String(pp.pokedexNumber).padStart(3, "0")}) · project`,
+        subtitle: "Place portfolio pokémon NPC · Esc cancels",
+        iconUrl: spriteUrlFor({ pokedexNumber: pp.pokedexNumber }) ?? undefined,
+        iconBg: "#22c55e",
+        createEntity: (x, y, tag) => ({
+          id: `pkmn_${pp.pokemon}_${x}_${y}_${tag}`,
+          type: "pokemon-npc",
+          x, y,
+          pokedexNumber: pp.pokedexNumber,
+          pokemon: { pokedexNumber: pp.pokedexNumber, speciesName: pp.name, projectName: pp.name },
+          spriteKey: pp.pokemon,
+        }),
+      };
+    case "wild-pokemon":
+      return {
+        title: `Wild ${pp.species.name} (#${String(pp.species.dex).padStart(3, "0")})`,
+        subtitle: "Place wild encounter · Esc cancels",
+        iconUrl: pp.species.spriteUrl,
+        iconBg: "#a855f7",
+        createEntity: (x, y, tag) => ({
+          id: `wild_${pp.species.slug}_${x}_${y}_${tag}`,
+          type: "wild-pokemon",
+          x, y,
+          pokedexNumber: pp.species.dex,
+          pokemon: { pokedexNumber: pp.species.dex, speciesName: pp.species.name, projectName: pp.species.name },
+          spriteKey: pp.species.slug,
+        }),
+      };
+    case "npc":
+      return {
+        title: `NPC: ${pp.spriteKey}`,
+        subtitle: "Place NPC · Esc cancels",
+        iconUrl: spriteUrlFor({ spriteKey: pp.spriteKey }) ?? undefined,
+        iconBg: "#3b82f6",
+        createEntity: (x, y, tag) => ({
+          id: `npc_${pp.spriteKey}_${x}_${y}_${tag}`,
+          type: "npc",
+          x, y,
+          spriteKey: pp.spriteKey,
+          facingDirection: "down",
+          dialog: [],
+        }),
+      };
+    case "item":
+      return {
+        title: pp.itemName,
+        subtitle: "Place pickup · Esc cancels",
+        iconBg: "#f97316",
+        createEntity: (x, y, tag) => ({
+          id: `pickup_${pp.itemId}_${x}_${y}_${tag}`,
+          type: "pickup",
+          x, y,
+          itemId: pp.itemId,
+          pickup: { itemId: pp.itemId },
+        }),
+      };
+    case "hidden-item":
+      return {
+        title: `Hidden: ${pp.itemName}`,
+        subtitle: "Place hidden item · Esc cancels",
+        iconBg: "#ec4899",
+        createEntity: (x, y, tag) => ({
+          id: `hidden_${pp.itemId}_${x}_${y}_${tag}`,
+          type: "hidden-item",
+          x, y,
+          itemId: pp.itemId,
+        }),
+      };
+    case "sign":
+      return {
+        title: "Sign",
+        subtitle: "Place sign (edit text after) · Esc cancels",
+        iconBg: "#f59e0b",
+        createEntity: (x, y, tag) => ({
+          id: `sign_${x}_${y}_${tag}`,
+          type: "sign",
+          x, y,
+          text: [""],
+        }),
+      };
+    case "warp":
+      return {
+        title: "Warp",
+        subtitle: "Place warp (configure target after) · Esc cancels",
+        iconBg: "#8b5cf6",
+        createEntity: (x, y, tag) => ({
+          id: `warp_${x}_${y}_${tag}`,
+          type: "warp",
+          x, y,
+          targetMap: "",
+          spawnX: 0, spawnY: 0,
+          spawnFacing: "down",
+        }),
+      };
+    case "gate":
+      return {
+        title: "Gate",
+        subtitle: "Place gate (configure after) · Esc cancels",
+        iconBg: "#dc2626",
+        createEntity: (x, y, tag) => ({
+          id: `gate_${x}_${y}_${tag}`,
+          type: "gate",
+          x, y,
+          gateType: "locked",
+        }),
+      };
+  }
+}
+
 function SpritePreview({ spriteKey, size = 24 }: { spriteKey: string; size?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -434,16 +783,18 @@ function SpritePreview({ spriteKey, size = 24 }: { spriteKey: string; size?: num
     img.onload = () => {
       ctx.clearRect(0, 0, size, size);
       ctx.imageSmoothingEnabled = false;
-      // Determine frame size: height is the full image height, width is 16 for standard or min(w, 48)
-      const frameW = Math.min(img.width, img.height <= 16 ? 16 : 16);
+      // Pokémon from PokeAPI are 96×96 full-frame; NPC spritesheets are
+      // multi-frame with the first column being the "idle down" pose, so
+      // we clamp frameW to 16 for NPCs. Distinguishing via slug lookup.
+      const isPokemon = POKEMON_SLUG_TO_DEX.has(spriteKey);
+      const frameW = isPokemon ? img.width : Math.min(img.width, 16);
       const frameH = img.height;
-      // Scale to fit the canvas while maintaining aspect ratio
       const scale = Math.min(size / frameW, size / frameH);
       const dw = frameW * scale;
       const dh = frameH * scale;
       ctx.drawImage(img, 0, 0, frameW, frameH, (size - dw) / 2, (size - dh) / 2, dw, dh);
     };
-    img.src = `/game/sprites/emerald/${spriteKey}.png`;
+    img.src = spriteUrlFor({ spriteKey }) ?? "";
   }, [spriteKey, size]);
 
   return (
@@ -499,6 +850,27 @@ function TilesPanel() {
   const [selectedTileset, setSelectedTileset] = useState("mauville_bottom");
   const ts = ALL_TILESETS.find((t) => t.id === selectedTileset) || ALL_TILESETS[0];
   const swatches = useSwatches();
+  const [gidSearch, setGidSearch] = useState("");
+  const [tilesetHover, setTilesetHover] = useState<{ gid: number; x: number; y: number } | null>(null);
+  const searchedGid = gidSearch ? parseInt(gidSearch, 10) : NaN;
+  const hasValidSearch = Number.isFinite(searchedGid) && searchedGid > 0;
+  // Compute search highlight rect (in image-native px) if valid
+  const highlight = hasValidSearch ? {
+    col: (searchedGid - 1) % 16,
+    row: Math.floor((searchedGid - 1) / 16),
+  } : null;
+
+  // Auto-scroll the tileset atlas to bring the yellow highlight ring into
+  // view — without this, a search for GID 114 (deep in the atlas) leaves the
+  // ring rendered hundreds of pixels off-screen and the feature feels broken.
+  const highlightRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!highlight) return;
+    const id = requestAnimationFrame(() => {
+      highlightRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [highlight?.col, highlight?.row]);
 
   const applyGid = (gid: number) => {
     emitEditorEvent("editor:select-tile-gid", { gid });
@@ -545,6 +917,14 @@ function TilesPanel() {
         style={{ width: "100%", background: "#161628", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "3px 4px", marginBottom: 4 }}>
         {ALL_TILESETS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
       </select>
+      <input
+        type="number"
+        value={gidSearch}
+        onChange={(e) => setGidSearch(e.target.value)}
+        placeholder="Jump to GID (e.g. 114)"
+        min={1}
+        style={{ width: "100%", background: "#161628", border: "1px solid #2a2a40", borderRadius: 2, color: "#ccc", fontSize: 9, padding: "3px 4px", marginBottom: 4, outline: "none" }}
+      />
       <div style={{ fontSize: 8, color: "#666", padding: "0 2px 3px" }}>
         Click tile to pick GID · Right-click to pin as swatch
       </div>
@@ -577,10 +957,72 @@ function TilesPanel() {
           const gid = tileRow * 16 + tileCol + 1;
           swatches.add({ tilesetId: selectedTileset, gid });
         }}
+        onMouseMove={(e) => {
+          // Hover a tileset cell → show its GID without requiring a click.
+          // Previews the tile on the canvas too (via the existing swatch
+          // preview pipeline) so the user sees both where the GID lives
+          // and what it looks like in context.
+          const rect = e.currentTarget.getBoundingClientRect();
+          const img = e.currentTarget.querySelector("img");
+          if (!img) return;
+          const scaleX = (img as HTMLImageElement).naturalWidth / rect.width;
+          const scaleY = (img as HTMLImageElement).naturalHeight / rect.height;
+          const realX = (e.clientX - rect.left) * scaleX;
+          const realY = (e.clientY - rect.top) * scaleY;
+          const tileCol = Math.floor(realX / 16);
+          const tileRow = Math.floor(realY / 16);
+          const gid = tileRow * 16 + tileCol + 1;
+          setTilesetHover({ gid, x: e.clientX, y: e.clientY });
+          emitEditorEvent("editor:preview-gid", { gid });
+        }}
+        onMouseLeave={() => {
+          setTilesetHover(null);
+          emitEditorEvent("editor:preview-gid", null);
+        }}
       >
         <img src={ts.path} alt={ts.label}
           style={{ imageRendering: "pixelated", width: "100%", display: "block" }} />
+        {highlight && (
+          // Yellow ring around the searched GID. CSS percent positioning
+          // so it scales with the image as the panel resizes. Tileset is
+          // 16 cols × (image height / 16) rows.
+          <div ref={highlightRef} style={{
+            position: "absolute",
+            left: `${(highlight.col / 16) * 100}%`,
+            top: `${(highlight.row / 16) * 100}%`,
+            width: `${100 / 16}%`,
+            aspectRatio: "1 / 1",
+            border: "2px solid #ffd700",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.6)",
+            pointerEvents: "none",
+            animation: "pulse 1.2s ease-in-out infinite alternate",
+          }} />
+        )}
       </div>
+      {tilesetHover && (
+        // Tooltip that follows the cursor in the Tiles panel. Fixed
+        // positioning so it escapes the panel's scroll container — a
+        // high GID near the bottom of the tileset shouldn't be cut off
+        // by the overflow clip.
+        <div style={{
+          position: "fixed",
+          left: Math.min(tilesetHover.x + 14, window.innerWidth - 80),
+          top: Math.min(tilesetHover.y + 14, window.innerHeight - 30),
+          zIndex: 9999,
+          background: "rgba(0, 0, 0, 0.88)",
+          color: "#ffd700",
+          fontFamily: "monospace",
+          fontSize: 10,
+          fontWeight: 700,
+          padding: "2px 6px",
+          borderRadius: 3,
+          border: "1px solid #4a4a6a",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}>
+          GID {tilesetHover.gid}
+        </div>
+      )}
     </div>
   );
 }
@@ -702,6 +1144,12 @@ function LeftPanel() {
               <div
                 key={e.id}
                 onClick={() => dispatch({ type: "SELECT_ENTITY", id: e.id })}
+                // Hovering a list row pulses a ring at the entity's tile on
+                // the canvas — makes "where does this live?" a passive
+                // discovery instead of a select-and-scroll dance.
+                onMouseEnter={() => window.dispatchEvent(new CustomEvent("editor:preview-entity", { detail: { x: e.x, y: e.y } }))}
+                onMouseLeave={() => window.dispatchEvent(new CustomEvent("editor:preview-entity", { detail: null }))}
+                title={`${e.type} @ (${e.x}, ${e.y})`}
                 style={{
                   padding: "3px 8px", fontSize: 10, cursor: "pointer",
                   background: state.selectedEntityId === e.id ? "#1e3a5f" : "transparent",
@@ -749,7 +1197,7 @@ function LeftPanel() {
                 }}
               >
                 <img
-                  src={`/game/sprites/emerald/${sprite}.png`}
+                  src={spriteUrlFor({ spriteKey: sprite }) ?? ""}
                   alt={sprite}
                   style={{ imageRendering: "pixelated", width: 48, height: "auto" }}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -1805,6 +2253,81 @@ function KostasDialogEditor() {
 }
 
 /**
+ * Layers panel — always-visible section at the top of the right sidebar
+ * with eye-icon toggles for every map layer. Replaces the View menu as
+ * the primary discoverable UI for layer visibility. Eye = visible.
+ */
+function LayersPanel() {
+  const state = useEditorState();
+  const dispatch = useEditorDispatch();
+  // Live counts so the hover tooltip can tell the user *how much* is on each
+  // layer. Helps answer "is this layer empty?" / "why don't I see anything?"
+  // without turning it off to compare.
+  const counts = {
+    ground: "tiles across map",
+    foreground: "decor sprites layer",
+    collision: `${state.entities.filter((e) => e.type === "warp" || e.type === "gate").length} walkable-blocking entities`,
+    entities: `${state.entities.length} total markers`,
+    zones: `${new Set(state.entities.map((e) => (e as any).zone).filter(Boolean)).size || 0} zones`,
+    movement: `${state.entities.filter((e) => e.movementRangeX || e.movementRangeY).length} NPCs with range`,
+    grid: "16×16 tile grid lines",
+    heatmap: "reachability from spawn",
+  };
+  // NB: LayersPanel lists 8 rows; the View menu lists 7 (no "Ground tiles").
+  // Intentional — Ground is always on in the View menu because a map without
+  // ground tiles is just a black void, whereas here the row acts as a
+  // conceptual label for "this layer exists". Both read `state.layers.*`
+  // via the same reducer so their checkmarks stay in sync.
+  const layers: { key: keyof typeof state.layers; label: string; color: string }[] = [
+    { key: "ground", label: "Ground tiles", color: "#4ade80" },
+    { key: "foreground", label: "Foreground sprites", color: "#22c55e" },
+    { key: "collision", label: "Collision overlay", color: "#ef4444" },
+    { key: "entities", label: "Entity markers", color: "#60a5fa" },
+    { key: "zones", label: "Zone boundaries", color: "#a855f7" },
+    { key: "movement", label: "Movement ranges", color: "#f59e0b" },
+    { key: "grid", label: "Grid", color: "#888" },
+    { key: "heatmap", label: "Reachability heatmap", color: "#ec4899" },
+  ];
+  const toggle = (key: keyof typeof state.layers) => {
+    const newVisible = !state.layers[key];
+    dispatch({ type: "TOGGLE_LAYER", layer: key as any });
+    emitEditorEvent(TOGGLE_LAYER_EVENT, { layer: key, visible: newVisible });
+  };
+  return (
+    <div style={{ borderBottom: "1px solid #2a2a40", padding: "6px 8px", background: "#181828" }}>
+      <div style={{ fontSize: 9, color: "#6a8fbf", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700, marginBottom: 4 }}>
+        Layers
+      </div>
+      {layers.map((l) => {
+        const visible = state.layers[l.key];
+        const countLabel = counts[l.key] ?? "";
+        return (
+          <div
+            key={l.key}
+            onClick={() => toggle(l.key)}
+            title={`${visible ? "Hide" : "Show"} ${l.label.toLowerCase()} — ${countLabel}`}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "3px 4px", cursor: "pointer", fontSize: 10,
+              borderRadius: 2,
+              background: "transparent",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#23233a"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+          >
+            <span style={{ fontSize: 11, width: 12, textAlign: "center", color: visible ? l.color : "#3a3a50" }}>
+              {visible ? "●" : "○"}
+            </span>
+            <span style={{ color: visible ? "#ccc" : "#666", flex: 1 }}>{l.label}</span>
+            <span style={{ color: "#555", fontSize: 9, fontFamily: "monospace" }}>{countLabel.match(/^\d+/)?.[0] ?? ""}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * Tile inspector — shown in the right sidebar when no entity is selected.
  * Tracks the last-clicked tile (from `editor:tile-selected` events the
  * scene emits) and surfaces per-tile controls: collision toggle, GID,
@@ -2090,7 +2613,14 @@ function RightPanel() {
   };
 
   if (!selected) {
-    return <TileInspector />;
+    return (
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#1e1e30", minHeight: 0 }}>
+        <LayersPanel />
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <TileInspector />
+        </div>
+      </div>
+    );
   }
 
   const typeColors: Record<string, string> = {
@@ -2100,7 +2630,9 @@ function RightPanel() {
   };
 
   return (
-    <div style={{ width: "100%", height: "100%", background: "#1e1e30", overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#1e1e30", minHeight: 0 }}>
+    <LayersPanel />
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #2a2a40", paddingBottom: 4 }}>
         <span style={{
           background: typeColors[selected.type] || "#888", color: "#fff", fontSize: 8,
@@ -2347,7 +2879,7 @@ function RightPanel() {
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
             <span style={{ fontSize: 9, color: "#888", width: 70, flexShrink: 0, textAlign: "right" }}>Species</span>
             <img
-              src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${selected.pokemon.pokedexNumber}.png`}
+              src={spriteUrlFor({ pokedexNumber: selected.pokemon.pokedexNumber }) ?? ""}
               alt="" loading="lazy"
               style={{ width: 32, height: 32, imageRendering: "pixelated", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 3, flexShrink: 0 }}
             />
@@ -2465,6 +2997,7 @@ function RightPanel() {
           );
         })()}
       </PropSection>
+    </div>
     </div>
   );
 }
@@ -3065,7 +3598,7 @@ function buildPaletteItems(opts: {
       id: `npc-${spriteKey}`,
       label: `NPC: ${spriteKey}`,
       category: "Place NPC",
-      iconUrl: `/game/sprites/emerald/${spriteKey}.png`,
+      iconUrl: spriteUrlFor({ spriteKey }) ?? undefined,
       run: () => opts.startPlacement({ kind: "npc", spriteKey }),
     });
   }
@@ -3211,10 +3744,15 @@ function ModifierBar() {
       hint = <><kbd>⌘⇧+Click</kbd> flood fill region with current GID</>;
       break;
     default:
+      // New selection model: plain click is just "pick GID / select entity".
+      // Selecting tiles requires an explicit double-click or a ⇧ gesture.
+      // Actions (delete/copy/paste) run against the selection via ⌘C / ⌘⌥C /
+      // ⌘V / Backspace — no more "click pastes the last block" side-effect.
       hint = <>
-        <kbd>Click</kbd> pick GID / select entity · <kbd>Drag</kbd> pan ·{" "}
-        <kbd>⌘</kbd> paint · <kbd>⌥</kbd> erase · <kbd>⇧</kbd> multi-select ·{" "}
-        <kbd>W</kbd> wand · <kbd>T</kbd> tint · <kbd>C</kbd> collision · <kbd>⌘K</kbd> palette
+        <kbd>Click</kbd> pick GID / select entity · <kbd>Dbl</kbd> select tile ·{" "}
+        <kbd>⇧</kbd> +Click/Drag select · <kbd>Dbl</kbd> on NPC picks tile below ·{" "}
+        <kbd>⌘</kbd> paint · <kbd>⌥</kbd> erase · <kbd>⌘C</kbd> copy · <kbd>⌘⌥C</kbd> copy fg ·{" "}
+        <kbd>⌘V</kbd> paste · <kbd>⌫</kbd> delete · <kbd>⌘K</kbd> palette
       </>;
   }
 
@@ -3253,6 +3791,23 @@ function StatusBar() {
     typeof localStorage !== "undefined" ? (localStorage.getItem("editor_current_map") || "mauville") : "mauville",
   );
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [uiFlags, setUiFlags] = useState({
+    paletteOpen: false, dialogPreview: false, deleteConfirm: false,
+    showShortcuts: false, showHistory: false, showRelationships: false,
+    pendingPlacement: false, blockCopied: false, selectionCount: 0,
+  });
+
+  // Pull ephemeral React-side UI flags via a tiny event bus so the
+  // status bar can show what the next Esc press will do without being
+  // prop-drilled through every level.
+  useEffect(() => {
+    const onUi = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      setUiFlags((prev) => ({ ...prev, ...d }));
+    };
+    window.addEventListener("editor:ui-flags", onUi);
+    return () => window.removeEventListener("editor:ui-flags", onUi);
+  }, []);
 
   // Poll scene state every 200ms — cheap and avoids threading events for
   // every frame of a zoom drag.
@@ -3360,6 +3915,44 @@ function StatusBar() {
         </span>
       ) : <span style={{ color: "#555" }}>no selection</span>}
 
+      {/* Next-undo breadcrumb — tells the user what ⌘Z would revert.
+          Reuses the same describeAction helper as the toolbar chip
+          tooltip so the phrasing stays consistent across the UI. */}
+      {state.undoStack.length > 0 && (() => {
+        const desc = describeAction(state.undoStack[state.undoStack.length - 1].action);
+        return <>
+          <Sep />
+          <span title={`Cmd+Z will undo: ${desc}`} style={{ color: "#666", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            ↶ {desc}
+          </span>
+        </>;
+      })()}
+
+      {/* Next-Esc preview — shows which tier the next Esc press pops. */}
+      {(() => {
+        let label = "";
+        if (uiFlags.paletteOpen) label = "close palette";
+        else if (uiFlags.dialogPreview) label = "close dialog";
+        else if (uiFlags.deleteConfirm) label = "cancel delete";
+        else if (uiFlags.showShortcuts) label = "close shortcuts";
+        else if (uiFlags.showHistory) label = "close history";
+        else if (uiFlags.showRelationships) label = "close relationships";
+        else if (uiFlags.pendingPlacement) label = "cancel placement";
+        // Tile selection pops before the clipboard now — matches the
+        // Esc-tier order in the keydown handler.
+        else if (uiFlags.selectionCount > 1) label = `clear ${uiFlags.selectionCount} selected`;
+        else if (uiFlags.selectionCount === 1) label = "clear selection";
+        else if (uiFlags.blockCopied) label = "drop clipboard";
+        else if (state.selectedEntityId) label = "deselect";
+        if (!label) return null;
+        return <>
+          <Sep />
+          <span title="What the next Esc press will do" style={{ color: "#888" }}>
+            Esc → <span style={{ color: "#aaa" }}>{label}</span>
+          </span>
+        </>;
+      })()}
+
       {/* Right side */}
       <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 0 }}>
         <span style={{ color: state.dirty ? "#f59e0b" : "#22c55e" }}>
@@ -3375,10 +3968,11 @@ function StatusBar() {
 }
 
 /** Context menu overlay */
-function ContextMenu({ x, y, entityId, onClose }: { x: number; y: number; entityId: string | null; onClose: () => void }) {
+function ContextMenu({ x, y, entityId, tileX, tileY, onClose }: { x: number; y: number; entityId: string | null; tileX?: number; tileY?: number; onClose: () => void }) {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
   const entity = entityId ? state.entities.find((e) => e.id === entityId) : null;
+  const hasTile = typeof tileX === "number" && typeof tileY === "number";
 
   return (
     <>
@@ -3386,7 +3980,7 @@ function ContextMenu({ x, y, entityId, onClose }: { x: number; y: number; entity
       <div style={{
         position: "fixed", top: y, left: x, zIndex: 9999,
         background: "#1a1a30", border: "1px solid #4a4a6a", borderRadius: 4,
-        padding: "4px 0", minWidth: 160, boxShadow: "0 4px 20px rgba(0,0,0,0.8)",
+        padding: "4px 0", minWidth: 200, boxShadow: "0 4px 20px rgba(0,0,0,0.8)",
       }}>
         {entity ? (
           <>
@@ -3398,13 +3992,53 @@ function ContextMenu({ x, y, entityId, onClose }: { x: number; y: number; entity
               onClose();
             }} />
             <MenuSep />
-            <MenuItem label="Duplicate" onClick={() => {
+            <MenuItem label="Duplicate" shortcut="⌘D" onClick={() => {
               const newEntity = { ...entity, id: entity.id + "_copy", x: entity.x + 1, y: entity.y };
               dispatch({ type: "ADD_ENTITY", entity: newEntity });
               onClose();
             }} />
             <MenuItem label="Delete" shortcut="Del" onClick={() => {
               dispatch({ type: "DELETE_ENTITY", id: entity.id, entity });
+              onClose();
+            }} />
+          </>
+        ) : hasTile ? (
+          <>
+            <div style={{ padding: "4px 12px", fontSize: 9, color: "#666", fontWeight: 700, fontFamily: "monospace" }}>Tile ({tileX}, {tileY})</div>
+            <MenuItem label="Pick GID here" onClick={() => {
+              emitEditorEvent("editor:tile-selected", { x: tileX!, y: tileY! });
+              onClose();
+            }} />
+            <MenuItem label="Copy tile as block" onClick={() => {
+              emitEditorEvent("editor:copy-single-tile", { x: tileX!, y: tileY! });
+              onClose();
+            }} />
+            <MenuItem label="Erase tile + decor" shortcut="⌥+Click" onClick={() => {
+              emitEditorEvent("editor:erase-tile", { x: tileX!, y: tileY! });
+              onClose();
+            }} />
+            <MenuItem label="Toggle collision" shortcut="C" onClick={() => {
+              emitEditorEvent("editor:toggle-collision", { x: tileX!, y: tileY! });
+              onClose();
+            }} />
+            <MenuSep />
+            <MenuItem label="Fill bucket with picked GID" shortcut="⌘⇧+Click" onClick={() => {
+              // Fire a synthesized keydown route via direct scene: reuses
+              // the floodFillTile path keyed on picked GID.
+              const g = (window as any).__EDITOR_GAME__;
+              const scene = g?.scene?.getScene("EditorScene");
+              if (scene && scene.selectedTileGid > 0) {
+                scene.floodFillTile(tileX!, tileY!, scene.selectedTileGid);
+              } else {
+                window.dispatchEvent(new CustomEvent("editor:toast", {
+                  detail: { message: "Pick a GID first (click a tile) before flood-filling." },
+                }));
+              }
+              onClose();
+            }} />
+            <MenuItem label="Magic wand (select same)" shortcut="W" onClick={() => {
+              emitEditorEvent("editor:tile-selected", { x: tileX!, y: tileY! });
+              window.dispatchEvent(new KeyboardEvent("keydown", { key: "w" }));
               onClose();
             }} />
           </>
@@ -3426,7 +4060,7 @@ function ContextMenu({ x, y, entityId, onClose }: { x: number; y: number; entity
 function EditorInner() {
   const state = useEditorState();
   const dispatch = useEditorDispatch();
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string | null } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entityId: string | null; tileX?: number; tileY?: number } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -3436,6 +4070,12 @@ function EditorInner() {
     if (typeof localStorage === "undefined") return false;
     return !localStorage.getItem("editor_onboarding_done");
   });
+  // Allow re-opening the Getting Started walk-through from File menu.
+  useEffect(() => {
+    const onShow = () => setShowOnboarding(true);
+    window.addEventListener("editor:show-onboarding", onShow);
+    return () => window.removeEventListener("editor:show-onboarding", onShow);
+  }, []);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [leftWidth, setLeftWidth] = useState(220);
@@ -3447,6 +4087,28 @@ function EditorInner() {
     selected: Array<{ x: number; y: number; layer: string; mapId: string }>;
   } | null>(null);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number; gid: number; hasTopSprite: boolean; screenX: number; screenY: number } | null>(null);
+  // Track modifier state so the tile-hover tooltip can preview what the
+  // next click/key would actually do (⌘ = paint, ⌥ = erase, ⇧ = multi,
+  // ⌘⇧ = fill bucket). Without this, the user has to remember the
+  // shortcut legend in the modifier bar even for common ops.
+  const [modKeys, setModKeys] = useState<{ meta: boolean; alt: boolean; shift: boolean }>({ meta: false, alt: false, shift: false });
+  useEffect(() => {
+    const update = (e: KeyboardEvent | MouseEvent) => {
+      setModKeys({
+        meta: (e as MouseEvent).metaKey || (e as MouseEvent).ctrlKey,
+        alt: (e as MouseEvent).altKey,
+        shift: (e as MouseEvent).shiftKey,
+      });
+    };
+    window.addEventListener("keydown", update);
+    window.addEventListener("keyup", update);
+    window.addEventListener("mousemove", update);
+    return () => {
+      window.removeEventListener("keydown", update);
+      window.removeEventListener("keyup", update);
+      window.removeEventListener("mousemove", update);
+    };
+  }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   /**
    * Pending placement — picked from the command palette, dropped on the
@@ -3454,43 +4116,55 @@ function EditorInner() {
    * Each variant carries just enough info to instantiate a default
    * entity. Esc cancels.
    */
-  type Placement =
-    | { kind: "species"; species: PokemonSpecies }
-    | { kind: "npc"; spriteKey: string }
-    | { kind: "item"; itemId: string; itemName: string; itemIcon?: string }
-    | { kind: "sign" }
-    | { kind: "wild-pokemon"; species: PokemonSpecies }
-    | { kind: "hidden-item"; itemId: string; itemName: string }
-    | { kind: "warp" }
-    | { kind: "gate" }
-    | { kind: "pokedex-entry"; pokedexNumber: number; name: string; pokemon: string };
   const [pendingPlacement, setPendingPlacement] = useState<Placement | null>(null);
+  const [selectionCount, setSelectionCount] = useState(0);
+  useEffect(() => {
+    const onSel = (e: Event) => {
+      const d = (e as CustomEvent).detail as { tiles: Array<{ x: number; y: number; layer?: string }> } | null;
+      setSelectionCount(d?.tiles?.length ?? 0);
+      // Mirror the current selection onto the window so keyboard
+      // shortcut handlers in other effects can read it without a
+      // React re-render. Cleaner than prop-drilling state through
+      // every hotkey useEffect's dep array.
+      (window as any).__EDITOR_TILE_SELECTION__ = (d?.tiles ?? []).map((t) => ({ x: t.x, y: t.y }));
+    };
+    window.addEventListener("editor:selection-change", onSel);
+    return () => window.removeEventListener("editor:selection-change", onSel);
+  }, []);
   /** Shadow of the Phaser stamp block state. null = no block. */
-  const [blockStatus, setBlockStatus] = useState<{ width: number; height: number } | null>(null);
+  type BlockStatus = { width: number; height: number; decorCount?: number; pasteMode?: "both" | "fg-only" | "bg-only" };
+  const [blockStatus, setBlockStatus] = useState<BlockStatus | null>(null);
   /** Shadow of the Phaser multi-select queue for stamp/eraser. */
   const [pendingOp, setPendingOp] = useState<{ mode: "paint" | "erase"; count: number } | null>(null);
 
   // Listen for stamp block + pending-op state changes.
   useEffect(() => {
     const onBlock = (e: Event) => {
-      const d = (e as CustomEvent).detail as { width: number; height: number } | null;
+      const d = (e as CustomEvent).detail as BlockStatus | null;
       setBlockStatus(d);
     };
     const onCopied = (e: Event) => {
       const d = (e as CustomEvent).detail as { width: number; height: number };
-      setBlockStatus({ width: d.width, height: d.height });
+      setBlockStatus({ width: d.width, height: d.height, pasteMode: "both" });
     };
     const onPending = (e: Event) => {
       const d = (e as CustomEvent).detail as { mode: "paint" | "erase"; count: number } | null;
       setPendingOp(d);
     };
+    const onPasteMode = (e: Event) => {
+      const d = (e as CustomEvent).detail as { mode: "both" | "fg-only" | "bg-only" } | null;
+      if (!d) return;
+      setBlockStatus((prev) => (prev ? { ...prev, pasteMode: d.mode } : prev));
+    };
     window.addEventListener("editor:block-status", onBlock);
     window.addEventListener("editor:block-copied", onCopied);
     window.addEventListener("editor:pending-op-status", onPending);
+    window.addEventListener("editor:block-paste-mode", onPasteMode);
     return () => {
       window.removeEventListener("editor:block-status", onBlock);
       window.removeEventListener("editor:block-copied", onCopied);
       window.removeEventListener("editor:pending-op-status", onPending);
+      window.removeEventListener("editor:block-paste-mode", onPasteMode);
     };
   }, []);
 
@@ -3500,101 +4174,11 @@ function EditorInner() {
     if (!pendingPlacement) return;
     const onTileSelected = (e: Event) => {
       const detail = (e as CustomEvent).detail as { x: number; y: number } | null;
-      if (!detail) return;
-      const pp = pendingPlacement;
+      if (!detail || !pendingPlacement) return;
       const tag = Date.now().toString(36);
-      let entity: EditorEntity | null = null;
-      switch (pp.kind) {
-        case "species":
-        case "pokedex-entry": {
-          const dex = pp.kind === "species" ? pp.species.dex : pp.pokedexNumber;
-          const name = pp.kind === "species" ? pp.species.name : pp.name;
-          const slug = pp.kind === "species" ? pp.species.slug : pp.pokemon;
-          entity = {
-            id: `pkmn_${slug}_${detail.x}_${detail.y}_${tag}`,
-            type: "pokemon-npc",
-            x: detail.x, y: detail.y,
-            pokedexNumber: dex,
-            pokemon: { pokedexNumber: dex, speciesName: name, projectName: name },
-            spriteKey: slug,
-          };
-          break;
-        }
-        case "wild-pokemon": {
-          entity = {
-            id: `wild_${pp.species.slug}_${detail.x}_${detail.y}_${tag}`,
-            type: "wild-pokemon",
-            x: detail.x, y: detail.y,
-            pokedexNumber: pp.species.dex,
-            pokemon: { pokedexNumber: pp.species.dex, speciesName: pp.species.name, projectName: pp.species.name },
-            spriteKey: pp.species.slug,
-          };
-          break;
-        }
-        case "npc": {
-          entity = {
-            id: `npc_${pp.spriteKey}_${detail.x}_${detail.y}_${tag}`,
-            type: "npc",
-            x: detail.x, y: detail.y,
-            spriteKey: pp.spriteKey,
-            facingDirection: "down",
-            dialog: [],
-          };
-          break;
-        }
-        case "item": {
-          entity = {
-            id: `pickup_${pp.itemId}_${detail.x}_${detail.y}_${tag}`,
-            type: "pickup",
-            x: detail.x, y: detail.y,
-            itemId: pp.itemId,
-            pickup: { itemId: pp.itemId },
-          };
-          break;
-        }
-        case "hidden-item": {
-          entity = {
-            id: `hidden_${pp.itemId}_${detail.x}_${detail.y}_${tag}`,
-            type: "hidden-item",
-            x: detail.x, y: detail.y,
-            itemId: pp.itemId,
-          };
-          break;
-        }
-        case "sign": {
-          entity = {
-            id: `sign_${detail.x}_${detail.y}_${tag}`,
-            type: "sign",
-            x: detail.x, y: detail.y,
-            text: [""],
-          };
-          break;
-        }
-        case "warp": {
-          entity = {
-            id: `warp_${detail.x}_${detail.y}_${tag}`,
-            type: "warp",
-            x: detail.x, y: detail.y,
-            targetMap: "",
-            spawnX: 0, spawnY: 0,
-            spawnFacing: "down",
-          };
-          break;
-        }
-        case "gate": {
-          entity = {
-            id: `gate_${detail.x}_${detail.y}_${tag}`,
-            type: "gate",
-            x: detail.x, y: detail.y,
-            gateType: "locked",
-          };
-          break;
-        }
-      }
-      if (entity) {
-        dispatch({ type: "ADD_ENTITY", entity });
-        dispatch({ type: "SELECT_ENTITY", id: entity.id });
-      }
+      const entity = getPlacementConfig(pendingPlacement).createEntity(detail.x, detail.y, tag);
+      dispatch({ type: "ADD_ENTITY", entity });
+      dispatch({ type: "SELECT_ENTITY", id: entity.id });
       setPendingPlacement(null);
     };
     window.addEventListener("editor:tile-selected", onTileSelected);
@@ -3660,33 +4244,14 @@ function EditorInner() {
       .catch(() => {});
   }, []);
 
-  // Listen for tint-click events from EditorScene. With the inline tint
-  // inspector in the right sidebar, the FIRST click in a tint multi-
-  // select just refreshes the inspector; only subsequent append clicks
-  // (shift+click / magic wand) keep the floating popup open for batch
-  // operations across several tiles at once.
+  // Tint editing lives in the right-sidebar TileInspector now — the
+  // floating popup was redundant. Every tint-click just refreshes the
+  // inspector (plus the selection highlight in the scene already tracks
+  // the full multi-select).
   useEffect(() => {
     const onTintClick = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      const mapId = localStorage.getItem("editor_current_map") || "mauville";
-      const storageMapId = mapId === "mauville" ? "overworld" : mapId;
-      const tile = { x: detail.x, y: detail.y, layer: detail.layer, mapId: storageMapId };
-      // Every tint click also refreshes the inline inspector
-      emitEditorEvent("editor:tile-selected", { x: tile.x, y: tile.y });
-      if (!detail.append) return; // single-tile tint stays in the inspector
-      setTintPopup((prev) => {
-        if (prev) {
-          const k = `${tile.mapId}:${tile.layer}:${tile.x},${tile.y}`;
-          const existingKeys = new Set(prev.selected.map((t) => `${t.mapId}:${t.layer}:${t.x},${t.y}`));
-          const selected = existingKeys.has(k) ? prev.selected : [...prev.selected, tile];
-          return { ...prev, ...tile, screenX: detail.screenX, screenY: detail.screenY, selected };
-        }
-        return {
-          ...tile,
-          screenX: detail.screenX, screenY: detail.screenY,
-          selected: [tile],
-        };
-      });
+      emitEditorEvent("editor:tile-selected", { x: detail.x, y: detail.y });
     };
     window.addEventListener("editor:tint-click", onTintClick);
 
@@ -3729,11 +4294,91 @@ function EditorInner() {
     };
     window.addEventListener("mousemove", onMouseMove);
 
+    // Every ground-tile paint emitted by the scene gets mirrored into the
+    // React undo stack so ⌘Z can reverse it. The scene's `editor:apply-
+    // paint` listener handles the inverse playback — this loop just
+    // records what happened.
+    const onTilePaint = (e: Event) => {
+      const d = (e as CustomEvent).detail as { x: number; y: number; gid: number; oldGid?: number } | null;
+      if (!d) return;
+      const oldGid = typeof d.oldGid === "number" ? d.oldGid : 0;
+      if (oldGid === d.gid) return;
+      dispatch({ type: "PAINT_TILE", x: d.x, y: d.y, newGid: d.gid, oldGid });
+    };
+    window.addEventListener("editor:tile-paint", onTilePaint);
+    // Batched paint — every tile from a single drag-paint stroke (or
+    // fill-bucket) arrives as one event, so ⌘Z reverts the whole stroke
+    // in one press instead of tile-by-tile.
+    const onTilePaintBatch = (e: Event) => {
+      const d = (e as CustomEvent).detail as { changes: Array<{ x: number; y: number; newGid: number; oldGid: number }> } | null;
+      if (!d || !d.changes || d.changes.length === 0) return;
+      dispatch({ type: "PAINT_TILE_BATCH", changes: d.changes });
+    };
+    window.addEventListener("editor:tile-paint-batch", onTilePaintBatch);
+
+    // Paste replays per-cell tints by emitting this event from the scene
+    // — React owns the tileTints state, so we forward into the reducer.
+    // Same shape the inspector uses when the user moves a slider.
+    const onApplyTintAt = (e: Event) => {
+      const d = (e as CustomEvent).detail as { x: number; y: number; tint: any } | null;
+      if (!d || !d.tint) return;
+      const key = `${d.x},${d.y}`;
+      dispatch({ type: "SET_TILE_TINT", key, entry: d.tint });
+    };
+    window.addEventListener("editor:apply-tint-at", onApplyTintAt);
+
+    // Paste snapshot — captured by the scene around every ⌘V paste so the
+    // whole operation (ground + decor + collision) undoes in one ⌘Z.
+    const onPasteSnapshot = (e: Event) => {
+      const d = (e as CustomEvent).detail as { before: any[]; after: any[] } | null;
+      if (!d || !d.before || !d.after) return;
+      dispatch({ type: "PASTE_SNAPSHOT", before: d.before, after: d.after });
+    };
+    window.addEventListener("editor:paste-snapshot", onPasteSnapshot);
+
+    // Collision toggle — every C-key / sidebar-checkbox / context-menu
+    // flip now lands on the undo stack. Event payload carries both old
+    // and new state so the reducer can record a proper inverse.
+    const onCollisionToggle = (e: Event) => {
+      const d = (e as CustomEvent).detail as { x: number; y: number; blocked: boolean; oldBlocked?: boolean } | null;
+      if (!d || typeof d.oldBlocked !== "boolean") return; // skip legacy emits lacking the old state
+      dispatch({ type: "TOGGLE_COLLISION", x: d.x, y: d.y, blocked: d.blocked, oldBlocked: d.oldBlocked });
+    };
+    window.addEventListener("editor:collision-toggle", onCollisionToggle);
+
+    // Selection change — every user-initiated selection push goes here.
+    // Replays (undo/redo) are marked with origin="replay" at the scene
+    // side (via the `isReplayingSelection` guard that suppresses this
+    // emit entirely), so the dispatcher never sees them.
+    const onSelectionChangeDispatch = (() => {
+      let prevTiles: Array<{ x: number; y: number }> = [];
+      return (e: Event) => {
+        const d = (e as CustomEvent).detail as { tiles: Array<{ x: number; y: number; layer?: string }> } | null;
+        const nextTiles = (d?.tiles ?? []).map((t) => ({ x: t.x, y: t.y }));
+        // Skip no-ops so shift+arrow clamped at edges doesn't litter
+        // the undo stack with empty entries.
+        const same =
+          nextTiles.length === prevTiles.length &&
+          nextTiles.every((t, i) => t.x === prevTiles[i]?.x && t.y === prevTiles[i]?.y);
+        if (!same) {
+          dispatch({ type: "SET_SELECTION", tiles: nextTiles, oldTiles: prevTiles });
+        }
+        prevTiles = nextTiles;
+      };
+    })();
+    window.addEventListener("editor:selection-change", onSelectionChangeDispatch);
+
     return () => {
       window.removeEventListener("editor:tint-click", onTintClick);
       window.removeEventListener("editor:set-tool", onSetTool);
       window.removeEventListener("editor:hover-tile", onHoverTile);
       window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("editor:tile-paint", onTilePaint);
+      window.removeEventListener("editor:tile-paint-batch", onTilePaintBatch);
+      window.removeEventListener("editor:apply-tint-at", onApplyTintAt);
+      window.removeEventListener("editor:paste-snapshot", onPasteSnapshot);
+      window.removeEventListener("editor:collision-toggle", onCollisionToggle);
+      window.removeEventListener("editor:selection-change", onSelectionChangeDispatch);
     };
   }, []);
 
@@ -3758,6 +4403,9 @@ function EditorInner() {
       };
     }
     (window as any).__EDITOR_TILE_TINTS__ = resolved;
+    // Raw entries (pre-resolution) — needed by ⌘C clipboard capture so
+    // paste can SET_TILE_TINT with the same shape (presetId-aware).
+    (window as any).__EDITOR_TILE_TINTS_RAW__ = state.tileTints;
     emitEditorEvent("editor:refresh-tints", {});
   }, [state.tileTints, state.catalog]);
 
@@ -3779,18 +4427,29 @@ function EditorInner() {
     };
   }, []);
 
-  // Listen for right-click context menu from Phaser
+  // Listen for right-click context menu from the Phaser canvas. Also
+  // captures which tile the cursor was on so tile-context actions can
+  // target it (Tint / Fill bucket / Erase / Toggle collision / …).
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      // Only intercept right-clicks on the canvas
-      if (e.target instanceof HTMLCanvasElement) {
-        e.preventDefault();
-        setContextMenu({
-          x: e.clientX,
-          y: e.clientY,
-          entityId: state.selectedEntityId,
-        });
+      if (!(e.target instanceof HTMLCanvasElement)) return;
+      e.preventDefault();
+      const g = (window as any).__EDITOR_GAME__;
+      const scene = g?.scene?.getScene("EditorScene");
+      let tileX: number | undefined, tileY: number | undefined;
+      if (scene?.cameras?.main && scene.tilemap) {
+        const canvas = e.target as HTMLCanvasElement;
+        const r = canvas.getBoundingClientRect();
+        const wp = scene.cameras.main.getWorldPoint(e.clientX - r.left, e.clientY - r.top);
+        tileX = Math.floor(wp.x / 16);
+        tileY = Math.floor(wp.y / 16);
       }
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        entityId: state.selectedEntityId,
+        tileX, tileY,
+      });
     };
     window.addEventListener("contextmenu", handler);
     return () => window.removeEventListener("contextmenu", handler);
@@ -3803,10 +4462,52 @@ function EditorInner() {
 
       // Ctrl/Cmd shortcuts always work (even in text inputs)
       if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setPaletteOpen(true); return; }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "z") { e.preventDefault(); dispatch({ type: "REDO" }); return; }
-      if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); dispatch({ type: "UNDO" }); }
-      if ((e.metaKey || e.ctrlKey) && e.key === "y") { e.preventDefault(); dispatch({ type: "REDO" }); }
+      // Shortcut path — same command bus the toolbar chip uses, so a
+      // new undoable action registered in commandBus.ts automatically
+      // works via ⌘Z/⌘Y without touching this handler.
+      const kbEmit = (event: string, detail: unknown) =>
+        window.dispatchEvent(new CustomEvent(event, { detail }));
+      const peekAndDispatch = (kind: "UNDO" | "REDO") =>
+        peekReplayAndDispatch(kind, state.undoStack, state.redoStack, dispatch, kbEmit);
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "z") { e.preventDefault(); peekAndDispatch("REDO"); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); peekAndDispatch("UNDO"); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === "y") { e.preventDefault(); peekAndDispatch("REDO"); return; }
       if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); window.dispatchEvent(new CustomEvent("editor:trigger-save")); }
+      // ⌘⌥C — copy selection as clipboard, foreground only. Zeroes the
+      // ground GIDs at capture so any subsequent paste (even "both")
+      // preserves the destination ground. Must be checked BEFORE plain
+      // ⌘C since altKey satisfies both patterns.
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "c" || e.key === "C" || e.key === "ç") && !inTextInput) {
+        e.preventDefault();
+        if ((window as any).__EDITOR_TILE_SELECTION__ && (window as any).__EDITOR_TILE_SELECTION__.length > 0) {
+          emitEditorEvent("editor:copy-selection-as-block", {
+            tiles: (window as any).__EDITOR_TILE_SELECTION__, fgOnly: true,
+          });
+          window.dispatchEvent(new CustomEvent("editor:toast", { detail: { message: "Copied foreground only — ⌘V to paste" } }));
+        } else {
+          window.dispatchEvent(new CustomEvent("editor:toast", { detail: { message: "Nothing selected. Double-click or ⇧+click to select tiles first." } }));
+        }
+        return;
+      }
+      // ⌘C — copy selection (ground + decor).
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "c" || e.key === "C") && !inTextInput) {
+        e.preventDefault();
+        if ((window as any).__EDITOR_TILE_SELECTION__ && (window as any).__EDITOR_TILE_SELECTION__.length > 0) {
+          emitEditorEvent("editor:copy-selection-as-block", {
+            tiles: (window as any).__EDITOR_TILE_SELECTION__, fgOnly: false,
+          });
+          window.dispatchEvent(new CustomEvent("editor:toast", { detail: { message: `Copied ${(window as any).__EDITOR_TILE_SELECTION__.length} tile(s) — ⌘V to paste` } }));
+        } else {
+          window.dispatchEvent(new CustomEvent("editor:toast", { detail: { message: "Nothing selected. Double-click or ⇧+click to select tiles first." } }));
+        }
+        return;
+      }
+      // ⌘V — paste clipboard at the cursor's current tile.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "v" || e.key === "V") && !inTextInput) {
+        e.preventDefault();
+        emitEditorEvent("editor:paste-at-cursor", null);
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === "d" && !inTextInput) {
         e.preventDefault();
         if (state.selectedEntityId) {
@@ -3820,6 +4521,17 @@ function EditorInner() {
 
       // Skip non-modifier shortcuts when typing in text fields
       if (inTextInput) return;
+
+      // ⇧+Arrow extends the tile selection one cell in that direction.
+      // Only fires when no other modifier is held (Cmd/Alt+arrow are
+      // reserved for future gestures, and plain arrows pan the camera).
+      if (e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+        const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+        e.preventDefault();
+        emitEditorEvent("editor:extend-selection-arrow", { dx, dy });
+        return;
+      }
 
       if (e.key === "Escape") {
         // Tiered Esc — pops one level of UI/selection per press so the user
@@ -3843,7 +4555,14 @@ function EditorInner() {
           emitEditorEvent("editor:clear-pending-ops", {});
           return;
         }
-        // Level 3: copied stamp block (tells Phaser to drop it)
+        // Level 3: active tile selection (staged tiles for copy/delete/tint).
+        // Fires before the clipboard and entity clears so the user's most
+        // recent working state unwinds first.
+        if (((window as any).__EDITOR_TILE_SELECTION__ ?? []).length > 0) {
+          emitEditorEvent("editor:clear-tile-selection", null);
+          return;
+        }
+        // Level 4: copied stamp block (tells Phaser to drop it)
         if (blockStatus) {
           emitEditorEvent("editor:clear-block-selection", {});
           return;
@@ -3864,6 +4583,16 @@ function EditorInner() {
       // Old tool-switch shortcuts (1–5) removed — there's a single Edit mode now
       if (e.key === "?" || (e.shiftKey && e.key === "/")) setShowShortcuts((p) => !p);
       if (e.key === "Delete" || e.key === "Backspace") {
+        // Priority: tile selection first (most common & explicit), then
+        // entity selection (opens delete-confirm dialog). The tile path
+        // has no confirm — it's batched as a single undo-able stroke so
+        // ⌘Z brings everything back instantly.
+        const hasTileSelection = (window as any).__EDITOR_TILE_SELECTION__ && (window as any).__EDITOR_TILE_SELECTION__.length > 0;
+        if (hasTileSelection) {
+          e.preventDefault();
+          emitEditorEvent("editor:delete-selection", null);
+          return;
+        }
         if (state.selectedEntityId) {
           setDeleteConfirm(state.selectedEntityId);
         }
@@ -3873,10 +4602,29 @@ function EditorInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [
     state.selectedEntityId, state.selectedEntityIds, state.entities,
+    // undoStack/redoStack must be deps or ⌘Z reads a stale snapshot and
+    // misses PAINT_TILE replays; the handler fires against whichever
+    // stack was current when the effect last ran.
+    state.undoStack, state.redoStack,
     blockStatus, pendingOp, tintPopup, contextMenu, deleteConfirm,
     showShortcuts, showHistory, showRelationships, dialogPreview,
     paletteOpen,
   ]);
+
+  // Mirror UI flags to the status bar via an event bus — the Esc preview
+  // needs to know which modal is open without prop-drilling through the
+  // component tree.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("editor:ui-flags", {
+      detail: {
+        paletteOpen, dialogPreview: !!dialogPreview, deleteConfirm: !!deleteConfirm,
+        showShortcuts, showHistory, showRelationships,
+        pendingPlacement: !!pendingPlacement,
+        blockCopied: !!blockStatus,
+        selectionCount,
+      },
+    }));
+  }, [paletteOpen, dialogPreview, deleteConfirm, showShortcuts, showHistory, showRelationships, pendingPlacement, blockStatus, selectionCount]);
 
   if (state.loading) {
     return (
@@ -3901,6 +4649,7 @@ function EditorInner() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <ToastHost />
       <Toolbar />
       <ModifierBar />
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -4039,6 +4788,8 @@ function EditorInner() {
           x={contextMenu.x}
           y={contextMenu.y}
           entityId={contextMenu.entityId}
+          tileX={contextMenu.tileX}
+          tileY={contextMenu.tileY}
           onClose={() => setContextMenu(null)}
         />
       )}
@@ -4218,19 +4969,23 @@ function EditorInner() {
             <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
               {state.undoStack.length === 0 && <div style={{ fontSize: 11, color: "#555", padding: 8 }}>No actions recorded</div>}
               {[...state.undoStack].reverse().map((entry, i) => {
-                const a = entry.action;
-                let desc: string = a.type;
-                if (a.type === "MOVE_ENTITY") desc = `Move ${a.id} → (${a.x}, ${a.y})`;
-                if (a.type === "UPDATE_FIELD") desc = `${a.id}.${a.field} = ${JSON.stringify(a.value).substring(0, 30)}`;
-                if (a.type === "DELETE_ENTITY") desc = `Delete ${a.id}`;
-                if (a.type === "ADD_ENTITY") desc = `Add ${a.entity.id}`;
+                // describeAction covers every current + future action
+                // type — keeps the panel in sync automatically when
+                // new action types are added to commandBus.ts.
+                const desc = describeAction(entry.action);
+                const isNext = i === 0;
                 return (
                   <div key={i} style={{
                     padding: "4px 8px", fontSize: 10, borderBottom: "1px solid #2a2a40",
-                    color: i === 0 ? "#fff" : "#888",
+                    color: isNext ? "#fff" : "#888",
+                    background: isNext ? "rgba(74, 158, 237, 0.12)" : "transparent",
                   }}>
-                    <span style={{ color: "#4a9eed", marginRight: 4 }}>#{state.undoStack.length - i}</span>
+                    <span style={{ color: "#4a9eed", marginRight: 4, fontFamily: "monospace" }}>#{state.undoStack.length - i}</span>
+                    {isNext && <span style={{ color: "#fbbf24", marginRight: 4 }} title="Next ⌘Z target">↶</span>}
                     {desc}
+                    {entry.coalesceKey && (
+                      <span style={{ color: "#444", fontSize: 9, marginLeft: 6 }} title="Coalesced group">· {entry.coalesceKey}</span>
+                    )}
                   </div>
                 );
               })}
@@ -4272,50 +5027,22 @@ function EditorInner() {
         );
       })()}
 
-      {/* Pending placement HUD — shows which entity is about to drop on
-          the next tile click. Follows the cursor. Esc cancels. */}
+      {/* ─── Cursor-following HUD stack ─────────────────────────────
+          Priority (only ONE shows at a time, picked in this order):
+          1. Placement preview   (when pendingPlacement is set)
+          2. Tile tooltip        (default — shows tile coord + GID + modifier hint)
+          Entity-hover bubble is rendered IN-SCENE by Phaser (not here)
+          and is suppressed by `hoveredEntityId` in EditorScene.update()
+          so it can't stack with the tile tooltip. The in-scene tooltip
+          takes priority over both react-side HUDs because the pointer is
+          on an entity, which suppresses the hoverTile emit upstream. */}
       {pendingPlacement && (() => {
-        // Compute display info per placement kind.
-        let title = "Place entity";
-        let subtitle = "Click a tile · Esc cancels";
-        let iconUrl: string | null = null;
-        let iconBg = "#22c55e";
-        const pp = pendingPlacement;
-        if (pp.kind === "species") {
-          title = `${pp.species.name} (#${String(pp.species.dex).padStart(3, "0")})`;
-          subtitle = "Place pokémon NPC · Esc cancels";
-          iconUrl = pp.species.spriteUrl;
-        } else if (pp.kind === "wild-pokemon") {
-          title = `Wild ${pp.species.name} (#${String(pp.species.dex).padStart(3, "0")})`;
-          subtitle = "Place wild encounter · Esc cancels";
-          iconUrl = pp.species.spriteUrl;
-          iconBg = "#a855f7";
-        } else if (pp.kind === "pokedex-entry") {
-          title = `${pp.name} (#${String(pp.pokedexNumber).padStart(3, "0")}) · project`;
-          subtitle = "Place portfolio pokémon NPC · Esc cancels";
-          iconUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pp.pokedexNumber}.png`;
-        } else if (pp.kind === "npc") {
-          title = `NPC: ${pp.spriteKey}`;
-          subtitle = "Place NPC · Esc cancels";
-          iconUrl = `/game/sprites/emerald/${pp.spriteKey}.png`;
-          iconBg = "#3b82f6";
-        } else if (pp.kind === "item" || pp.kind === "hidden-item") {
-          title = pp.kind === "hidden-item" ? `Hidden: ${pp.itemName}` : pp.itemName;
-          subtitle = pp.kind === "hidden-item" ? "Place hidden item · Esc cancels" : "Place pickup · Esc cancels";
-          iconBg = pp.kind === "hidden-item" ? "#ec4899" : "#f97316";
-        } else if (pp.kind === "sign") {
-          title = "Sign";
-          subtitle = "Place sign (edit text after) · Esc cancels";
-          iconBg = "#f59e0b";
-        } else if (pp.kind === "warp") {
-          title = "Warp";
-          subtitle = "Place warp (configure target after) · Esc cancels";
-          iconBg = "#8b5cf6";
-        } else if (pp.kind === "gate") {
-          title = "Gate";
-          subtitle = "Place gate (configure after) · Esc cancels";
-          iconBg = "#dc2626";
-        }
+        // Preview bubble reads its label + icon + accent from the same
+        // config table as the entity factory, so the preview always
+        // matches what will actually get dropped on click. Previously
+        // these two logic trees drifted — hidden-item had the wrong
+        // preview accent because its case was missing here.
+        const cfg = getPlacementConfig(pendingPlacement);
         return (
           <div style={{
             position: "fixed",
@@ -4323,23 +5050,23 @@ function EditorInner() {
             top: Math.min((hoverTile?.screenY ?? 200) + 24, window.innerHeight - 70),
             zIndex: 9997,
             background: "rgba(20, 20, 30, 0.92)",
-            color: iconBg,
+            color: cfg.iconBg,
             fontFamily: "monospace",
             fontSize: 11,
             padding: "6px 10px",
             borderRadius: 4,
-            border: `1px solid ${iconBg}`,
+            border: `1px solid ${cfg.iconBg}`,
             pointerEvents: "none",
             display: "flex", alignItems: "center", gap: 8,
           }}>
-            {iconUrl ? (
-              <img src={iconUrl} alt="" style={{ width: 32, height: 32, imageRendering: "pixelated" }} />
+            {cfg.iconUrl ? (
+              <img src={cfg.iconUrl} alt="" style={{ width: 32, height: 32, imageRendering: "pixelated" }} />
             ) : (
-              <div style={{ width: 32, height: 32, background: iconBg, opacity: 0.3, borderRadius: 4 }} />
+              <div style={{ width: 32, height: 32, background: cfg.iconBg, opacity: 0.3, borderRadius: 4 }} />
             )}
             <div>
-              <div style={{ fontWeight: 700 }}>{title}</div>
-              <div style={{ fontSize: 9, color: "#888" }}>{subtitle}</div>
+              <div style={{ fontWeight: 700 }}>{cfg.title}</div>
+              <div style={{ fontSize: 9, color: "#888" }}>{cfg.subtitle}</div>
             </div>
           </div>
         );
@@ -4373,74 +5100,107 @@ function EditorInner() {
       {/* Stamp block status HUD — sits in the top-left of the viewport and
           shows dimensions plus keyboard hints for rotate/flip. Hidden when
           no block is copied. */}
-      {blockStatus && (
-        <div style={{
-          position: "fixed",
-          left: 240, top: 48, zIndex: 9996,
-          background: "rgba(20, 20, 30, 0.85)",
-          color: "#4a9eed",
-          fontFamily: "monospace",
-          fontSize: 11,
-          padding: "4px 8px",
-          borderRadius: 4,
-          border: "1px solid #3a3a50",
-          pointerEvents: "none",
-          whiteSpace: "nowrap",
-        }}>
-          <span style={{ fontWeight: 700 }}>Stamp block: {blockStatus.width}×{blockStatus.height}</span>
-          <span style={{ color: "#888", marginLeft: 10, fontSize: 10 }}>
-            Click = paste · ⌘+drag = paint-paste · R = rotate · F = flip X · ⇧F = flip Y · Esc = clear
-          </span>
-        </div>
-      )}
+      {blockStatus && (() => {
+        const mode = blockStatus.pasteMode ?? "both";
+        const modeLabel = mode === "both" ? "Both layers" : mode === "fg-only" ? "Foreground only" : "Background only";
+        const modeColor = mode === "both" ? "#4a9eed" : mode === "fg-only" ? "#22c55e" : "#f59e0b";
+        const cycleMode = () => {
+          // Cycle via the same keyboard path so the scene stays authoritative.
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "b", code: "KeyB", bubbles: true }));
+        };
+        return (
+          <div style={{
+            position: "fixed",
+            left: 240, top: 48, zIndex: 9996,
+            background: "rgba(20, 20, 30, 0.92)",
+            color: "#4a9eed",
+            fontFamily: "monospace",
+            fontSize: 11,
+            padding: "4px 8px",
+            borderRadius: 4,
+            border: "1px solid #3a3a50",
+            whiteSpace: "nowrap",
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <span style={{ fontWeight: 700 }}>
+              Block {blockStatus.width}×{blockStatus.height}
+              {typeof blockStatus.decorCount === "number" && blockStatus.decorCount > 0 && (
+                <span style={{ color: "#22c55e", marginLeft: 6 }}>· {blockStatus.decorCount} decor</span>
+              )}
+            </span>
+            <span
+              onClick={cycleMode}
+              title="Toggle paste mode (B) — decides whether ground tile, sprite decor, or both get pasted"
+              style={{
+                cursor: "pointer", userSelect: "none",
+                padding: "1px 6px", borderRadius: 3,
+                background: "#0d0d1a", border: `1px solid ${modeColor}`,
+                color: modeColor, fontSize: 10, fontWeight: 700,
+              }}
+            >
+              {modeLabel} <span style={{ color: "#666" }}>B</span>
+            </span>
+            <span style={{ color: "#888", fontSize: 10 }}>
+              Click = paste · ⌘+drag = paint-paste · R rotate · F flip · Esc clear
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Tile Tint popup */}
       {/* Hovered tile coordinate badge — follows the cursor. Hidden
           during placement mode so the species HUD is unobstructed. */}
-      {hoverTile && !pendingPlacement && (
-        <div style={{
-          position: "fixed",
-          left: Math.min(hoverTile.screenX + 18, window.innerWidth - 180),
-          top: Math.min(hoverTile.screenY + 18, window.innerHeight - 60),
-          zIndex: 9997,
-          pointerEvents: "none",
-          background: "rgba(0, 0, 0, 0.85)",
-          color: "#ffd700",
-          fontFamily: "monospace",
-          fontSize: 12,
-          fontWeight: 700,
-          padding: "4px 8px",
-          borderRadius: 4,
-          border: "1px solid #4a4a6a",
-          whiteSpace: "nowrap",
-        }}>
-          <div>Tile ({hoverTile.x}, {hoverTile.y})</div>
-          <div style={{ fontSize: 10, color: "#aaa", fontWeight: 400 }}>
-            GID: {hoverTile.gid}{hoverTile.hasTopSprite ? " · has top sprite" : ""}
+      {hoverTile && !pendingPlacement && (() => {
+        // Modifier-aware action hint. Shows what the next click *will*
+        // do (paint / erase / fill / multi-select) instead of making the
+        // user consult the shortcut bar every time. Color matches the
+        // intent so it's scannable at a glance.
+        let hint: { label: string; color: string } | null = null;
+        if (modKeys.meta && modKeys.shift) hint = { label: "⌘⇧ Click · Fill bucket with picked GID", color: "#fbbf24" };
+        else if (modKeys.meta) hint = { label: `⌘ Click · Paint GID ${hoverTile.gid}`, color: "#22c55e" };
+        else if (modKeys.alt) hint = { label: "⌥ Click · Erase tile + decor", color: "#ef4444" };
+        else if (modKeys.shift) hint = { label: "⇧ Click · Add to selection · ⇧ Drag · Copy block", color: "#60a5fa" };
+        // When any modifier is held, the tooltip is about to be an action
+        // target — don't let it sit on top of the tile the user is
+        // clicking. Anchor to the viewport's top-right corner instead so
+        // the cursor's target tile stays fully visible. (Plain-hover
+        // keeps the cursor-following position for discoverability.)
+        const anchored = !!hint;
+        const position = anchored
+          ? { right: 16, top: 92, left: "auto" as const }
+          : {
+              left: Math.min(hoverTile.screenX + 18, window.innerWidth - 220),
+              top: Math.min(hoverTile.screenY + 18, window.innerHeight - 80),
+            };
+        return (
+          <div style={{
+            position: "fixed",
+            ...position,
+            zIndex: 9997,
+            pointerEvents: "none",
+            background: "rgba(0, 0, 0, 0.88)",
+            color: "#ffd700",
+            fontFamily: "monospace",
+            fontSize: 12,
+            fontWeight: 700,
+            padding: "4px 8px",
+            borderRadius: 4,
+            border: `1px solid ${hint?.color ?? "#4a4a6a"}`,
+            whiteSpace: "nowrap",
+          }}>
+            <div>Tile ({hoverTile.x}, {hoverTile.y})</div>
+            <div style={{ fontSize: 10, color: "#aaa", fontWeight: 400 }}>
+              GID: {hoverTile.gid}{hoverTile.hasTopSprite ? " · has top sprite" : ""}
+            </div>
+            {hint && (
+              <div style={{ fontSize: 10, color: hint.color, fontWeight: 600, marginTop: 2, borderTop: "1px solid #2a2a40", paddingTop: 2 }}>
+                {hint.label}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {tintPopup && (
-        <TintPopup
-          key={`${tintPopup.mapId}:${tintPopup.x},${tintPopup.y}:${tintPopup.selected.length}`}
-          popup={tintPopup}
-          tileTints={state.tileTints}
-          tintPresets={state.catalog?.tintPresets || []}
-          onChange={(_key, entry) => {
-            // Apply the tint to every selected tile so shift-click multi-select
-            // works: all highlighted tiles get the same adjustment.
-            for (const t of tintPopup.selected) {
-              const k = `${t.mapId}:${t.layer}:${t.x},${t.y}`;
-              dispatch({ type: "SET_TILE_TINT", key: k, entry });
-            }
-          }}
-          onClose={() => { setTintPopup(null); emitEditorEvent("editor:tint-close", {}); }}
-          onSavePreset={(preset) => {
-            dispatch({ type: "ADD_CATALOG_ENTRY", dataType: "tintPresets", entry: preset });
-          }}
-        />
-      )}
     </div>
   );
 }

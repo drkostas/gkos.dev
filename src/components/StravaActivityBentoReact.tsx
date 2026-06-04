@@ -31,16 +31,24 @@ type StravaTotals = {
 };
 
 function formatDistance(meters: number): string {
+  if (!Number.isFinite(meters) || meters < 0) return "—";
   if (meters === 0) return "0 km";
   const km = meters / 1000;
   return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`;
 }
 
 function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "—";
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+function formatActivityType(type: string): string {
+  // Split Strava's PascalCase sport types into readable words.
+  // "WeightTraining" → "Weight Training", "TrailRun" → "Trail Run".
+  return type.replace(/([a-z])([A-Z])/g, "$1 $2").trim();
 }
 
 function formatRelativeTime(isoDate: string): string {
@@ -60,8 +68,38 @@ function formatRelativeTime(isoDate: string): string {
   return `${Math.floor(diffDay / 365)}y ago`;
 }
 
+type Stat = { label: string; value: string };
+
+// Pick up to 3 meaningful stat columns for the given activity.
+// Cardio shows distance/moving/climbed. Strength or yoga fall back to
+// duration/HR/kudos so the grid never shows "0 km, 0m climbed" for a weight session.
+function pickStats(activity: StravaActivity): Stat[] {
+  const stats: Stat[] = [];
+  if (Number.isFinite(activity.distanceMeters) && activity.distanceMeters > 0) {
+    stats.push({ label: "distance", value: formatDistance(activity.distanceMeters) });
+  }
+  if (Number.isFinite(activity.movingTimeSeconds) && activity.movingTimeSeconds > 0) {
+    stats.push({ label: "moving", value: formatDuration(activity.movingTimeSeconds) });
+  }
+  if (Number.isFinite(activity.elevationGainMeters) && activity.elevationGainMeters > 0) {
+    stats.push({ label: "climbed", value: `${Math.round(activity.elevationGainMeters)}m` });
+  }
+  if (stats.length < 3 && activity.averageHeartrate !== null && Number.isFinite(activity.averageHeartrate) && activity.averageHeartrate > 0) {
+    stats.push({ label: "avg hr", value: `${Math.round(activity.averageHeartrate)} bpm` });
+  }
+  if (stats.length < 3 && Number.isFinite(activity.kudosCount) && activity.kudosCount > 0) {
+    stats.push({ label: "kudos", value: String(activity.kudosCount) });
+  }
+  if (stats.length < 3 && activity.type) {
+    stats.push({ label: "type", value: formatActivityType(activity.type) });
+  }
+  return stats.slice(0, 3);
+}
+
 function activityIcon(type: string): string {
-  // Sport types from Strava: Run, Ride, Swim, Walk, Hike, etc.
+  // Strava sport types: Run, TrailRun, Ride, EBikeRide, MountainBikeRide, Hike,
+  // Swim, Walk, WeightTraining, Workout, Crossfit, Yoga, AlpineSki, Snowboard,
+  // Kitesurf, Windsurf, StandUpPaddling, Rowing, Kayaking, RockClimbing, etc.
   const lower = type.toLowerCase();
   if (lower.includes("run")) return "🏃";
   if (lower.includes("ride") || lower.includes("bike") || lower.includes("cycle")) return "🚴";
@@ -69,9 +107,20 @@ function activityIcon(type: string): string {
   if (lower.includes("walk")) return "🚶";
   if (lower.includes("hike")) return "🥾";
   if (lower.includes("yoga")) return "🧘";
+  if (lower.includes("kite")) return "🪁"; // Kitesurf — checked before "surf"
+  if (lower.includes("snowboard")) return "🏂";
   if (lower.includes("ski")) return "⛷️";
-  if (lower.includes("surf")) return "🏄";
-  if (lower.includes("workout") || lower.includes("weight")) return "💪";
+  if (lower.includes("surf") || lower.includes("paddl")) return "🏄"; // Surf, Windsurf, StandUpPaddling
+  if (lower.includes("sail")) return "⛵";
+  if (lower.includes("row") || lower.includes("kayak") || lower.includes("canoe")) return "🚣";
+  if (lower.includes("climb")) return "🧗";
+  if (lower.includes("skate")) return "🛹";
+  if (
+    lower.includes("weight") ||
+    lower.includes("strength") ||
+    lower.includes("workout") ||
+    lower.includes("crossfit")
+  ) return "💪";
   return "🏅";
 }
 
@@ -152,24 +201,14 @@ export function StravaActivityBentoReact() {
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-lg font-semibold tracking-tight text-purple-primary">
-                    {formatDistance(activity.distanceMeters)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wider text-text-tertiary">distance</p>
-                </div>
-                <div>
-                  <p className="text-lg font-semibold tracking-tight text-purple-primary">
-                    {formatDuration(activity.movingTimeSeconds)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wider text-text-tertiary">moving</p>
-                </div>
-                <div>
-                  <p className="text-lg font-semibold tracking-tight text-purple-primary">
-                    {Math.round(activity.elevationGainMeters)}m
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wider text-text-tertiary">climbed</p>
-                </div>
+                {pickStats(activity).map((s) => (
+                  <div key={s.label}>
+                    <p className="text-lg font-semibold tracking-tight text-purple-primary">
+                      {s.value}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider text-text-tertiary">{s.label}</p>
+                  </div>
+                ))}
               </div>
               <div className="mt-auto flex items-center justify-between pt-3 text-xs text-text-tertiary">
                 <span>{formatRelativeTime(activity.startDate)}</span>

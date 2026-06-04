@@ -42,7 +42,7 @@ const featuredArticles = (await getCollection("blog"))
             <AnimatedText
               as="h1"
               delay={0.3}
-              className="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]"
+              className="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]"
               client:load
             >
               Hey, I'm Kostas! <br /> ML Engineer, Researcher and Builder.
@@ -56,7 +56,7 @@ const featuredArticles = (await getCollection("blog"))
                 className="leading-8 text-text-secondary"
                 client:load
               >
-                I'm a PhD ML Engineer at Amazon who ships AI products, publishes research at NeurIPS and WACV, and contributes to open source with 8,300+ GitHub followers.
+                ML engineer with a PhD. I split my time between research and shipping things that actually run in production. Mostly self-supervised learning, LLMs, and computer vision.
               </AnimatedText>
             </div>
           </GridWrapper>
@@ -90,7 +90,7 @@ const featuredArticles = (await getCollection("blog"))
               <AboutMeBento />
             </div>
             <div class="md:col-span-12 lg:col-span-7 lg:row-span-8">
-              <ConnectionsBentoReact variant="workbench" linkTo="/workbench" client:visible />
+              <ConnectionsBentoReact variant="projects" linkTo="/projects" client:visible />
             </div>
             <div class="md:col-span-7 md:row-start-1 lg:col-span-5 lg:row-span-7">
               <ToolboxBento />
