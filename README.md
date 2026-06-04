@@ -1,4 +1,4 @@
-# portfolio-v2
+# drkostas.github.io
 
 The source for [gkos.dev](https://gkos.dev), my personal portfolio + blog. Built with Astro, deployed on Vercel.
 

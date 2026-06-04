@@ -6,7 +6,7 @@ export const siteMetadata = {
     "ML engineer with a PhD. Research, side projects, and open source on self-supervised learning, LLMs, and computer vision.",
   language: "en-us",
   siteUrl: "https://gkos.dev",
-  siteRepo: "https://github.com/drkostas/portfolio-v2",
+  siteRepo: "https://github.com/drkostas/drkostas.github.io",
   avatarImage: "/kostas_neurips_square.jpg",
   socialBanner: "/og-image.png",
   email: "mailto:gkos.mldev@gmail.com",
