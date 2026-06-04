@@ -1,0 +1,65 @@
+[
+  {
+    "name": "Hairong Qi",
+    "openalexId": "A5111499496",
+    "papersTogether": 6,
+    "papers": [
+      "MEDiC: Multi-objective Exploration of Distillation from CLIP",
+      "Trustworthy AI for Early Dementia Detection: Robust Feature Masking and Clinical Interpretability",
+      "Koopman-Based Transition Detection in Satellite Imagery: Unveiling Construction Phase Dynamics Through Material Histogram Analysis",
+      "Advancing Multi-Scale Remote Sensing Analysis Through Self-Supervised Learning Fine-Tuning Strategies",
+      "Cross-Scale MAE: A Tale of Multiscale Exploitation in Remote Sensing",
+      "Semantic segmentation in aerial imagery using multi-level contrastive learning with local consistency"
+    ]
+  },
+  {
+    "name": "Maofeng Tang",
+    "openalexId": "A5003113965",
+    "papersTogether": 5,
+    "papers": [
+      "MEDiC: Multi-objective Exploration of Distillation from CLIP",
+      "Koopman-Based Transition Detection in Satellite Imagery: Unveiling Construction Phase Dynamics Through Material Histogram Analysis",
+      "Advancing Multi-Scale Remote Sensing Analysis Through Self-Supervised Learning Fine-Tuning Strategies",
+      "Cross-Scale MAE: A Tale of Multiscale Exploitation in Remote Sensing",
+      "Semantic segmentation in aerial imagery using multi-level contrastive learning with local consistency"
+    ]
+  },
+  {
+    "name": "Cody Champion",
+    "openalexId": "A5058150754",
+    "papersTogether": 3,
+    "papers": [
+      "Koopman-Based Transition Detection in Satellite Imagery: Unveiling Construction Phase Dynamics Through Material Histogram Analysis",
+      "Advancing Multi-Scale Remote Sensing Analysis Through Self-Supervised Learning Fine-Tuning Strategies",
+      "Semantic segmentation in aerial imagery using multi-level contrastive learning with local consistency"
+    ]
+  },
+  {
+    "name": "Marc Bosch",
+    "openalexId": "A5048344565",
+    "papersTogether": 3,
+    "papers": [
+      "Koopman-Based Transition Detection in Satellite Imagery: Unveiling Construction Phase Dynamics Through Material Histogram Analysis",
+      "Advancing Multi-Scale Remote Sensing Analysis Through Self-Supervised Learning Fine-Tuning Strategies",
+      "Semantic segmentation in aerial imagery using multi-level contrastive learning with local consistency"
+    ]
+  },
+  {
+    "name": "Fanqi Wang",
+    "openalexId": "A5058742643",
+    "papersTogether": 2,
+    "papers": [
+      "Koopman-Based Transition Detection in Satellite Imagery: Unveiling Construction Phase Dynamics Through Material Histogram Analysis",
+      "Advancing Multi-Scale Remote Sensing Analysis Through Self-Supervised Learning Fine-Tuning Strategies"
+    ]
+  },
+  {
+    "name": "Weisheng Tang",
+    "openalexId": null,
+    "papersTogether": 2,
+    "papers": [
+      "Koopman-Based Transition Detection in Satellite Imagery: Unveiling Construction Phase Dynamics Through Material Histogram Analysis",
+      "Advancing Multi-Scale Remote Sensing Analysis Through Self-Supervised Learning Fine-Tuning Strategies"
+    ]
+  }
+]

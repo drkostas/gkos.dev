@@ -5,6 +5,8 @@ type Person = {
   role: string;
   url?: string;
   avatar?: string; // URL to avatar image
+  /** Optional badge rendered to the right of the row (e.g. "8 papers"). */
+  badge?: string;
 };
 
 const DEFAULT_PEOPLE: Person[] = [
@@ -34,8 +36,12 @@ const COLORS = [
 
 export function PeopleGridBentoReact({
   people = DEFAULT_PEOPLE,
+  heading = "People I Learn From",
+  subhead = "researchers & engineers",
 }: {
   people?: Person[];
+  heading?: string;
+  subhead?: string;
 }) {
   return (
     <div className="group relative flex h-full flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 transition-colors hover:bg-white">
@@ -43,8 +49,8 @@ export function PeopleGridBentoReact({
 
       <div className="relative z-20 mb-4 flex items-start justify-between">
         <div>
-          <h2 className="font-medium text-text-primary">People I Learn From</h2>
-          <p className="text-xs text-text-tertiary">researchers & engineers</p>
+          <h2 className="font-medium text-text-primary">{heading}</h2>
+          <p className="text-xs text-text-tertiary">{subhead}</p>
         </div>
       </div>
 
@@ -63,6 +69,11 @@ export function PeopleGridBentoReact({
                 </p>
                 <p className="truncate text-xs text-text-tertiary">{person.role}</p>
               </div>
+              {person.badge && (
+                <span className="shrink-0 rounded-full bg-purple-secondary px-2 py-0.5 font-mono text-[10px] font-semibold text-purple-primary">
+                  {person.badge}
+                </span>
+              )}
               {person.url && (
                 <svg
                   className="h-3.5 w-3.5 shrink-0 text-text-tertiary"

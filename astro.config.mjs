@@ -4,19 +4,58 @@ import mdx from "@astrojs/mdx";
 import sitemap from "@astrojs/sitemap";
 import react from "@astrojs/react";
 import vercel from "@astrojs/vercel";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import rehypeSlug from "rehype-slug";
+import rehypeAutolinkHeadings from "rehype-autolink-headings";
+
+// Heading autolink config: add a `.heading-anchor` child to each heading
+// so it picks up our CSS for hover-reveal + # icon.
+const autolinkOptions = {
+  behavior: "append",
+  properties: {
+    className: ["heading-anchor"],
+    ariaLabel: "Link to this section",
+  },
+  content: {
+    type: "element",
+    tagName: "span",
+    properties: { className: ["heading-anchor-icon"] },
+    children: [{ type: "text", value: "#" }],
+  },
+};
 
 export default defineConfig({
   site: "https://gkos.dev",
   output: "server",
-  // Vercel adapter — runs API routes as Vercel Functions on Fluid Compute.
-  // imageService enables Vercel's built-in image optimization.
-  // (Analytics handled by Cloudflare Web Analytics — see Layout.astro.)
   adapter: vercel({
     imageService: true,
   }),
+  vite: {
+    server: {
+      // Allow ngrok / tunnel hosts so the dev server is reachable from a phone.
+      // Safe to leave in: only affects `astro dev`, never the production build.
+      allowedHosts: [".ngrok-free.app", ".ngrok.app", ".ngrok.io", ".trycloudflare.com"],
+    },
+  },
+  markdown: {
+    remarkPlugins: [remarkMath],
+    rehypePlugins: [
+      rehypeSlug,
+      [rehypeAutolinkHeadings, autolinkOptions],
+      rehypeKatex,
+    ],
+  },
   integrations: [
     tailwind(),
-    mdx(),
+    mdx({
+      remarkPlugins: [remarkMath],
+      rehypePlugins: [
+        rehypeSlug,
+        [rehypeAutolinkHeadings, autolinkOptions],
+        rehypeKatex,
+      ],
+    }),
     sitemap(),
     react(),
   ],

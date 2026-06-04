@@ -1,7 +1,10 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
+import PageHeader from "@/components/PageHeader.astro";
+import { ContactCompactReact } from "@/components/ContactCompactReact";
+import { RSSSubscribeCard } from "@/components/RSSSubscribeCard";
+import { siteMetadata } from "@/data/siteMetadata";
 import { FeaturedProjectCardReact } from "@/components/FeaturedProjectCardReact";
 import { projects, PROJECT_CATEGORIES } from "@/data/projects";
 
@@ -16,17 +19,17 @@ const initialCategory = "";
 <Layout title="Projects | Kostas Georgiou">
   <div class="mt-14 md:mt-16">
     <GridWrapper class="mb-16">
-      <h1
-        id="projects-heading"
-        class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]"
-      >
-        A collection of projects I've built and shipped.
-      </h1>
+      <PageHeader
+        titleId="projects-heading"
+        title="Projects I've built and shipped."
+        subtitle="Some I'm proud of, some I'd rewrite, some I forgot I built."
+      />
     </GridWrapper>
 
     {/* Featured section — hidden when a category is active */}
     <div id="featured-section" class:list={["mb-16", initialCategory ? "hidden" : ""]}>
       <GridWrapper>
+        <h2 class="mb-4 font-mono text-xs uppercase tracking-widest text-text-secondary">Featured</h2>
         <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
           {featuredProjects.map((project, index) => (
             <FeaturedProjectCardReact
@@ -44,6 +47,9 @@ const initialCategory = "";
     </div>
 
     <div>
+      <GridWrapper class="mb-4">
+        <h2 class="font-mono text-xs uppercase tracking-widest text-text-secondary">All projects</h2>
+      </GridWrapper>
       <!-- Category pills -->
       <div class="border-b border-border-primary/50 px-4 pb-6">
         <div id="category-pills" class="flex flex-wrap gap-2">
@@ -189,9 +195,12 @@ const initialCategory = "";
       </div>
     </div>
 
-    <div class="mt-16">
-      <GetInTouchReact client:visible />
-    </div>
+    <GridWrapper class="mt-16">
+      <div class="grid gap-4 md:grid-cols-2 md:items-stretch">
+        <ContactCompactReact client:visible />
+        <RSSSubscribeCard client:visible siteUrl={siteMetadata.siteUrl} />
+      </div>
+    </GridWrapper>
   </div>
 </Layout>
 

@@ -1,0 +1,93 @@
+---
+export const prerender = false;
+
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getCollection } from "astro:content";
+
+// Admin tools — local-only. In production builds the route returns 404.
+// Guard goes AFTER imports so Astro's compiler doesn't treat them as
+// unreachable.
+if (import.meta.env.PROD) {
+  return new Response(null, { status: 404 });
+}
+
+const posts = (await getCollection("blog"))
+  .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf());
+
+function formatDate(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+---
+
+<AdminLayout title="Admin — Dashboard" pageLabel="Dashboard">
+  <div class="mb-8 flex items-end justify-between">
+    <div>
+      <h1 class="text-3xl font-medium tracking-tight">Blog posts</h1>
+      <p class="mt-1 text-sm text-text-secondary">
+        {posts.length} {posts.length === 1 ? "post" : "posts"} (including drafts).
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/admin/images" class="inline-flex items-center rounded-full border border-border-primary px-4 py-2 text-sm font-medium text-text-primary hover:border-purple-primary hover:text-purple-primary">
+        Image library
+      </a>
+      <a href="/admin/blog/new" class="inline-flex items-center gap-2 rounded-full bg-purple-primary px-4 py-2 text-sm font-medium text-white hover:bg-purple-primary/90">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+        New post
+      </a>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-xl border border-border-primary">
+    <table class="w-full">
+      <thead class="border-b border-border-primary bg-bg-primary/40">
+        <tr class="text-left text-xs font-medium uppercase tracking-wider text-text-tertiary">
+          <th class="px-4 py-3">Title</th>
+          <th class="px-4 py-3">Date</th>
+          <th class="px-4 py-3">Categories</th>
+          <th class="px-4 py-3">Status</th>
+          <th class="px-4 py-3 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border-primary/60">
+        {posts.map((post) => (
+          <tr class="hover:bg-bg-primary/40">
+            <td class="px-4 py-3 text-sm font-medium text-text-primary">{post.data.title}</td>
+            <td class="px-4 py-3 font-mono text-xs text-text-secondary">{formatDate(post.data.publishedAt)}</td>
+            <td class="px-4 py-3">
+              <div class="flex flex-wrap gap-1">
+                {(post.data.categories || []).map((c: string) => (
+                  <span class="rounded-full border border-border-primary px-2 py-0.5 text-[10px] text-text-tertiary">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </td>
+            <td class="px-4 py-3 text-xs">
+              {post.data.draft ? (
+                <span class="inline-block rounded-full bg-amber-500/10 px-2 py-0.5 font-medium text-amber-400">
+                  Draft
+                </span>
+              ) : (
+                <span class="inline-block rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-400">
+                  Published
+                </span>
+              )}
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex justify-end gap-2">
+                <a href={`/blog/${post.id}`} target="_blank" class="text-xs font-medium text-text-secondary hover:text-purple-primary">View</a>
+                <span class="text-text-tertiary">·</span>
+                <a href={`/admin/blog/${post.id}`} class="text-xs font-medium text-purple-primary hover:text-purple-primary/80">Edit</a>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</AdminLayout>

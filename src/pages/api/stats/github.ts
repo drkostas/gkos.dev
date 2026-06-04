@@ -15,15 +15,11 @@ export const GET: APIRoute = async () => {
     getUserContributions("drkostas"),
   ]);
 
-  // Coffee cups: each day's contribution level (0-4) = coffees that day.
-  // Level 0 (no commits) = 0 cups, level 4 (heavy day) = 4 cups.
-  // This gives a realistic ~1-2 cups/day average for an active developer.
-  let coffeeCups = 0;
-  if (contributions) {
-    coffeeCups = contributions.weeks
-      .flat()
-      .reduce((sum, day) => sum + day.level, 0);
-  }
+  // Coffee cups: total commits divided by 4.
+  // Anchor ratio: a heavy coffee day (~3-4 cups) tends to land around 12-16
+  // commits, so 1 cup ≈ 4 commits. This scales linearly with effort instead
+  // of being clipped by the GitHub contribution level cap at 4.
+  const coffeeCups = Math.round((contributions?.totalContributions ?? 0) / 4);
 
   return new Response(
     JSON.stringify({

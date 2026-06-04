@@ -1,14 +1,37 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
+import { RSSSubscribeCard } from "@/components/RSSSubscribeCard";
 import { ReadingProgress } from "@/components/ReadingProgress";
+import { HighlightMatches } from "@/components/HighlightMatches";
+import { BlogImageEditor } from "@/components/admin/BlogImageEditor";
+import { ReactionPickerReact } from "@/components/ReactionPickerReact";
 import { getCollection, getEntry, render } from "astro:content";
+import { siteMetadata } from "@/data/siteMetadata";
+
+const WORDS_PER_MINUTE = 200;
 
 const { slug } = Astro.params;
 const post = await getEntry("blog", slug!);
 if (!post) return Astro.redirect("/blog");
 const { Content } = await render(post);
+
+const wordCount = (post.body || "").trim().split(/\s+/).length;
+const readingMinutes = Math.max(1, Math.round(wordCount / WORDS_PER_MINUTE));
+
+// Resolve chronological neighbors. Posts sorted newest → oldest, so:
+//   "newer" is the one immediately BEFORE current in the array (lower index)
+//   "older" is the one immediately AFTER current (higher index)
+const allPosts = (await getCollection("blog"))
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf());
+const currentIndex = allPosts.findIndex((p) => p.id === post.id);
+const newerPost = currentIndex > 0 ? allPosts[currentIndex - 1] : null;
+const olderPost = currentIndex < allPosts.length - 1 ? allPosts[currentIndex + 1] : null;
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function formatDate(date: Date) {
   return date.toLocaleDateString("en-US", {
@@ -21,44 +44,104 @@ function formatDate(date: Date) {
 
 <Layout title={`${post.data.title} | Kostas Georgiou`}>
   <ReadingProgress client:load />
+  <HighlightMatches client:load />
+  {import.meta.env.DEV && <BlogImageEditor client:load />}
   <article class="relative">
     <div class="mx-auto max-w-3xl px-4 py-16">
       <!-- Hero image -->
       {post.data.imageName && (
         <GridWrapper>
           <img
-            class="drama-shadow mb-12 w-full rounded-xl object-cover"
+            class="blog-hero-img drama-shadow mb-12 w-full rounded-xl object-cover"
             src={`/blog/${post.data.imageName}`}
             alt=""
           />
         </GridWrapper>
       )}
 
-      <!-- Title + metadata -->
+      <!-- Title + summary + metadata -->
       <GridWrapper>
         <h1 class="mb-4 text-balance text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl">
           {post.data.title}
         </h1>
-        <div class="mb-12 flex items-center space-x-4 font-mono text-sm text-text-secondary">
-          <time datetime={post.data.publishedAt.toISOString()}>
-            {formatDate(post.data.publishedAt)}
-          </time>
+        <p class="mb-6 text-balance text-lg leading-8 text-text-secondary md:text-xl">
+          {post.data.summary}
+        </p>
+        <div class="mb-12 flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-border-primary pt-4">
+          <div class="flex items-center gap-3 font-mono text-sm text-text-secondary">
+            <time datetime={post.data.publishedAt.toISOString()}>
+              {formatDate(post.data.publishedAt)}
+            </time>
+            <span aria-hidden="true" class="text-text-tertiary">·</span>
+            <span class="text-text-tertiary">{readingMinutes} min read</span>
+          </div>
+          {(post.data.categories?.length ?? 0) > 0 && (
+            <div class="flex flex-wrap gap-1.5">
+              {post.data.categories!.map((cat: string) => (
+                <a
+                  href={`/blog?category=${encodeURIComponent(cat.toLowerCase())}`}
+                  class="rounded-full border border-border-primary px-2 py-0.5 text-xs font-medium text-text-tertiary transition-colors hover:border-purple-primary hover:text-purple-primary"
+                >
+                  {capitalize(cat)}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       </GridWrapper>
 
       <!-- MDX Content -->
       <div class="wrapper">
-        <div class="prose prose-lg max-w-none prose-p:leading-8 prose-p:text-text-secondary prose-a:text-indigo-600 prose-a:font-medium prose-headings:tracking-tighter prose-headings:font-medium prose-strong:font-medium prose-code:text-sm prose-img:drama-shadow prose-img:rounded-xl">
+        <div class="prose prose-lg max-w-none prose-p:leading-8 prose-p:text-text-secondary prose-a:text-purple-primary prose-a:font-medium prose-headings:tracking-tighter prose-headings:font-medium prose-headings:scroll-mt-24 prose-strong:font-medium prose-code:text-sm prose-img:drama-shadow prose-img:rounded-xl">
           <Content />
+          <ReactionPickerReact postSlug={slug} client:visible />
         </div>
       </div>
 
-      <!-- Related posts placeholder -->
-      <GridWrapper class="mt-16">
-        <div class="border-t border-dashed border-border-primary pt-8">
+      <!-- Newer / Older navigation -->
+      {(newerPost || olderPost) && (
+        <GridWrapper class="mt-16">
+          <div class="grid grid-cols-1 gap-3 border-t border-dashed border-border-primary pt-8 sm:grid-cols-2">
+            {newerPost ? (
+              <a
+                href={`/blog/${newerPost.id}`}
+                class="group flex flex-col rounded-xl border border-border-primary p-4 transition-all hover:border-purple-primary hover:bg-bg-primary/60 sm:col-start-1"
+              >
+                <span class="mb-1 font-mono text-xs uppercase tracking-widest text-text-tertiary group-hover:text-purple-primary">
+                  ← Newer
+                </span>
+                <span class="text-sm font-medium leading-snug text-text-primary group-hover:text-purple-primary">
+                  {newerPost.data.title}
+                </span>
+              </a>
+            ) : (
+              <div class="hidden sm:block sm:col-start-1" />
+            )}
+            {olderPost ? (
+              <a
+                href={`/blog/${olderPost.id}`}
+                class="group flex flex-col items-end rounded-xl border border-border-primary p-4 text-right transition-all hover:border-purple-primary hover:bg-bg-primary/60 sm:col-start-2"
+              >
+                <span class="mb-1 font-mono text-xs uppercase tracking-widest text-text-tertiary group-hover:text-purple-primary">
+                  Older →
+                </span>
+                <span class="text-sm font-medium leading-snug text-text-primary group-hover:text-purple-primary">
+                  {olderPost.data.title}
+                </span>
+              </a>
+            ) : (
+              <div class="hidden sm:block sm:col-start-2" />
+            )}
+          </div>
+        </GridWrapper>
+      )}
+
+      <!-- Back-to-all -->
+      <GridWrapper class="mt-8">
+        <div class="pt-2">
           <a
             href="/blog"
-            class="inline-flex items-center text-sm font-medium text-indigo-600"
+            class="inline-flex items-center text-sm font-medium text-purple-primary transition-colors hover:text-purple-primary/80"
           >
             ← Back to all posts
           </a>
@@ -66,6 +149,302 @@ function formatDate(date: Date) {
       </GridWrapper>
     </div>
 
-    <GetInTouchReact client:visible />
+    <GridWrapper>
+      <div class="mx-auto md:w-1/2">
+        <RSSSubscribeCard siteUrl={siteMetadata.siteUrl} client:visible />
+      </div>
+    </GridWrapper>
   </article>
 </Layout>
+
+<style is:global>
+  /* Autolinked heading anchor: shows a subtle # on hover, copies URL on click */
+  .prose :is(h1, h2, h3, h4) {
+    position: relative;
+  }
+  .prose :is(h1, h2, h3, h4) .heading-anchor {
+    position: absolute;
+    left: -1.25em;
+    top: 0;
+    bottom: 0;
+    display: inline-flex;
+    align-items: center;
+    padding-right: 0.25em;
+    opacity: 0;
+    color: rgb(var(--color-text-tertiary));
+    text-decoration: none;
+    transition: opacity 150ms ease;
+  }
+  .prose :is(h1, h2, h3, h4):hover .heading-anchor,
+  .prose :is(h1, h2, h3, h4) .heading-anchor:focus {
+    opacity: 1;
+  }
+  .prose :is(h1, h2, h3, h4) .heading-anchor:hover {
+    color: rgb(var(--color-purple-secondary, 155 123 247));
+  }
+
+  /* Image alignment helpers for blog posts.
+     Usage in MDX: <img src="/blog/slug/pic.png" alt="..." class="img-left" />
+     Image size is driven by the file's actual dimensions (use the admin
+     Crop/Resize tool to physically resize if you need a smaller float). We
+     only cap at 100% of the container to prevent overflow. */
+  .prose img.img-left {
+    float: left;
+    max-width: 100%;
+    margin: 0.5em 1.5em 1em 0;
+    clear: left;
+  }
+  .prose img.img-right {
+    float: right;
+    max-width: 100%;
+    margin: 0.5em 0 1em 1.5em;
+    clear: right;
+  }
+  .prose img.img-center {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    /* Keep whatever size the user resized the file to — don't stretch. */
+    width: auto;
+    max-width: 100%;
+  }
+  .prose img.img-fullwidth {
+    display: block;
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Side-by-side images. Wrap two <img>s in a <div class="img-row">.
+     Breaks out of the text column up to 1100px (or viewport − 2rem on
+     narrow screens) using symmetric negative margins so the pair is
+     always centered on the parent regardless of ancestor positioning. */
+  .prose .img-row {
+    --img-row-max: min(1100px, 100vw - 2rem);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 1rem;
+    margin-block: 1.5em;
+    width: var(--img-row-max);
+    margin-inline: calc((100% - var(--img-row-max)) / 2);
+  }
+  /* Images default to filling their column; when a per-image width is
+     set the img is narrower than its cell, so margin-inline: auto
+     centers it in the remaining space. */
+  .prose .img-row img {
+    margin: 0;
+    margin-inline: auto;
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+  /* Paragraphs after floated images clear the float so text flow behaves. */
+  .prose :is(img.img-left, img.img-right) + * {
+    /* leave layout alone — rely on float behavior */
+  }
+  .prose hr {
+    clear: both;
+  }
+
+  /* Invisible float-breaker inserted by the admin "Break wrap" button.
+     Forces the next block to fall below floated images. */
+  .prose .clear-wrap {
+    clear: both;
+    display: block;
+    height: 0;
+    margin: 0;
+    border: 0;
+  }
+
+  /* Dev-only hover affordance on editable images */
+  .prose .dev-editable-img {
+    cursor: zoom-in;
+    transition: outline 120ms ease, outline-offset 120ms ease;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+  .prose .dev-editable-img:hover {
+    outline: 2px dashed rgb(155 123 247 / 0.65);
+    outline-offset: 4px;
+  }
+
+  /* Lightbox: click any blog image (prose body or hero) to preview. */
+  .prose img,
+  .blog-hero-img {
+    cursor: zoom-in;
+  }
+  #img-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+  }
+  #img-lightbox[hidden] {
+    display: none;
+  }
+  #img-lightbox .lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 10, 15, 0.92);
+    opacity: 0;
+    transition: opacity 280ms ease;
+    backdrop-filter: blur(4px);
+  }
+  #img-lightbox.open .lightbox-backdrop {
+    opacity: 1;
+  }
+  #img-lightbox .lightbox-img {
+    position: fixed;
+    cursor: zoom-out;
+    will-change: transform, width, height, top, left;
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    max-width: none; /* override .prose img max-width so the clone can grow */
+  }
+  #img-lightbox .lightbox-close {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: none;
+    background: rgba(255, 255, 255, 0.14);
+    color: white;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 280ms ease, background 150ms ease;
+  }
+  #img-lightbox.open .lightbox-close {
+    opacity: 1;
+  }
+  #img-lightbox .lightbox-close:hover {
+    background: rgba(255, 255, 255, 0.24);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #img-lightbox .lightbox-backdrop,
+    #img-lightbox .lightbox-img,
+    #img-lightbox .lightbox-close {
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+
+<script>
+  // Click-to-preview lightbox for any image inside a blog post.
+  // Animates the image from its original rect to centered 92vw/vh using a
+  // fixed-position clone, falling back smoothly on reduced-motion.
+  function initLightbox() {
+    if (document.getElementById("img-lightbox")) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "img-lightbox";
+    overlay.hidden = true;
+    overlay.innerHTML = `
+      <div class="lightbox-backdrop"></div>
+      <img class="lightbox-img" alt="" />
+      <button class="lightbox-close" aria-label="Close preview">&times;</button>
+    `;
+    document.body.appendChild(overlay);
+
+    const backdrop = overlay.querySelector(".lightbox-backdrop") as HTMLElement;
+    const lightImg = overlay.querySelector(".lightbox-img") as HTMLImageElement;
+    const closeBtn = overlay.querySelector(".lightbox-close") as HTMLButtonElement;
+
+    let origin: { top: number; left: number; width: number; height: number } | null = null;
+    let closing = false;
+
+    function targetRect(w: number, h: number, naturalW = 0, naturalH = 0) {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Cap by the image's natural size so we never upscale past source
+      // resolution, falling back to 92vw/vh when natural size is unknown.
+      const capW = naturalW ? Math.min(naturalW, vw * 0.92) : vw * 0.92;
+      const capH = naturalH ? Math.min(naturalH, vh * 0.92) : vh * 0.92;
+      const ratio = w / h;
+      let tw = capW;
+      let th = tw / ratio;
+      if (th > capH) {
+        th = capH;
+        tw = th * ratio;
+      }
+      return { width: tw, height: th, left: (vw - tw) / 2, top: (vh - th) / 2 };
+    }
+
+    function open(src: string, alt: string, rect: DOMRect, naturalW: number, naturalH: number) {
+      origin = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+      lightImg.src = src;
+      lightImg.alt = alt;
+      overlay.hidden = false;
+      // Start at the origin rect with no transition — reflow — then animate.
+      lightImg.style.transition = "none";
+      lightImg.style.top = `${origin.top}px`;
+      lightImg.style.left = `${origin.left}px`;
+      lightImg.style.width = `${origin.width}px`;
+      lightImg.style.height = `${origin.height}px`;
+      void lightImg.offsetHeight;
+      requestAnimationFrame(() => {
+        const t = targetRect(origin!.width, origin!.height, naturalW, naturalH);
+        lightImg.style.transition = "top 320ms cubic-bezier(.3,0,.2,1), left 320ms cubic-bezier(.3,0,.2,1), width 320ms cubic-bezier(.3,0,.2,1), height 320ms cubic-bezier(.3,0,.2,1)";
+        lightImg.style.top = `${t.top}px`;
+        lightImg.style.left = `${t.left}px`;
+        lightImg.style.width = `${t.width}px`;
+        lightImg.style.height = `${t.height}px`;
+        overlay.classList.add("open");
+        document.body.style.overflow = "hidden";
+      });
+    }
+
+    function close() {
+      if (closing || !origin) return;
+      closing = true;
+      overlay.classList.remove("open");
+      lightImg.style.top = `${origin.top}px`;
+      lightImg.style.left = `${origin.left}px`;
+      lightImg.style.width = `${origin.width}px`;
+      lightImg.style.height = `${origin.height}px`;
+      setTimeout(() => {
+        overlay.hidden = true;
+        document.body.style.overflow = "";
+        closing = false;
+      }, 320);
+    }
+
+    // Delegate clicks: any image inside .prose or the blog hero image.
+    document.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement | null;
+      if (!(target instanceof HTMLImageElement)) return;
+      const inProse = !!target.closest(".prose");
+      const isHero = target.classList.contains("blog-hero-img");
+      if (!inProse && !isHero) return;
+      if (target.closest("a")) return; // respect image links
+      e.preventDefault();
+      open(
+        target.currentSrc || target.src,
+        target.alt,
+        target.getBoundingClientRect(),
+        target.naturalWidth,
+        target.naturalHeight,
+      );
+    });
+
+    backdrop.addEventListener("click", close);
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !overlay.hidden) close();
+    });
+    // Re-clicking the enlarged image also closes it.
+    lightImg.addEventListener("click", close);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initLightbox);
+  } else {
+    initLightbox();
+  }
+  // Re-init after Astro view transitions so the overlay survives nav.
+  document.addEventListener("astro:page-load", initLightbox);
+</script>

@@ -1,0 +1,17 @@
+<svg width="80" height="80" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Radar arcs sweeping from bottom-left -->
+  <path d="M2 28C2 14.745 12.745 4 26 4" stroke="#6c47ff" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+  <path d="M2 22C2 11.507 10.507 3 21 3" stroke="#6c47ff" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <path d="M2 16C2 8.268 8.268 2 16 2" stroke="#6c47ff" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+  <!-- Center ping dot -->
+  <circle cx="3" cy="3" r="1.5" fill="#6c47ff"/>
+  <!-- Vessel silhouette -->
+  <g transform="translate(12, 18)">
+    <path d="M0 8 L2 12 L22 12 L24 8 L20 8 L20 5 L4 5 L4 8 Z" fill="#6c47ff"/>
+    <rect x="5" y="1" width="4" height="4" rx="0.5" fill="#6c47ff" opacity="0.75"/>
+    <rect x="10" y="1" width="4" height="4" rx="0.5" fill="#6c47ff" opacity="0.9"/>
+    <rect x="15" y="2" width="3" height="3" rx="0.4" fill="#6c47ff" opacity="0.75"/>
+    <rect x="2" y="-2" width="2" height="7" fill="#6c47ff"/>
+    <path d="M2 -2 L3 -4 L4 -2" fill="#6c47ff"/>
+  </g>
+</svg>

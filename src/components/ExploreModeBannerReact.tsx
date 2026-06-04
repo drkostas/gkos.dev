@@ -25,7 +25,7 @@ const MOVEMENT_IDLE_TIMEOUT_MS = 80;
 
 /**
  * Big promotional banner for explore mode.
- * Visually mirrors the GetInTouchReact card (same drama shadow, dark bg, decorative lines)
+ * Visually mirrors the ContactCompactReact card chrome (drama shadow, dark bg, decorative lines)
  * but themed around the Pokemon/gaming concept.
  *
  * Mouse interactions: sparkles twinkle at random positions at a base frequency.

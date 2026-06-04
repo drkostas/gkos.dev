@@ -1,0 +1,33 @@
+name: Feature
+description: New functionality or a meaningful enhancement
+title: "feat(area): "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: One paragraph describing the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What's the use case? Who's it for?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What does done look like? Bulleted checklist preferred.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+  - type: textarea
+    id: notes
+    attributes:
+      label: Implementation notes (optional)
+      description: Anything that helps when picking this up. Linked references, prior art, etc.

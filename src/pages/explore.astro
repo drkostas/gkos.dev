@@ -1,17 +1,51 @@
 ---
-import GameLayout from "@/layouts/GameLayout.astro";
-import ExploreApp from "@/components/game/ExploreApp";
+/**
+ * Explore Mode is a Phaser-based Pokémon-style walkable portfolio. It's still
+ * in active development in a worktree. Until it's polished enough to ship,
+ * this route shows a "coming soon" placeholder so visitors don't hit a
+ * half-built game.
+ *
+ * When the game is ready, restore the original two-line page:
+ *   import GameLayout from "@/layouts/GameLayout.astro";
+ *   import ExploreApp from "@/components/game/ExploreApp";
+ *   <GameLayout title="Explore Mode | Kostas Georgiou">
+ *     <ExploreApp client:only="react" />
+ *   </GameLayout>
+ */
+import Layout from "@/layouts/Layout.astro";
+import GridWrapper from "@/components/GridWrapper.astro";
+import PageHeader from "@/components/PageHeader.astro";
+import { ContactCompactReact } from "@/components/ContactCompactReact";
 ---
+<Layout title="Explore Mode | Kostas Georgiou">
+  <div class="mt-14 space-y-12 md:mt-16">
+    <GridWrapper>
+      <PageHeader
+        eyebrow="Coming soon"
+        title="Explore mode is on the way."
+        subtitle="A walkable, Pokémon-style version of this portfolio. Still building it. Check back in a bit."
+      />
+    </GridWrapper>
 
-<GameLayout title="Explore Mode | Kostas Georgiou">
-  <!--
-    ExploreApp manages the full flow:
-      1. GameLoadingScreen (progress bar + press-to-start)
-      2. OpeningScreen (title → CONTINUE/NEW GAME menu)
-      3. BirchSpeechLayer (new game only — name/gender selection)
-      4. PhaserGame (the actual game world)
+    <GridWrapper>
+      <div class="mx-auto max-w-2xl rounded-2xl border border-dashed border-border-primary bg-bg-primary/50 px-6 py-10 text-center">
+        <div class="mb-3 text-4xl" aria-hidden>🕹️</div>
+        <p class="font-mono text-xs uppercase tracking-widest text-text-tertiary">
+          Status: in development
+        </p>
+        <p class="mx-auto mt-2 max-w-md text-sm text-text-secondary">
+          The world map, NPCs, items, and player sprite are all wired up. I'm fine-tuning
+          collisions, interior scenes, and dialog before opening it to visitors.
+        </p>
+      </div>
+    </GridWrapper>
 
-    Loaded with client:only="react" because Phaser needs window/document.
-  -->
-  <ExploreApp client:only="react" />
-</GameLayout>
+    <GridWrapper>
+      <ContactCompactReact
+        client:visible
+        title="Want a heads-up when it ships?"
+        description="Drop me a line below or follow on GitHub."
+      />
+    </GridWrapper>
+  </div>
+</Layout>

@@ -1,0 +1,18 @@
+---
+/* Bottom of the about page: Inspirations bento + contact card.
+   Inspirations gets the full width so it doesn't look orphaned. Site Analytics
+   was hardcoded placeholder data and was dropped; Strava lives on /stats. */
+import GridWrapper from "@/components/GridWrapper.astro";
+import { ConnectionsBentoReact } from "@/components/ConnectionsBentoReact";
+import { ContactCompactReact } from "@/components/ContactCompactReact";
+---
+<section class="relative space-y-16">
+  <div class="space-y-4">
+    <GridWrapper><div class="text-center text-xs font-semibold uppercase tracking-widest text-purple-primary"><span>More</span></div></GridWrapper>
+    <GridWrapper><h2 class="mx-auto max-w-lg text-balance text-center text-3xl font-medium leading-10 tracking-tight text-text-primary">A bit more about me, in widgets</h2></GridWrapper>
+  </div>
+  <GridWrapper>
+    <ConnectionsBentoReact variant="inspirations" linkTo="/inspirations" client:visible />
+  </GridWrapper>
+</section>
+<ContactCompactReact client:visible />
