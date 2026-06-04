@@ -123,7 +123,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
         facingDirection: "down",
         speakerName: "RESEARCHER",
         dialog: [
-          "I heard KOSTAS published at NeurIPS!",
+          "I heard KOSTAS published a paper on this!",
           "MEDiC uses CLIP distillation for medical imaging.",
           "That's like teaching a POKeMON a TM move!",
         ],
@@ -135,7 +135,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
         facingDirection: "left",
         speakerName: "RICH BOY",
         dialog: [
-          "Whoa! KOSTAS has over 8,300 GitHub followers!",
+          "Whoa! KOSTAS ships a lot of stuff to GitHub!",
           "That's more fans than most GYM LEADERS have!",
         ],
       },
@@ -312,7 +312,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
         speakerName: "GYM GUIDE",
         dialog: [
           "Hey! This GYM tests ML Engineering skills!",
-          "KOSTAS is an Applied Scientist L5 at Amazon.",
+          "KOSTAS is an Applied Scientist at a big tech company.",
           "You'll need to master DevOps, Cloud, and Full-Stack to win!",
         ],
       },
@@ -348,8 +348,8 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "Data Science is my specialty!",
           "KOSTAS teaches machines to see",
           "with computer vision.",
-          "His remote sensing paper at",
-          "IGARSS is a must-read!",
+          "His remote-sensing paper",
+          "is worth a look!",
         ],
         autoGive: {
           itemId: "paper_igarss",
@@ -371,7 +371,7 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "React, Astro, Node.js, Python...",
           "This very portfolio is built",
           "with Astro + Phaser!",
-          "Check out his WACV vision paper!",
+          "Check out his vision paper!",
         ],
         autoGive: {
           itemId: "paper_wacv",
@@ -392,9 +392,9 @@ export const INTERIORS: Record<string, InteriorDef> = {
           "Cloud computing is the future!",
           "AWS, GCP, Terraform, Kubernetes...",
           "KOSTAS deploys models at scale",
-          "for Amazon!",
-          "His CHASE paper applies ML",
-          "to healthcare at scale.",
+          "for a big tech company!",
+          "His healthcare paper applies",
+          "ML to medicine at scale.",
         ],
         autoGive: {
           itemId: "paper_chase",

@@ -39,10 +39,10 @@ export const LOG_ENTRIES: LogEntry[] = [
   },
   {
     number: 2,
-    title: "The NeurIPS rejection",
+    title: "The first big rejection",
     threshold: 10,
     text: [
-      "My first NeurIPS submission was rejected.",
+      "My first submission to a top conference was rejected.",
       "Three reviewers, three nos.",
       "I rewrote the paper from scratch.",
       "Added MEDiC's multi-objective framework.",
@@ -65,10 +65,10 @@ export const LOG_ENTRIES: LogEntry[] = [
   },
   {
     number: 4,
-    title: "The Amazon offer",
+    title: "The big-tech offer",
     threshold: 20,
     text: [
-      "L5 Applied Scientist at Amazon.",
+      "Applied Scientist at a big tech company.",
       "The interview was 5 rounds, 6 hours.",
       "System design, ML depth, coding, LP.",
       "When the offer came, I cried a little.",
@@ -78,13 +78,13 @@ export const LOG_ENTRIES: LogEntry[] = [
   },
   {
     number: 5,
-    title: "8,300 followers",
+    title: "The followers, somehow",
     threshold: 25,
     text: [
       "I never chased GitHub followers.",
       "I just open-sourced everything I built.",
       "Templates, configs, wrappers, bots.",
-      "One day I checked: 8,300 followers.",
+      "One day I checked: people had been watching.",
       "Open source isn't about fame.",
       "It's about giving back what you got.",
     ],

@@ -21,7 +21,7 @@ interface TrainerCardProps {
  *   │  │ TRAINER CARD │                            │
  *   │  └──────────────┘            ┌──────────┐    │
  *   │  ▪NAME  KOSTAS                │          │    │
- *   │  ▪MONEY    L5                 │  BRENDAN │    │
+ *   │  ▪MONEY   $9999               │  BRENDAN │    │
  *   │  ▪POKéDEX  10                 │   PIC    │    │
  *   │  ▪PLAY TIME 8h                │          │    │
  *   │                              └──────────┘    │
@@ -162,7 +162,7 @@ function FrontSide({
       <div style={bodyStyle}>
         <div style={fieldsColStyle}>
           <Field label="NAME" value={playerName} />
-          <Field label="MONEY" value="$L5" />
+          <Field label="MONEY" value="$9999" />
           <Field label="POKeDEX" value="10  PAPERS" />
           <Field label="PLAY TIME" value={playTimeText} />
           <Field label="STEPS" value={formatSteps(steps)} />
@@ -326,7 +326,7 @@ const PROJECT_POKEMON: { pokemon: string; badge: Badge }[] = [
     pokemon: "mewtwo",
     badge: {
       name: "MEDiC",
-      tagline: "Medical CLIP distillation paper at NeurIPS.",
+      tagline: "Medical CLIP distillation paper.",
       url: "https://github.com/drkostas",
     },
   },

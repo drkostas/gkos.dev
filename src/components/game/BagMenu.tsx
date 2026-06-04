@@ -437,10 +437,10 @@ const ITEM_ICON_MAP: Record<string, string> = {
   // PAPERS pocket
   "MEDiC Paper":   "/game/ui/bag/oran_berry.png",
   "MaskDistill":   "/game/ui/bag/master_ball.png",
-  "WACV Paper":    "/game/ui/bag/star_piece.png",
-  "IGARSS Paper":  "/game/ui/bag/nugget.png",
-  "CHASE Paper":   "/game/ui/bag/stardust.png",
-  "ECCV (review)": "/game/ui/bag/old_amber.png",
+  "Vision Paper":         "/game/ui/bag/star_piece.png",
+  "Remote Sensing Paper": "/game/ui/bag/nugget.png",
+  "Healthcare Paper":     "/game/ui/bag/stardust.png",
+  "Under review":         "/game/ui/bag/old_amber.png",
   // PYPI pocket
   "high_sql":         "/game/ui/bag/tm_case.png",
   "yaml_config":      "/game/ui/bag/pp_up.png",
