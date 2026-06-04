@@ -23,6 +23,18 @@ tests/diff-*.png
 !public/**/*.jpg
 .vercel
 
+# Internal planning, audit, and research notes. Kept locally for context but
+# not shipped publicly — the docs that matter to forkers (DB migration SQL,
+# this README, etc.) stay tracked.
+/docs/audits/
+/docs/plans/
+/docs/research/
+/docs/tile-analysis/
+/docs/blog-templates/
+/docs/changelog-templates/
+/docs/written-voice.md
+/docs/explore-mode-*.md
+
 # Game map analyzer output — regenerable via scripts/map-analyzer.mjs
 /game-map-data.json
 /map-analyzer.txt
