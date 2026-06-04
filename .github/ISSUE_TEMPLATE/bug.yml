@@ -1,0 +1,38 @@
+name: Bug
+description: Something on the site is broken or behaves unexpectedly
+title: "fix(area): "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the broken behavior. Include the page URL.
+      placeholder: On /stats, the Reactions card shows NaN instead of the count.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to /stats
+        2. Scroll to the Engagement row
+        3. Look at the Reactions card
+  - type: input
+    id: environment
+    attributes:
+      label: Environment (browser, viewport, mode)
+      placeholder: Safari 17, 1440×900, light mode
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or logs
+      description: Drag-drop a screenshot here, or paste console errors.

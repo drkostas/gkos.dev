@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Send a direct message
+    url: https://gkos.dev/contact
+    about: For private feedback that shouldn't be a public issue.
