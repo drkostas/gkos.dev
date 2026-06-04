@@ -39,10 +39,10 @@ export const LOG_ENTRIES: LogEntry[] = [
   },
   {
     number: 2,
-    title: "The first big rejection",
+    title: "The NeurIPS rejection",
     threshold: 10,
     text: [
-      "My first submission to a top conference was rejected.",
+      "My first NeurIPS submission was rejected.",
       "Three reviewers, three nos.",
       "I rewrote the paper from scratch.",
       "Added MEDiC's multi-objective framework.",

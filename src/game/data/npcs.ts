@@ -138,7 +138,7 @@ const MAUVILLE_NPCS_RAW: NPCDefinition[] = [
     movementRangeY: 0,
     dialog: [
       "I heard KOSTAS has published",
-      "a few papers. Pretty cool!",
+      "a few papers. Even one at NeurIPS!",
       "Wahaha!",
     ],
     speakerName: "Tutor",
@@ -373,8 +373,8 @@ const ROUTE_NPCS: NPCDefinition[] = [
     movementRangeY: 0,
     dialog: [
       "KOSTAS's paper on knowledge",
-      "distillation got accepted at a",
-      "top conference! That's like a gym",
+      "distillation got accepted at",
+      "NeurIPS! That's like a gym",
       "badge from Professor Oak!",
     ],
     speakerName: "Scholar",

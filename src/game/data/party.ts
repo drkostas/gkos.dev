@@ -70,7 +70,7 @@ export const ALL_PARTY: PartyMember[] = [
     gender: "female",
     projectName: "MEDiC",
     url: "https://github.com/drkostas/MEDiC",
-    description: "CLIP distillation framework for medical imaging.",
+    description: "CLIP distillation framework for medical imaging — NeurIPS 2024.",
     moves: [
       { name: "CLIP DISTILL", type: "psychic", pp: 30, maxPp: 30, description: "Distills vision-language knowledge into compact medical models." },
       { name: "CONTRASTIVE", type: "dragon", pp: 25, maxPp: 25, description: "Contrastive learning aligns image and text embeddings." },
@@ -108,7 +108,7 @@ export const ALL_PARTY: PartyMember[] = [
     gender: "male",
     projectName: "MaskDistill-PyTorch",
     url: "https://github.com/drkostas/MaskDistill-PyTorch",
-    description: "Knowledge distillation with attention masking.",
+    description: "Knowledge distillation with attention masking — WACV 2024.",
     moves: [
       { name: "KD MASKING", type: "dark", pp: 30, maxPp: 30, description: "Masks attention maps to guide knowledge transfer." },
       { name: "SELF-ATTN", type: "psychic", pp: 25, maxPp: 25, description: "Self-attention mechanism for feature selection." },

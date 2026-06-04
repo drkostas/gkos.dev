@@ -326,7 +326,7 @@ const PROJECT_POKEMON: { pokemon: string; badge: Badge }[] = [
     pokemon: "mewtwo",
     badge: {
       name: "MEDiC",
-      tagline: "Medical CLIP distillation paper.",
+      tagline: "Medical CLIP distillation paper at NeurIPS.",
       url: "https://github.com/drkostas",
     },
   },
