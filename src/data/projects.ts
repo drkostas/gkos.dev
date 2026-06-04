@@ -1,4 +1,4 @@
-export type ProjectCategory = "ML Research" | "Products" | "Tools" | "Fun";
+export type ProjectCategory = "Machine Learning" | "Products" | "Tools" | "Fun";
 
 export interface Project {
   slug: string;
@@ -13,10 +13,13 @@ export interface Project {
   live?: string;
   scholar?: string;
   pypi?: string;
+  /** When this project was added to the site. Optional — if missing, the RSS
+   *  feed falls back to the site-launch date so the item still appears. */
+  addedAt?: Date;
 }
 
 export const projects: Project[] = [
-  // ---- ML Research ----
+  // ---- Machine Learning ----
   {
     slug: "medic",
     name: "MEDiC",
@@ -24,7 +27,7 @@ export const projects: Project[] = [
     description:
       "Official PyTorch implementation of MEDiC: Multi-objective Exploration of Distillation from CLIP. Combines token distillation, CLS alignment, and pixel reconstruction with Evolved Part Masking. Achieves 85.07% finetuning and 73.92% k-NN on ImageNet-1K.",
     tags: ["PyTorch", "Self-Supervised", "CLIP", "MIM", "Computer-Vision", "HuggingFace"],
-    category: "ML Research",
+    category: "Machine Learning",
     featured: true,
     source_code: "https://github.com/aicip/MEDiC",
     demo: "https://huggingface.co/drkostas/MEDiC-ViT-Base",
@@ -36,7 +39,8 @@ export const projects: Project[] = [
     description:
       "Official code for the paper 'Cross-Scale MAE: A Tale of Multi-Scale Exploitation in Remote Sensing'. Self-supervised learning for multi-scale geospatial imagery.",
     tags: ["PyTorch", "MIM", "Computer-Vision"],
-    category: "ML Research",
+    category: "Machine Learning",
+    featured: true,
     source_code: "https://github.com/aicip/Cross-Scale-MAE",
     scholar:
       "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&authuser=1&citation_for_view=b___QQ8AAAAJ:d1gkVwhDpl0C",
@@ -48,7 +52,7 @@ export const projects: Project[] = [
     description:
       "First open PyTorch reproduction of MaskDistill with pre-trained weights. Reproduces 84.8% finetuning accuracy (paper: 85.3%), with full evaluation suite: semantic segmentation, object detection, k-NN, and linear probe.",
     tags: ["PyTorch", "Self-Supervised", "CLIP", "Computer-Vision", "HuggingFace"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/MaskDistill-PyTorch",
     demo: "https://huggingface.co/drkostas/MaskDistill-ViT-Base",
   },
@@ -59,7 +63,7 @@ export const projects: Project[] = [
     description:
       "A Reinforcement Learning agent that learns how to solve maze missions in Minecraft.",
     tags: ["PyTorch", "Reinforcement-Learning", "Minecraft"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/Minecraft-AI",
   },
   {
@@ -68,7 +72,7 @@ export const projects: Project[] = [
     image: "https://i.imgur.com/NtIvxWG.png",
     description: "Semantic Segmentation with Transformers on 3D Medical Images.",
     tags: ["PyTorch", "OpenCV", "SegFormer", "Semantic-Segmentation", "Medical-Imaging"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/3D-Semantic-Segmentation",
   },
   {
@@ -77,7 +81,7 @@ export const projects: Project[] = [
     image: "https://i.imgur.com/dw21deK.png",
     description: "BERT-based question answering / reading comprehension methods on Rinehart Novels.",
     tags: ["PyTorch", "SpaCy", "HuggingFace", "Transformers", "BERT"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/Bert-Question-Answering",
   },
   {
@@ -86,20 +90,8 @@ export const projects: Project[] = [
     image: "https://i.imgur.com/3w7SKLt.png",
     description: "Predicting the severity of car accidents from various attributes.",
     tags: ["Pandas", "Scipy", "Bayesian-Optimization", "XGBoost", "Neural-Network"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/accident-severity-prediction",
-  },
-  {
-    slug: "hybrid-girvan-newman",
-    name: "Hybrid Girvan Newman",
-    image: "https://i.imgur.com/FcIlWzb.png",
-    description:
-      "Code for the paper 'A Distributed Hybrid Community Detection Methodology for Social Networks'.",
-    tags: ["Apache-Spark", "Social-Networks", "Community-Detection", "GraphFrames", "MySQL"],
-    category: "ML Research",
-    source_code: "https://github.com/drkostas/HGN",
-    scholar:
-      "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&authuser=1&citation_for_view=b___QQ8AAAAJ:u5HHmVD_uO8C",
   },
   {
     slug: "covid-vaccination-prediction",
@@ -107,7 +99,7 @@ export const projects: Project[] = [
     image: "https://i.imgur.com/uXxzBBC.png",
     description: "Simultaneous Time Series Forecasting on the global COVID-19 Daily Vaccinations.",
     tags: ["Tensorflow", "LSTMs", "Multivariate-Time-Series"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/covid19-vaccinations-predict",
   },
   {
@@ -116,7 +108,7 @@ export const projects: Project[] = [
     image: "https://i.imgur.com/siwQMhc.png",
     description: "First attempt on predicting the likes a photo will get on Instagram.",
     tags: ["Tensorflow", "OpenCV", "Instagram", "Scraper", "CNN"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/Insta-Likes-Predict",
   },
   {
@@ -125,26 +117,8 @@ export const projects: Project[] = [
     image: "https://i.imgur.com/v0s5gPx.png",
     description: "Implementation of value iteration algorithm for calculating an optimal MDP policy.",
     tags: ["Markov-Decision-Process", "Value-Iteration", "RL"],
-    category: "ML Research",
+    category: "Machine Learning",
     source_code: "https://github.com/drkostas/RL-Value-Iteration",
-  },
-  {
-    slug: "vanilla-numpy-cnn",
-    name: "Vanilla Numpy CNN",
-    image: "https://i.imgur.com/sNrVbbL.png",
-    description: "A Vanilla Numpy-only Convolutional Neural Network.",
-    tags: ["Numpy", "CNN", "Vanilla-Implementation"],
-    category: "ML Research",
-    source_code: "https://github.com/drkostas/Numpy-CNN",
-  },
-  {
-    slug: "vanilla-numpy-nn",
-    name: "Vanilla Numpy Neural Network",
-    image: "https://i.imgur.com/mm29qlX.png",
-    description: "A Vanilla Numpy-only Feed-Forward Neural Network.",
-    tags: ["Numpy", "Neural-Network", "Vanilla-Implementation"],
-    category: "ML Research",
-    source_code: "https://github.com/drkostas/Numpy-NeuralNet-1",
   },
 
   // ---- Products ----
@@ -271,7 +245,6 @@ export const projects: Project[] = [
     description: "A bot that posts the first comment on every new video of specified channels.",
     tags: ["Youtube", "Gmail", "Dropbox", "MySQL", "AWS", "CircleCI", "Heroku"],
     category: "Fun",
-    featured: true,
     source_code: "https://github.com/drkostas/Youtube-FirstCommentBot",
     demo: "https://www.youtube.com/channel/UC_nnPV1zXEqIP42HOiVdg1A",
   },
@@ -313,6 +286,41 @@ export const projects: Project[] = [
     category: "Fun",
     source_code: "https://github.com/drkostas/Cross-The-Floor",
   },
+
+  // ---- Older / archive ----
+  // These are still listed for completeness but show last because they're either
+  // educational reimplementations or single-purpose toys from earlier in the
+  // user's career.
+  {
+    slug: "hybrid-girvan-newman",
+    name: "Hybrid Girvan Newman",
+    image: "https://i.imgur.com/FcIlWzb.png",
+    description:
+      "Code for the paper 'A Distributed Hybrid Community Detection Methodology for Social Networks'.",
+    tags: ["Apache-Spark", "Social-Networks", "Community-Detection", "GraphFrames", "MySQL"],
+    category: "Machine Learning",
+    source_code: "https://github.com/drkostas/HGN",
+    scholar:
+      "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&authuser=1&citation_for_view=b___QQ8AAAAJ:u5HHmVD_uO8C",
+  },
+  {
+    slug: "vanilla-numpy-cnn",
+    name: "Vanilla Numpy CNN",
+    image: "https://i.imgur.com/sNrVbbL.png",
+    description: "A Vanilla Numpy-only Convolutional Neural Network.",
+    tags: ["Numpy", "CNN", "Vanilla-Implementation"],
+    category: "Machine Learning",
+    source_code: "https://github.com/drkostas/Numpy-CNN",
+  },
+  {
+    slug: "vanilla-numpy-nn",
+    name: "Vanilla Numpy Neural Network",
+    image: "https://i.imgur.com/mm29qlX.png",
+    description: "A Vanilla Numpy-only Feed-Forward Neural Network.",
+    tags: ["Numpy", "Neural-Network", "Vanilla-Implementation"],
+    category: "Machine Learning",
+    source_code: "https://github.com/drkostas/Numpy-NeuralNet-1",
+  },
   {
     slug: "2d-shooter-game",
     name: "2D Shooter Game",
@@ -335,7 +343,7 @@ export const projects: Project[] = [
 ];
 
 export const PROJECT_CATEGORIES: ProjectCategory[] = [
-  "ML Research",
+  "Machine Learning",
   "Products",
   "Tools",
   "Fun",

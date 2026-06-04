@@ -1,14 +1,70 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
-import { ScrapbookBentoReact } from "@/components/ScrapbookBentoReact";
+import { ContactCompactReact } from "@/components/ContactCompactReact";
 import { CurrentlyReadingBentoReact } from "@/components/CurrentlyReadingBentoReact";
 import { CurrentlyPlayingBentoReact } from "@/components/CurrentlyPlayingBentoReact";
 import { FavoritePaperBentoReact } from "@/components/FavoritePaperBentoReact";
-import { BookshelfBentoReact } from "@/components/BookshelfBentoReact";
-import { PeopleGridBentoReact } from "@/components/PeopleGridBentoReact";
-import { ResourcesBentoReact } from "@/components/ResourcesBentoReact";
+import {
+  BookshelfGridReact,
+  PeopleAvatarGridReact,
+  IconRowsBentoReact,
+  type Person,
+  type IconItem,
+} from "@/components/InspirationsWidgets";
+
+// -----------------------------------------------------------------------------
+// Curated data — pulled from agent research + user-supplied list. Source URLs
+// are stored next to each item so each card row links out to the canonical page.
+// -----------------------------------------------------------------------------
+
+const MENTORS: Person[] = [
+  { name: "Dr. Hairong Qi", role: "PhD advisor, UTK", avatar: "/inspirations/hairong-qi.jpg", url: "https://eecs.utk.edu/people/hairong-qi" },
+  { name: "Dr. Christos Makris", role: "Master's advisor, Patras CEID", avatar: "/inspirations/makris.jpg", url: "https://www.ceid.upatras.gr/personnel/makris-christos/" },
+  { name: "Dr. Giorgos Pispirigkos", role: "Master's co-advisor", avatar: "/inspirations/pispirigkos.jpg", url: "https://gr.linkedin.com/in/giorgos-pispirigkos" },
+  { name: "Dr. Athanasios Tsakalidis", role: "Patras CEID professor, algorithms & data structures", avatar: "/inspirations/tsakalidis.png", url: "https://www.ceid.upatras.gr/en/personnel/tsakalidis-athanasios-2/" },
+];
+
+const RESEARCHERS: Person[] = [
+  { name: "Andrew Ng", role: "Coursera ML & deep learning courses", avatar: "/inspirations/andrew-ng.jpg", url: "https://www.andrewng.org" },
+  { name: "Andrej Karpathy", role: "CS231n, Tesla AI, neural net pedagogy", avatar: "/inspirations/andrej-karpathy.jpg", url: "https://karpathy.ai" },
+  { name: "Kaiming He", role: "ResNet, MAE, Mask R-CNN — MIT CSAIL", avatar: "/inspirations/kaiming-he.jpg", url: "https://people.csail.mit.edu/kaiming/" },
+  { name: "Fei-Fei Li", role: "ImageNet, Stanford HAI", avatar: "/inspirations/fei-fei-li.jpg", url: "https://profiles.stanford.edu/fei-fei-li" },
+  { name: "Yann LeCun", role: "Meta AI / NYU — Turing Award", avatar: "/inspirations/yann-lecun.jpg", url: "http://yann.lecun.com" },
+  { name: "Geoffrey Hinton", role: "Backprop, deep learning — Nobel Physics 2024", avatar: "/inspirations/geoffrey-hinton.jpg", url: "https://www.cs.toronto.edu/~hinton/" },
+  { name: "Demis Hassabis", role: "DeepMind co-founder, AlphaFold", avatar: "/inspirations/demis-hassabis.jpg", url: "https://en.wikipedia.org/wiki/Demis_Hassabis" },
+  { name: "Richard Sutton", role: "Reinforcement learning — Turing Award 2024", avatar: "/inspirations/richard-sutton.jpg", url: "http://incompleteideas.net" },
+  { name: "Ross Girshick", role: "R-CNN family, object detection", avatar: "/inspirations/ross-girshick.jpg", url: "https://www.rossgirshick.info" },
+  { name: "Christopher Manning", role: "Stanford NLP", avatar: "/inspirations/christopher-manning.jpg", url: "https://nlp.stanford.edu/~manning/" },
+];
+
+const CHANNELS: IconItem[] = [
+  { name: "3Blue1Brown", description: "Math, animated", icon: "/inspirations/yt-3blue1brown.jpg", url: "https://www.youtube.com/@3blue1brown" },
+  { name: "Andrej Karpathy", description: "From-scratch neural net builds", icon: "/inspirations/yt-andrej-karpathy.jpg", url: "https://www.youtube.com/@AndrejKarpathy" },
+  { name: "Yannic Kilcher", description: "Paper walkthroughs", icon: "/inspirations/yt-yannic-kilcher.jpg", url: "https://www.youtube.com/@YannicKilcher" },
+  { name: "Luis Serrano", description: "Intuitive ML lessons", icon: "/inspirations/yt-luis-serrano.jpg", url: "https://www.youtube.com/@SerranoAcademy" },
+  { name: "Vsauce", description: "Curiosity & big questions", icon: "/inspirations/yt-vsauce.jpg", url: "https://www.youtube.com/@Vsauce" },
+  { name: "Benn Jordan", description: "Sound, signal processing, deep dives", icon: "/inspirations/yt-benn-jordan.jpg", url: "https://www.youtube.com/@BennJordan" },
+];
+
+const PODCASTS: IconItem[] = [
+  { name: "TWIML AI Podcast", description: "Sam Charrington · weekly ML deep dives", icon: "/inspirations/podcast-twiml.jpg", url: "https://twimlai.com" },
+  { name: "Data Skeptic", description: "Kyle Polich · stats & methods, properly skeptical", icon: "/inspirations/podcast-dataskeptic.jpg", url: "https://dataskeptic.com" },
+];
+
+const NEWSLETTERS: IconItem[] = [
+  { name: "Alpha Signal", description: "Daily ML / AI digest", icon: "/inspirations/nl-alphasignal.ico", url: "https://alphasignal.ai", fit: "contain" },
+  { name: "TLDR", description: "Tech, science, AI — short", icon: "/inspirations/nl-tldr.jpg", url: "https://tldr.tech", fit: "contain", iconBg: "#facc15" },
+  { name: "Superpower Daily", description: "AI tools & news", icon: "/inspirations/nl-superpower.png", url: "https://www.superpowerdaily.com", fit: "contain" },
+];
+
+const BLOGS: IconItem[] = [
+  { name: "Hugging Face", description: "Models, datasets, the community hub", icon: "/inspirations/blog-hugging-face.svg", url: "https://huggingface.co", fit: "contain", iconBg: "#fff7e0" },
+  { name: "Hacker News", description: "The tech firehose", icon: "/inspirations/blog-hacker-news.svg", url: "https://news.ycombinator.com", fit: "contain", iconBg: "#ff6600" },
+  { name: "Distill", description: "Visual ML research (archived but timeless)", icon: "/inspirations/blog-distill.jpg", url: "https://distill.pub", fit: "cover" },
+  { name: "Machine Learning Mastery", description: "Jason Brownlee · practical ML tutorials", icon: "/inspirations/blog-mlmastery.svg", url: "https://machinelearningmastery.com", fit: "contain" },
+  { name: "Off the Convex Path", description: "Sanjeev Arora · ML theory", icon: "/inspirations/offconvex.jpg", url: "https://www.offconvex.org", fit: "cover" },
+];
 ---
 
 <Layout title="Inspirations | Kostas Georgiou">
@@ -17,12 +73,7 @@ import { ResourcesBentoReact } from "@/components/ResourcesBentoReact";
       <!-- Hero -->
       <div class="mx-auto text-balance pt-14 md:pt-16">
         <GridWrapper>
-          <div class="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
-            <span>Inspirations</span>
-          </div>
-        </GridWrapper>
-        <GridWrapper>
-          <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
+          <h1 class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]">
             Books, papers, and people that shape my thinking.
           </h1>
         </GridWrapper>
@@ -33,7 +84,7 @@ import { ResourcesBentoReact } from "@/components/ResourcesBentoReact";
         </GridWrapper>
       </div>
 
-      <!-- Row 1: Favorite Paper + Currently Reading + Spotify -->
+      <!-- Row 1 — Today: Favorite paper · Currently reading · Now playing -->
       <section>
         <GridWrapper>
           <div class="grid auto-rows-[minmax(320px,auto)] grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-12">
@@ -50,35 +101,99 @@ import { ResourcesBentoReact } from "@/components/ResourcesBentoReact";
         </GridWrapper>
       </section>
 
-      <!-- Row 2: Bookshelf + Scrapbook -->
+      <!-- Row 2 — People who shaped my thinking: Mentors + Researchers.
+           Heights decoupled so Mentors (3 items) doesn't pad to match
+           Researchers (10 items). On desktop Mentors sits at the top of its
+           column with self-start; on mobile they just stack normally. -->
       <section>
         <GridWrapper>
-          <div class="grid auto-rows-[minmax(300px,auto)] grid-cols-1 gap-2 lg:grid-cols-12">
-            <div class="lg:col-span-4">
-              <BookshelfBentoReact client:visible />
+          <div class="grid grid-cols-1 items-start gap-2 lg:grid-cols-12">
+            <div class="lg:col-span-5">
+              <PeopleAvatarGridReact
+                people={MENTORS}
+                heading="Mentors & teachers"
+                subhead="people who taught me how to do the work"
+                accent="indigo"
+                client:visible
+              />
             </div>
-            <div class="lg:col-span-8">
-              <ScrapbookBentoReact client:visible />
+            <div class="lg:col-span-7">
+              <PeopleAvatarGridReact
+                people={RESEARCHERS}
+                heading="Researchers I learn from"
+                subhead="whose papers and talks I keep returning to"
+                accent="emerald"
+                client:visible
+              />
             </div>
           </div>
         </GridWrapper>
       </section>
 
-      <!-- Row 3: People + Resources -->
+      <!-- Row 3 — Books on the shelf -->
       <section>
         <GridWrapper>
-          <div class="grid auto-rows-[minmax(320px,auto)] grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-12">
-            <div class="md:col-span-1 lg:col-span-5">
-              <PeopleGridBentoReact client:visible />
+          <BookshelfGridReact client:visible />
+        </GridWrapper>
+      </section>
+
+      <!-- Row 4 — Channels & Podcasts -->
+      <section>
+        <GridWrapper>
+          <div class="grid auto-rows-[minmax(320px,auto)] grid-cols-1 gap-2 lg:grid-cols-12">
+            <div class="lg:col-span-7">
+              <IconRowsBentoReact
+                items={CHANNELS}
+                heading="Channels I watch"
+                subhead="long-form YouTube I keep open"
+                badge={`${CHANNELS.length}`}
+                accent="rose"
+                client:visible
+              />
             </div>
-            <div class="md:col-span-1 lg:col-span-7">
-              <ResourcesBentoReact client:visible />
+            <div class="lg:col-span-5">
+              <IconRowsBentoReact
+                items={PODCASTS}
+                heading="Podcasts I listen to"
+                subhead="for the commute and the long runs"
+                badge={`${PODCASTS.length}`}
+                accent="purple"
+                client:visible
+              />
             </div>
           </div>
         </GridWrapper>
       </section>
 
-      <GetInTouchReact client:visible />
+      <!-- Row 5 — Newsletters & Blogs / Communities -->
+      <section>
+        <GridWrapper>
+          <div class="grid auto-rows-[minmax(320px,auto)] grid-cols-1 gap-2 lg:grid-cols-12">
+            <div class="lg:col-span-5">
+              <IconRowsBentoReact
+                items={NEWSLETTERS}
+                heading="Newsletters I read"
+                subhead="things in my inbox by choice"
+                badge={`${NEWSLETTERS.length}`}
+                accent="sky"
+                client:visible
+              />
+            </div>
+            <div class="lg:col-span-7">
+              <IconRowsBentoReact
+                items={BLOGS}
+                heading="Blogs & communities"
+                subhead="where ideas are debated, refined, and shared"
+                badge={`${BLOGS.length}`}
+                accent="amber"
+                client:visible
+              />
+            </div>
+          </div>
+        </GridWrapper>
+      </section>
+
+      <ContactCompactReact client:visible />
     </div>
   </div>
 </Layout>

@@ -1,11 +1,15 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
+import PageHeader from "@/components/PageHeader.astro";
+import SectionEyebrow from "@/components/SectionEyebrow.astro";
 import { getCollection } from "astro:content";
 import { getWallMessageCount } from "@/lib/supabase";
 import { SiteViewsCardReact } from "@/components/SiteViewsCardReact";
 import { UmamiStatsReact } from "@/components/UmamiStatsReact";
 import { GitHubStatsReact, PyPIStatsReact, CoffeeCupsReact } from "@/components/LiveStatsReact";
+import { ReactionsStatsCardReact } from "@/components/ReactionsStatsCardReact";
+import { TopArticlesCardReact } from "@/components/TopArticlesCardReact";
 import { projects } from "@/data/projects";
 
 const allBlogPosts = (await getCollection("blog")).filter((p) => !p.data.draft);
@@ -53,8 +57,7 @@ const barColors = [
 
 // Engagement data — site views are fetched client-side via SiteViewsCardReact
 // hitting /api/stats/views. Community messages count is live from Supabase.
-// Reactions stay placeholder until we wire a backend.
-const reactions = { like: 0, heart: 0, celebrate: 0, insightful: 0 };
+// Reactions are now live via ReactionsStatsCardReact (fetches /api/reactions).
 const communityMessages = await getWallMessageCount();
 const changelogUpdates = totalChangelogs;
 
@@ -85,131 +88,100 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
 
 <Layout title="Stats | Kostas Georgiou">
   <div class="mt-14 space-y-12 pb-16 md:mt-16 md:space-y-16">
-    <!-- Page Header -->
-    <section>
-      <GridWrapper>
-        <div class="text-center">
-          <span class="text-xs font-semibold uppercase tracking-widest text-purple-primary">Stats</span>
-        </div>
-      </GridWrapper>
-      <GridWrapper>
-        <h1 class="mx-auto mt-4 max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl">
-          A peek behind the curtain
-        </h1>
-      </GridWrapper>
-      <GridWrapper>
-        <p class="mx-auto mt-4 max-w-xl text-center leading-8 text-text-secondary">
-          Numbers, metrics, and fun facts about this little corner of the
-          internet. Updated in real-time.
-        </p>
-      </GridWrapper>
-    </section>
+    <!-- Hero -->
+    <GridWrapper>
+      <PageHeader
+        eyebrow="Stats"
+        title="A peek behind the curtain"
+        subtitle="Numbers, metrics, and fun facts about this little corner of the internet. Updated in real-time."
+      />
+    </GridWrapper>
 
     <!-- Blog Stats Section -->
     <section>
       <GridWrapper>
-        <div class="mb-4">
-          <h2 class="text-lg font-semibold text-text-primary">Blog Stats</h2>
-          <p class="mt-0.5 text-sm text-text-secondary">Content creation metrics and popular articles</p>
-        </div>
-        <div class="grid grid-cols-1 gap-2 md:grid-cols-12">
-          <!-- Total Articles -->
-          <div class="md:col-span-2">
+        <SectionEyebrow
+          eyebrow="Writing"
+          title="Blog stats"
+          subtitle="Content creation metrics and popular articles."
+        />
+        <div class="space-y-2">
+          <!-- Row 1: 4 small stat cards, equal width -->
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <!-- Total articles -->
             <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
               <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
               <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-2 font-medium text-text-primary">Total Articles</h2>
+                <h2 class="mb-2 font-medium text-text-primary">Total articles</h2>
                 <p class="mt-auto text-3xl font-semibold tracking-tight text-purple-primary">
                   <span class="count-up" data-target={totalArticles}>0</span>
                 </p>
               </div>
             </div>
-          </div>
 
-          <!-- Most Viewed Article: skipped to match baseline (no Supabase data) -->
-
-          <!-- Coffee Consumed — dynamic, based on commit intensity -->
-          <div class="md:col-span-5">
-            <CoffeeCupsReact client:load />
-          </div>
-
-          <!-- Words Written -->
-          <div class="md:col-span-2">
+            <!-- Words written -->
             <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
               <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
               <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-2 font-medium text-text-primary">Words Written</h2>
+                <h2 class="mb-2 font-medium text-text-primary">Words written</h2>
                 <p class="mt-auto text-3xl font-semibold tracking-tight text-purple-primary">
                   <span class="count-up" data-target={wordsWritten}>0</span>
                 </p>
               </div>
             </div>
-          </div>
 
-          <!-- Reading Time -->
-          <div class="md:col-span-5">
+            <!-- Reading time -->
             <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
               <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
               <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-2 font-medium text-text-primary">Reading Time</h2>
+                <h2 class="mb-2 font-medium text-text-primary">Reading time</h2>
                 <p class="mt-auto text-3xl font-semibold tracking-tight text-purple-primary">{readingTime}</p>
               </div>
             </div>
+
+            <!-- Coffee consumed — dynamic, based on commit intensity -->
+            <CoffeeCupsReact client:load />
           </div>
 
-          <!-- Top Viewed Articles — placeholder until blog has content + traffic -->
-          <div class="md:col-span-5">
-            <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
-              <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-              <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-4 font-medium text-text-primary">Top Viewed Articles</h2>
-                <p class="text-sm text-text-tertiary">Publish blog posts to see which ones get the most views</p>
-              </div>
-            </div>
+          <!-- Row 2: two medium "list" cards side by side -->
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <TopArticlesCardReact mode="views" client:load />
+            <TopArticlesCardReact mode="reactions" client:load />
           </div>
 
-          <!-- Category Bar Chart (spans 2 rows) -->
-          <div class="md:col-span-7 md:row-span-2">
-            <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
-              <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-              <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-2 font-medium text-text-primary">Categories</h2>
-                <p class="mb-4 text-sm text-text-secondary">Articles by topic</p>
-                <div class="flex flex-1 flex-col justify-center space-y-3">
-                  {categories.map((category, index) => {
-                    const percentage = (category.count / maxCategoryCount) * 100;
-                    const color = barColors[index % barColors.length];
-                    return (
-                      <div class="group/bar">
-                        <div class="mb-1 flex items-center justify-between">
-                          <span class="truncate text-xs font-medium text-text-secondary">{category.name}</span>
-                          <span class="ml-2 shrink-0 text-xs font-semibold tabular-nums text-text-tertiary">{category.count}</span>
+          <!-- Row 3: Categories full-width (hidden until there are at least 3 categories) -->
+          {categories.length >= 3 && (
+            <div class="grid grid-cols-1 gap-2">
+              <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
+                <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div class="relative z-20 flex h-full flex-col">
+                  <h2 class="mb-2 font-medium text-text-primary">Categories</h2>
+                  <p class="mb-4 text-sm text-text-secondary">Articles by topic</p>
+                  <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {categories.map((category, index) => {
+                      const percentage = (category.count / maxCategoryCount) * 100;
+                      const color = barColors[index % barColors.length];
+                      return (
+                        <div>
+                          <div class="mb-1 flex items-center justify-between">
+                            <span class="truncate text-xs font-medium text-text-secondary">{category.name}</span>
+                            <span class="ml-2 shrink-0 text-xs font-semibold tabular-nums text-text-tertiary">{category.count}</span>
+                          </div>
+                          <div class="relative h-3 w-full overflow-hidden rounded-full bg-border-primary/30">
+                            <div
+                              class:list={["bar-animate absolute inset-y-0 left-0 origin-left rounded-full", color]}
+                              data-width={`${percentage}%`}
+                              style="width: 0%;"
+                            ></div>
+                          </div>
                         </div>
-                        <div class="relative h-3 w-full overflow-hidden rounded-full bg-border-primary/30">
-                          <div
-                            class:list={["bar-animate absolute inset-y-0 left-0 origin-left rounded-full", color]}
-                            data-width={`${percentage}%`}
-                            style="width: 0%;"
-                          ></div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- Most Reacted Articles — placeholder until reactions backend is built -->
-          <div class="md:col-span-5">
-            <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
-              <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-              <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-4 font-medium text-text-primary">Most Reacted Articles</h2>
-                <p class="text-sm text-text-tertiary">Reactions coming soon</p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </GridWrapper>
     </section>
@@ -217,74 +189,20 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
     <!-- Engagement Section -->
     <section>
       <GridWrapper>
-        <div class="mb-4">
-          <h2 class="text-lg font-semibold text-text-primary">Engagement</h2>
-          <p class="mt-0.5 text-sm text-text-secondary">Site activity and community interactions</p>
-        </div>
+        <SectionEyebrow
+          eyebrow="Engagement"
+          title="Activity & community"
+          subtitle="Reactions, messages, and site activity."
+        />
         <div class="grid grid-cols-1 gap-2 md:grid-cols-12">
           <!-- Site Views — React island that fetches /api/stats/views on mount -->
           <div class="md:col-span-3">
             <SiteViewsCardReact client:load />
           </div>
 
-          <!-- Reaction Breakdown (spans 2 rows) -->
+          <!-- Reaction Breakdown — live from Supabase (spans 2 rows) -->
           <div class="md:col-span-5 md:row-span-2">
-            <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
-              <div class="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-              <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-2 font-medium text-text-primary">Reactions</h2>
-                <p class="mb-4 text-3xl font-bold tabular-nums tracking-tight text-purple-primary">
-                  {Object.values(reactions).reduce((s, c) => s + c, 0).toLocaleString()}
-                  <span class="ml-2 text-sm font-normal text-text-tertiary">total</span>
-                </p>
-                <div class="grid flex-1 grid-cols-2 gap-3">
-                  <!-- Like -->
-                  <div class="flex flex-col items-center justify-center rounded-xl border border-border-primary/50 bg-white/50 p-3">
-                    <div class="mb-2">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12.25 9.75001H11.5C11.5 10.1642 11.8358 10.5 12.25 10.5V9.75001ZM18 9.75001L18 9.00001H18V9.75001ZM12.25 6.897L11.5 6.897V6.897H12.25ZM9.77107 5.59894L9.02168 5.56871L9.02168 5.56871L9.77107 5.59894ZM7.25 9.75001L7.25 9.00001C7.05109 9.00001 6.86032 9.07903 6.71967 9.21968C6.57902 9.36033 6.5 9.5511 6.5 9.75001L7.25 9.75001ZM18 12.25L18 11.5H18V12.25ZM16.75 11.5C16.3358 11.5 16 11.8358 16 12.25C16 12.6642 16.3358 13 16.75 13V11.5ZM17.2658 17.5267L16.523 17.4234L17.2658 17.5267ZM15.0809 19.2407L15.0044 19.9868L15.0044 19.9868L15.0809 19.2407ZM8.14797 18.5296L8.22449 17.7835L8.22449 17.7835L8.14797 18.5296ZM7.25 17.5348L8 17.5348L7.25 17.5348ZM10.9795 4.84133L10.6441 5.51215L10.6441 5.51215L10.9795 4.84133ZM12.25 10.5H18V9.00001H12.25V10.5ZM13 9.75001V6.897H11.5V9.75001H13ZM9.02168 5.56871C8.98986 6.35737 8.87029 7.28162 8.55917 7.98426C8.25916 8.66183 7.85682 9.00001 7.25 9.00001L7.25 10.5C8.66762 10.5 9.49282 9.58057 9.93074 8.59156C10.3575 7.62762 10.4863 6.47634 10.5205 5.62917L9.02168 5.56871ZM18 11.5H16.75V13H18V11.5ZM17.2572 12.1467L16.523 17.4234L18.0087 17.6301L18.7428 12.3534L17.2572 12.1467ZM15.1574 18.4946L8.22449 17.7835L8.07145 19.2757L15.0044 19.9868L15.1574 18.4946ZM8 17.5348L8 9.75001L6.5 9.75001L6.5 17.5348L8 17.5348ZM8.22449 17.7835C8.09697 17.7704 8 17.663 8 17.5348L6.5 17.5348C6.5 18.4322 7.17877 19.1841 8.07145 19.2757L8.22449 17.7835ZM18.5 11C18.5 11.2762 18.2761 11.5 18 11.5L18 13C19.1046 13 20 12.1046 20 11L18.5 11ZM16.523 17.4234C16.4303 18.0898 15.8267 18.5632 15.1574 18.4946L15.0044 19.9868C16.4769 20.1378 17.8047 19.0962 18.0087 17.6301L16.523 17.4234ZM11.3149 4.17051C10.2352 3.63063 9.06523 4.48919 9.02168 5.56871L10.5205 5.62917C10.5217 5.59822 10.5406 5.5562 10.5864 5.52693C10.6071 5.51378 10.6234 5.51013 10.6311 5.50947C10.6361 5.50905 10.6385 5.50932 10.6441 5.51215L11.3149 4.17051ZM13 6.897C13 5.74239 12.3477 4.68687 11.3149 4.17051L10.6441 5.51215C11.1687 5.77443 11.5 6.31055 11.5 6.897L13 6.897ZM18 10.5C18.2761 10.5 18.5 10.7239 18.5 11L20 11C20 9.89544 19.1046 9.00001 18 9.00001L18 10.5Z" fill="#64748b"></path>
-                        <path d="M5.75 9.5H6.25V8H5.75V9.5ZM6.5 9.75V18.25H8V9.75H6.5ZM6.25 18.5H5.75V20H6.25V18.5ZM5.5 18.25V9.75H4V18.25H5.5ZM5.75 18.5C5.61193 18.5 5.5 18.3881 5.5 18.25H4C4 19.2165 4.7835 20 5.75 20V18.5ZM6.5 18.25C6.5 18.3881 6.38807 18.5 6.25 18.5V20C7.2165 20 8 19.2165 8 18.25H6.5ZM6.25 9.5C6.38807 9.5 6.5 9.61193 6.5 9.75H8C8 8.7835 7.2165 8 6.25 8V9.5ZM5.75 8C4.7835 8 4 8.7835 4 9.75H5.5C5.5 9.61193 5.61193 9.5 5.75 9.5V8Z" fill="#64748b"></path>
-                      </svg>
-                    </div>
-                    <span class="text-lg font-semibold tabular-nums text-text-primary">{reactions.like.toLocaleString()}</span>
-                    <span class="text-xs text-text-tertiary">Likes</span>
-                  </div>
-                  <!-- Heart -->
-                  <div class="flex flex-col items-center justify-center rounded-xl border border-border-primary/50 bg-white/50 p-3">
-                    <div class="mb-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24">
-                        <path d="M9.497 10.877c-.95-1.233-2.534-1.565-3.724-.436-1.19 1.13-1.357 3.019-.423 4.355l4.147 4.454 4.146-4.454c.934-1.336.787-3.237-.423-4.355-1.21-1.117-2.774-.797-3.723.436Z" fill="transparent" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                      </svg>
-                    </div>
-                    <span class="text-lg font-semibold tabular-nums text-text-primary">{reactions.heart.toLocaleString()}</span>
-                    <span class="text-xs text-text-tertiary">Hearts</span>
-                  </div>
-                  <!-- Celebrate -->
-                  <div class="flex flex-col items-center justify-center rounded-xl border border-border-primary/50 bg-white/50 p-3">
-                    <div class="mb-2">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8.89062 9.28125L4.87279 17.7937C4.44606 18.628 5.29889 19.5379 6.16008 19.1671L14.6016 16.1875" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="transparent"></path>
-                        <path d="M13.3196 10.9774C14.9594 12.8695 15.698 15.085 14.9691 15.9259C14.2403 16.7669 12.3202 15.9147 10.6804 14.0226C9.04057 12.1305 8.30205 9.91499 9.03085 9.07406C9.75966 8.23313 11.6798 9.08527 13.3196 10.9774Z" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="transparent"></path>
-                        <path d="M11.5 5C11.5 5.27614 11.2761 5.5 11 5.5C10.7239 5.5 10.5 5.27614 10.5 5C10.5 4.72386 10.7239 4.5 11 4.5C11.2761 4.5 11.5 4.72386 11.5 5Z" stroke="#64748b" fill="transparent"></path>
-                      </svg>
-                    </div>
-                    <span class="text-lg font-semibold tabular-nums text-text-primary">{reactions.celebrate.toLocaleString()}</span>
-                    <span class="text-xs text-text-tertiary">Celebrates</span>
-                  </div>
-                  <!-- Insightful -->
-                  <div class="flex flex-col items-center justify-center rounded-xl border border-border-primary/50 bg-white/50 p-3">
-                    <div class="mb-2">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 4.75C8.5 4.75 6.75 7.5 6.75 10C6.75 14 9.75 14.5 9.75 16V18.2505C9.75 18.8028 10.1977 19.25 10.75 19.25H13.25C13.8023 19.25 14.25 18.8028 14.25 18.2505V16C14.25 14.5 17.25 14 17.25 10C17.25 7.5 15.5 4.75 12 4.75Z" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="transparent"></path>
-                        <path d="M10 16.75H14" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"></path>
-                      </svg>
-                    </div>
-                    <span class="text-lg font-semibold tabular-nums text-text-primary">{reactions.insightful.toLocaleString()}</span>
-                    <span class="text-xs text-text-tertiary">Insightful</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ReactionsStatsCardReact client:load />
           </div>
 
           <!-- Community Messages -->
@@ -346,7 +264,7 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
               </div>
 
               <div class="relative z-20 mt-auto">
-                <h2 class="mb-1 font-medium text-text-primary">Community Messages</h2>
+                <h2 class="mb-1 font-medium text-text-primary">Community messages</h2>
                 <div class="flex items-baseline gap-2">
                   <span class="text-3xl font-bold tabular-nums tracking-tight text-purple-primary">
                     <span class="count-up" data-target={communityMessages}>0</span>
@@ -408,7 +326,7 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
               <!-- Decorative calendar -->
               <div class="absolute -bottom-2 -right-2 text-[100px] leading-none opacity-10" style="transform: rotate(-5deg);">&#128197;</div>
               <div class="relative z-20 flex h-full flex-col">
-                <h2 class="mb-2 font-medium text-text-primary">Site Age</h2>
+                <h2 class="mb-2 font-medium text-text-primary">Site age</h2>
                 <p class="text-sm text-text-secondary">Since last revamp</p>
                 <div class="mt-auto">
                   <div class="flex items-baseline gap-2">
@@ -428,24 +346,35 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
       </GridWrapper>
     </section>
 
-    <!-- Traffic Section — live from Umami Cloud -->
+    <!-- Traffic Section — collapses to a single empty-state card until
+         production traffic accumulates. Re-expand when Umami starts returning
+         non-zero data. -->
     <section>
       <GridWrapper>
-        <div class="mb-4">
-          <h2 class="text-lg font-semibold text-text-primary">Traffic</h2>
-          <p class="mt-0.5 text-sm text-text-secondary">Real-time visitor analytics via Umami</p>
+        <SectionEyebrow
+          eyebrow="Traffic"
+          title="Visitors and referrers"
+          subtitle="Live from Umami. Numbers populate after launch."
+        />
+        <div class="rounded-2xl border border-dashed border-border-primary bg-bg-primary/50 px-6 py-10 text-center">
+          <p class="font-mono text-xs uppercase tracking-widest text-text-tertiary">
+            Tracking begins after launch
+          </p>
+          <p class="mx-auto mt-2 max-w-md text-sm text-text-secondary">
+            Top pages, referrers, and unique-visitor counts populate once visitors arrive in production.
+          </p>
         </div>
-        <UmamiStatsReact client:load />
       </GridWrapper>
     </section>
 
     <!-- GitHub Section — dynamic via React island -->
     <section>
       <GridWrapper>
-        <div class="mb-4">
-          <h2 class="text-lg font-semibold text-text-primary">GitHub</h2>
-          <p class="mt-0.5 text-sm text-text-secondary">Open source contributions and repository stats</p>
-        </div>
+        <SectionEyebrow
+          eyebrow="GitHub"
+          title="Contributions & repos"
+          subtitle="Open source activity and repository stats."
+        />
         <GitHubStatsReact client:load />
       </GridWrapper>
     </section>
@@ -453,10 +382,11 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
     <!-- Open Source Section — dynamic via React island -->
     <section>
       <GridWrapper>
-        <div class="mb-4">
-          <h2 class="text-lg font-semibold text-text-primary">Open Source</h2>
-          <p class="mt-0.5 text-sm text-text-secondary">Live download counts from PyPI and HuggingFace</p>
-        </div>
+        <SectionEyebrow
+          eyebrow="Open source"
+          title="Packages & downloads"
+          subtitle="Live download counts from PyPI and HuggingFace."
+        />
         <PyPIStatsReact client:load />
       </GridWrapper>
     </section>

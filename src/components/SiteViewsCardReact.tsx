@@ -8,13 +8,15 @@ type ViewsData = {
   windowDays: number;
 };
 
-export function SiteViewsCardReact() {
-  const [data, setData] = useState<ViewsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function SiteViewsCardReact({ demoData }: { demoData?: ViewsData } = {}) {
+  const [data, setData] = useState<ViewsData | null>(demoData ?? null);
+  const [isLoading, setIsLoading] = useState(!demoData);
   const [displayCount, setDisplayCount] = useState(0);
 
   // Fetch on mount — endpoint is edge-cached for 5 min so this is cheap.
+  // Pass `demoData` to bypass the fetch (used by the /widgets catalog).
   useEffect(() => {
+    if (demoData) return; // Skip network in demo mode.
     let cancelled = false;
     fetch("/api/stats/views")
       .then((r) => r.json())
@@ -31,7 +33,7 @@ export function SiteViewsCardReact() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demoData]);
 
   // Count-up animation when the value lands.
   useEffect(() => {
@@ -95,7 +97,7 @@ export function SiteViewsCardReact() {
 
       <div className="relative z-20 flex h-full flex-col">
         <div className="mb-2 flex items-center gap-2">
-          <h2 className="font-medium text-text-primary">Site Views</h2>
+          <h2 className="font-medium text-text-primary">Site views</h2>
           <div className="flex items-center gap-1 text-emerald-500">
             <svg
               className="h-4 w-4"

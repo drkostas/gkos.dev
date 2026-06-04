@@ -74,6 +74,21 @@ interface BlockDecor {
   textureKey: string;
   frameKey: string;
   depth: number;
+  /** Captured rotation/flip — paste recreates the visual transform. */
+  rotation?: number;
+  flipX?: boolean;
+  flipY?: boolean;
+}
+
+/**
+ * Per-cell metadata captured at copy time. Lets paste reproduce the
+ * exact look + behavior of the source tiles — tint adjust, collision
+ * flag, and decor transform are all part of "the tile" from the user's
+ * perspective.
+ */
+interface BlockCellMeta {
+  tint?: { h?: number; s?: number; l?: number; a?: number; presetId?: string };
+  blocked?: boolean;
 }
 
 const TYPE_COLORS: Record<string, number> = {
@@ -147,6 +162,7 @@ export class EditorScene extends Phaser.Scene {
     endX: number; endY: number;
     tiles: number[][];
     decor: (BlockDecor | null)[][];
+    meta?: (BlockCellMeta | null)[][];
   } | null = null;
   private blockSelectionGraphics: Phaser.GameObjects.Graphics | null = null;
   private isShiftDragging: boolean = false;
@@ -187,6 +203,18 @@ export class EditorScene extends Phaser.Scene {
    * to open the tint popup without requiring an explicit tool switch.
    */
   private lastClickedTile: { x: number; y: number } | null = null;
+
+  /**
+   * Canonical write-path for `lastClickedTile`. Every site that advances
+   * the "current tile" cursor funnels through here so the inspector, tint
+   * panel, and C-key collision toggle all agree on the same target. Prior
+   * to this, four call sites set the field then re-emitted the same event
+   * — a fifth caller always forgot one side.
+   */
+  private setLastClickedTile(x: number, y: number): void {
+    this.lastClickedTile = { x, y };
+    emitEditorEvent("editor:tile-selected", { x, y });
+  }
   /**
    * Double-click tracking. Adobe / Figma convention: single click selects
    * passively, double click drills into the thing (open properties /
@@ -204,6 +232,44 @@ export class EditorScene extends Phaser.Scene {
    */
   private hoverPreviewGhost: Phaser.GameObjects.Sprite | null = null;
   private hoverPreviewGid: number = 0;
+  /**
+   * How a block-paste combines with the destination tile.
+   *  - "both": overwrite ground GID AND recreate captured decor (old default)
+   *  - "fg-only": keep destination ground untouched, only paint decor sprite
+   *  - "bg-only": paint ground GID, skip decor sprite
+   * User requested this split because pasting a fence onto a road should
+   * leave the road intact — the old "both" default blew away the road
+   * under every pasted fence, which was never what they wanted.
+   */
+  private blockPasteMode: "both" | "fg-only" | "bg-only" = "both";
+  /**
+   * Buffer of tile paints accumulated during a single drag stroke or fill
+   * bucket operation. When non-null, `paintTile()` pushes into it
+   * instead of emitting one tile-paint per cell. At drag end (or fill
+   * finish) we flush as one batch so ⌘Z undoes the whole stroke in one
+   * press instead of tile-by-tile.
+   */
+  private paintBatch: Array<{ x: number; y: number; oldGid: number; newGid: number }> | null = null;
+  /**
+   * Id of the entity currently under the cursor — kept in sync with the
+   * ENTITY_HOVERED event so `update()` can suppress the tile tooltip
+   * emission while the cursor is on an entity (otherwise the entity
+   * bubble and tile readout stack confusingly).
+   */
+  private hoveredEntityId: string | null = null;
+  /**
+   * Pulsing ring drawn on top of an entity tile when the corresponding
+   * row in the left panel list is hovered — so the user can preview
+   * *where* an entity lives without clicking it.
+   */
+  private entityPreviewRing: Phaser.GameObjects.Graphics | null = null;
+  private entityPreviewTween: Phaser.Tweens.Tween | null = null;
+  /**
+   * Subtle outlines painted over every tile that shares the currently-
+   * hovered swatch's GID — lets the user see where that tile type
+   * already exists on the map before committing to paint anywhere else.
+   */
+  private swatchMatchHighlights: Phaser.GameObjects.Graphics | null = null;
 
   constructor() {
     super({ key: "EditorScene" });
@@ -436,6 +502,7 @@ export class EditorScene extends Phaser.Scene {
       // cell — otherwise the ground gets cleared but the decor sprite
       // keeps floating, making the erase look broken.
       if (altDown && this.tilemap && inBounds) {
+        this.beginPaintBatch();
         this.eraseTileAndDecor(tileX, tileY);
         this.isDragPainting = true;
         this.dragPaintMode = "erase";
@@ -454,12 +521,16 @@ export class EditorScene extends Phaser.Scene {
           return;
         }
         if (this.selectedTileGid > 0) {
-          this.tilemap.putTileAt(this.selectedTileGid, tileX, tileY, false, "Ground");
-          emitEditorEvent("editor:tile-paint", { x: tileX, y: tileY, gid: this.selectedTileGid });
+          this.beginPaintBatch();
+          this.paintTile(tileX, tileY, this.selectedTileGid);
           this.isDragPainting = true;
           this.dragPaintMode = "paint";
           this.dragPaintVisited.clear();
           this.dragPaintVisited.add(`${tileX},${tileY}`);
+        } else {
+          emitEditorEvent("editor:toast", {
+            message: "Nothing to paint — click a tile first to pick a GID, or ⇧+drag to copy a block.",
+          });
         }
         return;
       }
@@ -481,8 +552,7 @@ export class EditorScene extends Phaser.Scene {
       if (this.blockSelection && this.blockSelection.tiles.length > 0 && this.tilemap && inBounds) {
         deferToolClick(() => {
           this.pasteBlockAt(tileX, tileY);
-          this.lastClickedTile = { x: tileX, y: tileY };
-          emitEditorEvent("editor:tile-selected", { x: tileX, y: tileY });
+          this.setLastClickedTile(tileX, tileY);
         });
         return;
       }
@@ -521,9 +591,17 @@ export class EditorScene extends Phaser.Scene {
           y: hitEntity.y,
         });
         if (isDouble) {
-          // Double-click entity → "dive into" it: select + open its
-          // properties panel (React will un-collapse the right panel).
-          emitEditorEvent("editor:entity-double-click", { entityId: hitEntity.id });
+          // Double-click an entity → select the TILE beneath it instead
+          // of the entity. Common case: user wants to edit the grass
+          // under an NPC but every click kept grabbing the NPC. The
+          // second click promotes the gesture from "entity" to "tile".
+          // REPLACES the selection (Finder-style); hold Shift to add.
+          if (shiftDown) {
+            this.toggleTileInSelection(hitEntity.x, hitEntity.y);
+          } else {
+            this.setSelection([{ x: hitEntity.x, y: hitEntity.y }]);
+          }
+          this.setLastClickedTile(hitEntity.x, hitEntity.y);
           return;
         }
         // Enter drag mode immediately on any entity click. Pointermove
@@ -539,28 +617,30 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
-      // Double-click on a tile — acts as a plain "select this tile" so
-      // the right-sidebar tile inspector refreshes. Tint editing lives
-      // in the inspector now, not in a popup.
+      // Double-click on a tile → SELECT this tile (Finder-style replace).
+      // Without Shift, every dbl-click starts fresh — picking a new tile
+      // drops the previous selection. Hold Shift to keep accumulating.
+      // Single click is still just an eyedropper-pick (no selection).
       if (isDouble && this.tilemap) {
-        this.lastClickedTile = { x: tileX, y: tileY };
-        emitEditorEvent("editor:tile-selected", { x: tileX, y: tileY });
+        if (shiftDown) {
+          this.toggleTileInSelection(tileX, tileY);
+        } else {
+          this.setSelection([{ x: tileX, y: tileY }]);
+        }
+        this.setLastClickedTile(tileX, tileY);
         return;
       }
 
-      // Plain click on tile: pick GID (eyedropper) AND replace the
-      // unified selection with this one tile. Inspector reads the
-      // selection state, so this one path populates both.
+      // Plain click on tile (no shift, not a double, no entity hit):
+      // CLEAR the tile selection. Single click is reserved for "release
+      // any staged tile ops + start exploring/panning". To pick a GID
+      // for painting, use the left tileset panel, swatch, or right-
+      // click → "Pick GID here". Inspector still refreshes so the user
+      // sees what tile they clicked, but no selection is staged.
       if (this.tilemap) {
         deferToolClick(() => {
-          const tile = this.tilemap!.getTileAt(tileX, tileY, false, "Ground");
-          if (tile) {
-            this.selectedTileGid = tile.index;
-            this.lastClickedTile = { x: tileX, y: tileY };
-            emitEditorEvent("editor:tile-eyedrop", { gid: tile.index, x: tileX, y: tileY });
-            emitEditorEvent("editor:tile-selected", { x: tileX, y: tileY });
-            this.showTintHighlight(tileX, tileY); // unified selection
-          }
+          this.setSelection([]);
+          this.setLastClickedTile(tileX, tileY);
         });
         return;
       }
@@ -622,8 +702,7 @@ export class EditorScene extends Phaser.Scene {
           if (!this.dragPaintVisited.has(key)) {
             this.dragPaintVisited.add(key);
             if (this.dragPaintMode === "paint" && this.selectedTileGid > 0) {
-              this.tilemap.putTileAt(this.selectedTileGid, tx, ty, false, "Ground");
-              emitEditorEvent("editor:tile-paint", { x: tx, y: ty, gid: this.selectedTileGid });
+              this.paintTile(tx, ty, this.selectedTileGid);
             } else if (this.dragPaintMode === "erase") {
               this.eraseTileAndDecor(tx, ty);
             }
@@ -702,19 +781,27 @@ export class EditorScene extends Phaser.Scene {
 
       if (hoveredEntity) {
         this.showTooltip(hoveredEntity, pointer.worldX, pointer.worldY);
+        this.hoveredEntityId = hoveredEntity.id;
         emitEditorEvent(ENTITY_HOVERED, {
           entityId: hoveredEntity.id,
           entityType: hoveredEntity.type,
           x: hoveredEntity.x,
           y: hoveredEntity.y,
         });
+        // Mute the tile-level readout so it doesn't stack with the entity
+        // bubble. Update() will skip re-emitting while hoveredEntityId is set.
+        if (this.lastEmittedTile !== "ENTITY") {
+          this.lastEmittedTile = "ENTITY";
+          emitEditorEvent("editor:hover-tile", null);
+        }
       } else {
         this.hideTooltip();
+        this.hoveredEntityId = null;
         emitEditorEvent(ENTITY_HOVERED, null);
       }
     });
 
-    // Handle block selection end
+    // Handle shift-drag end — populates the unified selection.
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
       if (this.isShiftDragging && this.shiftDragStart && this.tilemap) {
         const endX = Math.floor(p.worldX / TILE_SIZE);
@@ -723,65 +810,27 @@ export class EditorScene extends Phaser.Scene {
         const sy = Math.min(this.shiftDragStart.y, endY);
         const w = Math.abs(endX - this.shiftDragStart.x) + 1;
         const h = Math.abs(endY - this.shiftDragStart.y) + 1;
-
-        // Single-tile Shift+click: toggle the tile in the unified
-        // selection. Adds on first click, removes on second. Inspector
-        // and every batch op (tint, collision, copy, delete) read from
-        // this selection.
-        if (w === 1 && h === 1) {
-          this.isShiftDragging = false;
-          this.shiftDragStart = null;
-          this.toggleTileInSelection(sx, sy);
-          this.lastClickedTile = { x: sx, y: sy };
-          emitEditorEvent("editor:tile-selected", { x: sx, y: sy });
-          return;
-        }
-
-        // Capture tile GIDs + any top-sprite metadata in the selected
-        // region. Decor lookup is indexed by tile coord so paste can
-        // recreate the tree/fence/building sprites at the new position.
-        const decorByKey = new Map<string, BlockDecor>();
-        for (const s of this.topSprites) {
-          const tx = Math.floor((s.x as number) / TILE_SIZE);
-          const ty = Math.floor((s.y as number) / TILE_SIZE);
-          decorByKey.set(`${tx},${ty}`, {
-            textureKey: s.texture.key,
-            frameKey: String(s.frame.name),
-            depth: s.depth as number,
-          });
-        }
-        const tiles: number[][] = [];
-        const decor: (BlockDecor | null)[][] = [];
-        for (let dy = 0; dy < h; dy++) {
-          const row: number[] = [];
-          const decorRow: (BlockDecor | null)[] = [];
-          for (let dx = 0; dx < w; dx++) {
-            const tile = this.tilemap.getTileAt(sx + dx, sy + dy, false, "Ground");
-            row.push(tile?.index || 0);
-            decorRow.push(decorByKey.get(`${sx + dx},${sy + dy}`) ?? null);
-          }
-          tiles.push(row);
-          decor.push(decorRow);
-        }
-
-        this.blockSelection = { startX: sx, startY: sy, endX: sx + w - 1, endY: sy + h - 1, tiles, decor };
         this.isShiftDragging = false;
         this.shiftDragStart = null;
 
-        // Also populate the unified selection with every tile in the
-        // rect, so the inspector's batch ops target the same cells the
-        // user just dragged out.
+        // Single-tile ⇧+click: toggle the tile in the selection.
+        if (w === 1 && h === 1) {
+          this.toggleTileInSelection(sx, sy);
+          this.setLastClickedTile(sx, sy);
+          return;
+        }
+
+        // Rect ⇧+drag: every tile in the rectangle joins the selection.
+        // Does NOT copy/capture anything — the user presses ⌘C when
+        // they're ready to copy, ⌘V to paste, Backspace to delete.
+        // Separating "what's selected" from "what's on the clipboard"
+        // fixes the old gotcha where every shift-drag auto-overwrote
+        // the clipboard.
         const rectTiles: { x: number; y: number }[] = [];
         for (let dy = 0; dy < h; dy++) {
           for (let dx = 0; dx < w; dx++) rectTiles.push({ x: sx + dx, y: sy + dy });
         }
         this.setSelection(rectTiles);
-
-        // Auto-switch to stamp tool for pasting
-        this.currentTool = "stamp";
-        emitEditorEvent("editor:set-tool", { tool: "stamp" });
-        emitEditorEvent("editor:block-copied", { width: w, height: h, tileCount: w * h });
-        this.emitBlockStatus();
         return;
       }
       // End drag-paint (stamp/eraser continuous drag)
@@ -789,6 +838,7 @@ export class EditorScene extends Phaser.Scene {
         this.isDragPainting = false;
         this.dragPaintMode = null;
         this.dragPaintVisited.clear();
+        this.flushPaintBatch();
       }
       // End block drag-paste (Cmd+drag)
       if (this.isBlockDragPasting) {
@@ -810,6 +860,7 @@ export class EditorScene extends Phaser.Scene {
       this.isDragPainting = false;
       this.dragPaintMode = null;
       this.dragPaintVisited.clear();
+      this.flushPaintBatch();
     });
 
     // Pointer up
@@ -909,18 +960,26 @@ export class EditorScene extends Phaser.Scene {
       if (isTypingInField()) return;
       this.openTintForLastTile();
     });
-    // Zoom presets — 0 fits the map, 1 snaps to 100% (1× world = 1× screen),
-    // +/- step. The scroll wheel still does smooth zoom.
-    this.input.keyboard?.on("keydown-ZERO", () => {
-      if (isTypingInField()) return;
-      this.fitMapToViewport();
-    });
-    this.input.keyboard?.on("keydown-ONE", () => {
-      if (isTypingInField()) return;
-      this.currentZoom = 1;
-      cam.setZoom(1);
-      this.syncAutoPixelGrid();
-    });
+    // Zoom presets — one table drives them all so adding a new preset
+    // means adding a row, not wiring a new keyboard listener. Number key
+    // → preset: 0 fits to viewport, 1 = 100%, 2/3/4 step up through
+    // comfortable authoring zooms. +/- and scroll wheel still do smooth
+    // zoom via stepZoom().
+    const zoomPresets: Record<string, number | "fit"> = {
+      ZERO: "fit", ONE: 1.0, TWO: 2.0, THREE: 4.0, FOUR: 6.0,
+    };
+    for (const [key, target] of Object.entries(zoomPresets)) {
+      this.input.keyboard?.on(`keydown-${key}`, () => {
+        if (isTypingInField()) return;
+        if (target === "fit") {
+          this.fitMapToViewport();
+        } else {
+          this.currentZoom = target;
+          cam.setZoom(target);
+          this.syncAutoPixelGrid();
+        }
+      });
+    }
     this.input.keyboard?.on("keydown-PLUS", () => this.stepZoom(1.25));
     this.input.keyboard?.on("keydown-EQUALS", () => this.stepZoom(1.25));
     this.input.keyboard?.on("keydown-MINUS", () => this.stepZoom(0.8));
@@ -928,16 +987,28 @@ export class EditorScene extends Phaser.Scene {
       if (isTypingInField()) return;
       this.magicWandSelectByGid();
     });
-    // C toggles the collision flag on the last-clicked tile. The old
-    // Ctrl+click gesture was reclaimed by the unified paint shortcut, so
-    // collision authoring lives on a dedicated key now.
+    // B cycles the block paste mode (both → fg-only → bg-only → both).
+    // Pasting a fence onto a road now preserves the road when mode is
+    // fg-only. Only effective while a block is copied.
+    this.input.keyboard?.on("keydown-B", () => {
+      if (isTypingInField() || !this.blockSelection) return;
+      const order: Array<"both" | "fg-only" | "bg-only"> = ["both", "fg-only", "bg-only"];
+      const next = order[(order.indexOf(this.blockPasteMode) + 1) % order.length];
+      this.blockPasteMode = next;
+      emitEditorEvent("editor:block-paste-mode", { mode: next });
+      emitEditorEvent("editor:toast", {
+        message: `Paste mode: ${next === "both" ? "Both layers" : next === "fg-only" ? "Foreground only (preserves ground)" : "Background only (no sprites)"}`,
+      });
+    });
+    // C toggles the collision flag on the last-clicked tile. Routes
+    // through the same event as the sidebar checkbox + context-menu,
+    // so all three triggers share one code path — easier to evolve and
+    // guarantees consistent behavior (e.g. Bug 1's tilemapLayer guard
+    // applies everywhere automatically).
     this.input.keyboard?.on("keydown-C", () => {
       if (isTypingInField()) return;
-      this.toggleCollisionAtLastTile();
+      emitEditorEvent("editor:toggle-collision", null);
     });
-    // Direct event — the React side can't reliably fire Phaser's
-    // keyboard listeners, so the sidebar's collision checkbox dispatches
-    // this instead. Accepts an explicit (x, y) or uses lastClickedTile.
     this.unsubscribers.push(
       onEditorEvent("editor:toggle-collision", (detail: { x?: number; y?: number } | null) => {
         if (detail && typeof detail.x === "number" && typeof detail.y === "number") {
@@ -958,7 +1029,10 @@ export class EditorScene extends Phaser.Scene {
     } else if (pointer) {
       x = Math.floor(pointer.worldX / TILE_SIZE);
       y = Math.floor(pointer.worldY / TILE_SIZE);
-    } else return;
+    } else {
+      emitEditorEvent("editor:toast", { message: "Click a tile first, then press C to toggle its collision." });
+      return;
+    }
     this.toggleCollisionAt(x, y);
   }
 
@@ -970,11 +1044,21 @@ export class EditorScene extends Phaser.Scene {
     if (idx < 0 || idx >= this.collisionLayerData.length) return;
     const wasBlocked = this.collisionLayerData[idx] > 0;
     this.collisionLayerData[idx] = wasBlocked ? 0 : 1;
-    if (this.tilemap.getLayer("Collision")) {
+    // The Collision LayerData exists (createBlankLayer was called) but its
+    // `tilemapLayer` is only set if the layer was actually rendered via
+    // `createLayer` — without that guard, Phaser's putTileAt dereferences
+    // `layer.tilemapLayer.tilemap` and throws. The authoritative blocked
+    // state still lives in `this.collisionLayerData`, so a missing visual
+    // layer just means the toggle isn't re-drawn — not a functional loss.
+    const collisionLayer = this.tilemap.getLayer("Collision");
+    if (collisionLayer?.tilemapLayer) {
       this.tilemap.putTileAt(wasBlocked ? 0 : 1, x, y, false, "Collision");
     }
     if (this.collisionVisible) this.renderCollisionOverlay();
-    emitEditorEvent("editor:collision-toggle", { x, y, blocked: !wasBlocked });
+    // Event carries BOTH old and new state so React can push a
+    // TOGGLE_COLLISION action with a proper inverse. Without oldBlocked
+    // the reducer would have to guess at undo time.
+    emitEditorEvent("editor:collision-toggle", { x, y, blocked: !wasBlocked, oldBlocked: wasBlocked });
   }
 
   /**
@@ -1020,10 +1104,16 @@ export class EditorScene extends Phaser.Scene {
    * the clicked tile has a top sprite (tree / building / fence), we match
    * every top sprite with the same texture+frame. Otherwise we match
    * same-GID tiles on the ground layer. Routes the matches through the
-   * tint multi-select so T-then-slider tints them all at once.
+   * unified selection so every sidebar op can target them.
    */
   private magicWandSelectByGid(): void {
-    if (!this.tilemap || !this.lastClickedTile) return;
+    if (!this.tilemap) return;
+    if (!this.lastClickedTile) {
+      emitEditorEvent("editor:toast", {
+        message: "Magic wand needs a starting tile — click one first, then press W.",
+      });
+      return;
+    }
     const lcx = this.lastClickedTile.x;
     const lcy = this.lastClickedTile.y;
     this.clearTintHighlight();
@@ -1195,14 +1285,64 @@ export class EditorScene extends Phaser.Scene {
   }
 
   /**
+   * Single write-path for ground-tile edits. Reads the old GID, paints
+   * the new one, emits an event with BOTH — so the React reducer can
+   * push a PAINT_TILE action to the undo stack with a complete inverse.
+   * Before this helper, each paint site emitted `{x, y, gid}` without
+   * the old value, which meant ⌘Z had no way to restore the prior tile.
+   * Used by cmd+click, drag-paint, erase, fill-bucket, and paste.
+   */
+  paintTile(x: number, y: number, newGid: number): void {
+    if (!this.tilemap) return;
+    if (x < 0 || x >= this.tilemap.width || y < 0 || y >= this.tilemap.height) return;
+    const oldTile = this.tilemap.getTileAt(x, y, false, "Ground");
+    const oldGid = oldTile?.index ?? 0;
+    if (oldGid === newGid) return;
+    this.tilemap.putTileAt(newGid, x, y, false, "Ground");
+    // Inside a drag/fill stroke: accumulate into the batch buffer. The
+    // flush-on-end path emits one editor:tile-paint-batch so React
+    // records a single undo entry. Single-click paints leave the buffer
+    // null and emit immediately as before.
+    if (this.paintBatch) {
+      this.paintBatch.push({ x, y, oldGid, newGid });
+    } else {
+      emitEditorEvent("editor:tile-paint", { x, y, gid: newGid, oldGid });
+    }
+  }
+
+  /**
+   * Open a paint-buffer window. Subsequent `paintTile` calls accumulate
+   * into a single batch; call `flushPaintBatch()` when the stroke ends.
+   * No-op if already open (nested drags coalesce safely).
+   */
+  private beginPaintBatch(): void {
+    if (!this.paintBatch) this.paintBatch = [];
+  }
+
+  /** Close the buffer and emit one batch event, or nothing if empty. */
+  private flushPaintBatch(): void {
+    if (!this.paintBatch) return;
+    const changes = this.paintBatch;
+    this.paintBatch = null;
+    if (changes.length === 0) return;
+    if (changes.length === 1) {
+      // Single-tile "batch" — keep the same event shape as an unbuffered
+      // paint so the React side doesn't see spurious empty batches.
+      const c = changes[0];
+      emitEditorEvent("editor:tile-paint", { x: c.x, y: c.y, gid: c.newGid, oldGid: c.oldGid });
+      return;
+    }
+    emitEditorEvent("editor:tile-paint-batch", { changes });
+  }
+
+  /**
    * Erase the ground tile AND any top sprite at (x, y). Ensures the user
    * doesn't get a floating tree after clearing the ground beneath it.
    */
   private eraseTileAndDecor(x: number, y: number): void {
     if (!this.tilemap) return;
     if (x < 0 || x >= this.tilemap.width || y < 0 || y >= this.tilemap.height) return;
-    this.tilemap.putTileAt(0, x, y, false, "Ground");
-    emitEditorEvent("editor:tile-paint", { x, y, gid: 0 });
+    this.paintTile(x, y, 0);
     const beforeLen = this.topSprites.length;
     this.topSprites = this.topSprites.filter((s) => {
       const sx = Math.floor((s.x as number) / TILE_SIZE);
@@ -1225,9 +1365,16 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
     const rows = this.blockSelection.tiles;
+    // Count decor entries so the HUD can show "2×1 · 1 decor" — lets the
+    // user see at a glance whether a sprite was captured (especially
+    // important in fg-only mode where only the decor matters).
+    let decorCount = 0;
+    for (const r of this.blockSelection.decor) for (const c of r) if (c) decorCount++;
     emitEditorEvent("editor:block-status", {
       width: rows[0]?.length ?? 0,
       height: rows.length,
+      decorCount,
+      pasteMode: this.blockPasteMode,
     });
   }
 
@@ -1269,11 +1416,9 @@ export class EditorScene extends Phaser.Scene {
       const x = parseInt(xs, 10);
       const y = parseInt(ys, 10);
       if (mode === "paint" && this.selectedTileGid > 0) {
-        this.tilemap.putTileAt(this.selectedTileGid, x, y, false, "Ground");
-        emitEditorEvent("editor:tile-paint", { x, y, gid: this.selectedTileGid });
+        this.paintTile(x, y, this.selectedTileGid);
       } else if (mode === "erase") {
-        this.tilemap.putTileAt(0, x, y, false, "Ground");
-        emitEditorEvent("editor:tile-paint", { x, y, gid: 0 });
+        this.paintTile(x, y, 0);
       }
     }
     this.clearPendingOpQueue();
@@ -1311,18 +1456,24 @@ export class EditorScene extends Phaser.Scene {
     const visited = new Set<string>();
     const MAX_CELLS = w * h; // safety upper bound — whole map
     let painted = 0;
-    while (stack.length && painted < MAX_CELLS) {
-      const [x, y] = stack.pop()!;
-      const key = `${x},${y}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
-      if (x < 0 || x >= w || y < 0 || y >= h) continue;
-      const t = this.tilemap.getTileAt(x, y, false, "Ground");
-      if (!t || t.index !== targetGid) continue;
-      this.tilemap.putTileAt(replacementGid, x, y, false, "Ground");
-      emitEditorEvent("editor:tile-paint", { x, y, gid: replacementGid });
-      painted++;
-      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    // Wrap the flood-fill in a single paint batch so one ⌘Z undoes the
+    // entire filled region instead of hundreds of individual tile undos.
+    this.beginPaintBatch();
+    try {
+      while (stack.length && painted < MAX_CELLS) {
+        const [x, y] = stack.pop()!;
+        const key = `${x},${y}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        if (x < 0 || x >= w || y < 0 || y >= h) continue;
+        const t = this.tilemap.getTileAt(x, y, false, "Ground");
+        if (!t || t.index !== targetGid) continue;
+        this.paintTile(x, y, replacementGid);
+        painted++;
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+    } finally {
+      this.flushPaintBatch();
     }
   }
 
@@ -1335,48 +1486,195 @@ export class EditorScene extends Phaser.Scene {
    */
   private pasteBlockAt(tileX: number, tileY: number): void {
     if (!this.blockSelection || !this.tilemap) return;
-    const { tiles, decor } = this.blockSelection;
+    const { tiles, decor, meta } = this.blockSelection;
+    const wantBg = this.blockPasteMode !== "fg-only";
+    const wantFg = this.blockPasteMode !== "bg-only";
     const targets = new Set<string>();
-    for (let dy = 0; dy < tiles.length; dy++) {
-      for (let dx = 0; dx < tiles[dy].length; dx++) {
-        const tx = tileX + dx;
-        const ty = tileY + dy;
-        if (tx < 0 || tx >= this.tilemap.width || ty < 0 || ty >= this.tilemap.height) continue;
-        if (tiles[dy][dx] > 0) {
-          this.tilemap.putTileAt(tiles[dy][dx], tx, ty, false, "Ground");
+
+    // Ground layer — skipped entirely in fg-only mode so pasting a fence
+    // onto a road preserves the road underneath.
+    if (wantBg) {
+      for (let dy = 0; dy < tiles.length; dy++) {
+        for (let dx = 0; dx < tiles[dy].length; dx++) {
+          const tx = tileX + dx;
+          const ty = tileY + dy;
+          if (tx < 0 || tx >= this.tilemap.width || ty < 0 || ty >= this.tilemap.height) continue;
+          if (tiles[dy][dx] > 0) {
+            this.tilemap.putTileAt(tiles[dy][dx], tx, ty, false, "Ground");
+          }
+          targets.add(`${tx},${ty}`);
         }
-        targets.add(`${tx},${ty}`);
+      }
+    } else {
+      // fg-only still needs to know the footprint so we can clear old
+      // decor in the paste region before adding new sprites.
+      for (let dy = 0; dy < tiles.length; dy++) {
+        for (let dx = 0; dx < tiles[dy].length; dx++) {
+          targets.add(`${tileX + dx},${tileY + dy}`);
+        }
       }
     }
-    // Remove any existing top sprites inside the paste footprint so we
-    // don't layer duplicates. Then add new ones for captured decor.
-    this.topSprites = this.topSprites.filter((s) => {
-      const tx = Math.floor((s.x as number) / TILE_SIZE);
-      const ty = Math.floor((s.y as number) / TILE_SIZE);
-      if (targets.has(`${tx},${ty}`)) { s.destroy(); return false; }
-      return true;
-    });
-    for (let dy = 0; dy < decor.length; dy++) {
-      for (let dx = 0; dx < decor[dy].length; dx++) {
-        const d = decor[dy][dx];
-        if (!d) continue;
-        const tx = tileX + dx;
-        const ty = tileY + dy;
-        if (tx < 0 || tx >= this.tilemap.width || ty < 0 || ty >= this.tilemap.height) continue;
-        const sprite = this.add.sprite(
-          tx * TILE_SIZE + TILE_SIZE / 2,
-          ty * TILE_SIZE + TILE_SIZE / 2,
-          d.textureKey,
-          d.frameKey,
-        );
-        sprite.setDepth(d.depth);
-        this.topSprites.push(sprite);
+
+    // Foreground layer — destroy overlapping sprites, add captured decor.
+    if (wantFg) {
+      this.topSprites = this.topSprites.filter((s) => {
+        const tx = Math.floor((s.x as number) / TILE_SIZE);
+        const ty = Math.floor((s.y as number) / TILE_SIZE);
+        if (targets.has(`${tx},${ty}`)) { s.destroy(); return false; }
+        return true;
+      });
+      for (let dy = 0; dy < decor.length; dy++) {
+        for (let dx = 0; dx < decor[dy].length; dx++) {
+          const d = decor[dy][dx];
+          if (!d) continue;
+          const tx = tileX + dx;
+          const ty = tileY + dy;
+          if (tx < 0 || tx >= this.tilemap.width || ty < 0 || ty >= this.tilemap.height) continue;
+          // Guard against missing texture/frame — otherwise Phaser silently
+          // renders its __MISSING placeholder which shows up as a small
+          // dark silhouette and looks like a bug to the user. If the
+          // source texture/frame isn't registered, skip and toast.
+          const tex = this.textures.get(d.textureKey);
+          if (!tex || !tex.has(d.frameKey)) {
+            emitEditorEvent("editor:toast", {
+              message: `Skipped decor paste: texture "${d.textureKey}" frame "${d.frameKey}" not loaded.`,
+            });
+            continue;
+          }
+          const sprite = this.add.sprite(
+            tx * TILE_SIZE + TILE_SIZE / 2,
+            ty * TILE_SIZE + TILE_SIZE / 2,
+            d.textureKey,
+            d.frameKey,
+          );
+          sprite.setDepth(d.depth);
+          // Replay the captured visual transform so a copied rotated/
+          // flipped tree pastes facing the same direction as the source.
+          if (d.rotation) sprite.setRotation(d.rotation);
+          if (d.flipX) sprite.setFlipX(true);
+          if (d.flipY) sprite.setFlipY(true);
+          this.topSprites.push(sprite);
+        }
       }
     }
+
+    // Per-cell metadata (tints, collision) — applied AFTER the ground/
+    // decor write so the visual state of the destination matches what
+    // the user copied from. Without this, ⌘C → ⌘V silently dropped any
+    // hue work or collision flags the user had set on the source.
+    if (meta) {
+      for (let dy = 0; dy < meta.length; dy++) {
+        for (let dx = 0; dx < (meta[dy]?.length ?? 0); dx++) {
+          const m = meta[dy][dx];
+          if (!m) continue;
+          const tx = tileX + dx;
+          const ty = tileY + dy;
+          if (tx < 0 || tx >= this.tilemap.width || ty < 0 || ty >= this.tilemap.height) continue;
+          if (m.blocked) {
+            const idx = ty * this.tilemap.width + tx;
+            this.collisionLayerData[idx] = 1;
+            const cl = this.tilemap.getLayer("Collision");
+            if (cl?.tilemapLayer) this.tilemap.putTileAt(1, tx, ty, false, "Collision");
+            emitEditorEvent("editor:collision-toggle", { x: tx, y: ty, blocked: true });
+          }
+          if (m.tint) {
+            // Forward to React so the tileTints state owns it; the same
+            // event the inspector dispatches when the user moves a slider.
+            emitEditorEvent("editor:apply-tint-at", {
+              x: tx, y: ty,
+              tint: m.tint,
+            });
+          }
+        }
+      }
+      if (this.collisionVisible) this.renderCollisionOverlay();
+    }
+
     emitEditorEvent("editor:block-pasted", {
       x: tileX, y: tileY,
       w: tiles[0].length, h: tiles.length,
+      mode: this.blockPasteMode,
     });
+  }
+
+  /**
+   * Snapshot a set of cells' current ground GID + decor + collision.
+   * Used to bookend a paste so ⌘Z can restore the region to its
+   * pre-paste state. Decor is captured per cell (first matching sprite);
+   * multiple sprites at the same tile are rare in practice.
+   */
+  private snapshotCells(cells: Array<{ x: number; y: number }>): Array<{ x: number; y: number; gid: number; decor: any; blocked: boolean }> {
+    if (!this.tilemap) return [];
+    const mapW = this.tilemap.width;
+    const decorByKey = new Map<string, any>();
+    for (const s of this.topSprites) {
+      const sx = Math.floor((s.x as number) / TILE_SIZE);
+      const sy = Math.floor((s.y as number) / TILE_SIZE);
+      if (!decorByKey.has(`${sx},${sy}`)) {
+        decorByKey.set(`${sx},${sy}`, {
+          textureKey: s.texture.key,
+          frameKey: String(s.frame.name),
+          depth: s.depth as number,
+          rotation: (s as any).rotation ?? 0,
+          flipX: (s as any).flipX ?? false,
+          flipY: (s as any).flipY ?? false,
+        });
+      }
+    }
+    return cells.map((c) => {
+      const t = this.tilemap!.getTileAt(c.x, c.y, false, "Ground");
+      const idx = c.y * mapW + c.x;
+      return {
+        x: c.x, y: c.y,
+        gid: t?.index ?? 0,
+        decor: decorByKey.get(`${c.x},${c.y}`) ?? null,
+        blocked: (this.collisionLayerData?.[idx] ?? 0) > 0,
+      };
+    });
+  }
+
+  /**
+   * Restore a cell snapshot — used by ⌘Z/⌘Y on a paste action. Writes
+   * ground GID, destroys existing decor in footprint, recreates from
+   * the snapshot, and re-applies the collision flag + overlay.
+   */
+  private applyPasteSnapshot(cells: Array<{ x: number; y: number; gid: number; decor: any; blocked: boolean }>): void {
+    if (!this.tilemap) return;
+    const mapW = this.tilemap.width;
+    const cellKeys = new Set(cells.map((c) => `${c.x},${c.y}`));
+    // Ground tiles
+    for (const c of cells) {
+      this.tilemap.putTileAt(c.gid, c.x, c.y, false, "Ground");
+    }
+    // Decor — destroy all sprites in the footprint, then recreate per
+    // snapshot. This handles both add→remove and remove→add directions
+    // cleanly because either side of the diff is symmetric.
+    this.topSprites = this.topSprites.filter((s) => {
+      const sx = Math.floor((s.x as number) / TILE_SIZE);
+      const sy = Math.floor((s.y as number) / TILE_SIZE);
+      if (cellKeys.has(`${sx},${sy}`)) { s.destroy(); return false; }
+      return true;
+    });
+    for (const c of cells) {
+      const d = c.decor;
+      if (!d) continue;
+      const tex = this.textures.get(d.textureKey);
+      if (!tex || !tex.has(d.frameKey)) continue;
+      const sprite = this.add.sprite(c.x * TILE_SIZE + TILE_SIZE / 2, c.y * TILE_SIZE + TILE_SIZE / 2, d.textureKey, d.frameKey);
+      sprite.setDepth(d.depth);
+      if (d.rotation) sprite.setRotation(d.rotation);
+      if (d.flipX) sprite.setFlipX(true);
+      if (d.flipY) sprite.setFlipY(true);
+      this.topSprites.push(sprite);
+    }
+    // Collision
+    for (const c of cells) {
+      const idx = c.y * mapW + c.x;
+      this.collisionLayerData[idx] = c.blocked ? 1 : 0;
+      const cl = this.tilemap.getLayer("Collision");
+      if (cl?.tilemapLayer) this.tilemap.putTileAt(c.blocked ? 1 : 0, c.x, c.y, false, "Collision");
+    }
+    if (this.collisionVisible) this.renderCollisionOverlay();
   }
 
   /**
@@ -1455,6 +1753,72 @@ export class EditorScene extends Phaser.Scene {
     this.hoverPreviewGhost.setPosition(tileX * TILE_SIZE, tileY * TILE_SIZE);
   }
 
+  /**
+   * Outline every tile on the map whose GID matches the hovered swatch.
+   * Complements `updateHoverPreviewGhost` (cursor-following thumbnail) by
+   * also showing *where the tile type already lives* — useful for spotting
+   * duplicates before painting a new instance.
+   */
+  private renderSwatchMatchHighlights(gid: number): void {
+    this.clearSwatchMatchHighlights();
+    if (!this.tilemap || gid <= 0) return;
+    const layer = this.tilemap.getLayer("Ground");
+    if (!layer) return;
+    const g = this.add.graphics();
+    g.setDepth(695);
+    g.lineStyle(1, 0xfacc15, 0.8);
+    g.fillStyle(0xfacc15, 0.12);
+    for (let y = 0; y < this.tilemap.height; y++) {
+      for (let x = 0; x < this.tilemap.width; x++) {
+        const t = layer.data[y]?.[x];
+        if (!t || t.index !== gid) continue;
+        g.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        g.strokeRect(x * TILE_SIZE + 0.5, y * TILE_SIZE + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+      }
+    }
+    this.swatchMatchHighlights = g;
+  }
+
+  private clearSwatchMatchHighlights(): void {
+    if (this.swatchMatchHighlights) {
+      this.swatchMatchHighlights.destroy();
+      this.swatchMatchHighlights = null;
+    }
+  }
+
+  /**
+   * Draw a pulsing ring at (tileX, tileY) so the user can preview where an
+   * entity lives on the map just by hovering its row in the left-panel list.
+   * Overwrites any prior ring.
+   */
+  private renderEntityPreview(tileX: number, tileY: number): void {
+    this.clearEntityPreview();
+    const cx = tileX * TILE_SIZE + TILE_SIZE / 2;
+    const cy = tileY * TILE_SIZE + TILE_SIZE / 2;
+    const ring = this.add.graphics();
+    ring.setDepth(702);
+    ring.lineStyle(2, 0x4a9eed, 0.95);
+    ring.strokeCircle(0, 0, 14);
+    ring.fillStyle(0x4a9eed, 0.15);
+    ring.fillCircle(0, 0, 12);
+    ring.setPosition(cx, cy);
+    this.entityPreviewRing = ring;
+    this.entityPreviewTween = this.tweens.add({
+      targets: ring,
+      scale: { from: 0.8, to: 1.35 },
+      alpha: { from: 1.0, to: 0.35 },
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  private clearEntityPreview(): void {
+    if (this.entityPreviewTween) { this.entityPreviewTween.stop(); this.entityPreviewTween = null; }
+    if (this.entityPreviewRing) { this.entityPreviewRing.destroy(); this.entityPreviewRing = null; }
+  }
+
   private setupEventListeners(): void {
     this.unsubscribers.push(
       onEditorEvent(SELECT_ENTITY, (detail: { entityId: string }) => {
@@ -1515,7 +1879,7 @@ export class EditorScene extends Phaser.Scene {
         if (!detail) return;
         this.eraseTileAndDecor(detail.x, detail.y);
       }),
-      onEditorEvent("editor:copy-selection-as-block", (detail: { tiles: { x: number; y: number }[] }) => {
+      onEditorEvent("editor:copy-selection-as-block", (detail: { tiles: { x: number; y: number }[]; fgOnly?: boolean }) => {
         if (!this.tilemap || !detail?.tiles || detail.tiles.length === 0) return;
         // Compute bounding rect
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -1536,35 +1900,73 @@ export class EditorScene extends Phaser.Scene {
             textureKey: s.texture.key,
             frameKey: String(s.frame.name),
             depth: s.depth as number,
+            // Capture the live transform so paste can re-apply rotate/flip
+            // (otherwise a rotated tree pastes facing the original way).
+            rotation: (s as any).rotation ?? 0,
+            flipX: (s as any).flipX ?? false,
+            flipY: (s as any).flipY ?? false,
           });
         }
+        // Pull React-side per-tile tints from the window mirror (kept in
+        // sync by an effect in EditorApp). Without this, ⌘C copied the
+        // raw GID and dropped the user's hue/saturation work on the floor.
+        // Read the RAW tint entries (pre-preset resolution) so paste can
+        // re-dispatch SET_TILE_TINT in the same shape — preserving
+        // presetId references, not flattening to baked HSL.
+        const tints: Record<string, BlockCellMeta["tint"]> = (window as any).__EDITOR_TILE_TINTS_RAW__ ?? {};
         const tiles: number[][] = [];
         const decor: (BlockDecor | null)[][] = [];
+        const meta: (BlockCellMeta | null)[][] = [];
+        const mapW = this.tilemap.width;
         for (let dy = 0; dy < h; dy++) {
           const row: number[] = [];
           const drow: (BlockDecor | null)[] = [];
+          const mrow: (BlockCellMeta | null)[] = [];
           for (let dx = 0; dx < w; dx++) {
-            const key = `${minX + dx},${minY + dy}`;
+            const cellX = minX + dx;
+            const cellY = minY + dy;
+            const key = `${cellX},${cellY}`;
             if (inSel.has(key)) {
-              const tt = this.tilemap.getTileAt(minX + dx, minY + dy, false, "Ground");
-              row.push(tt?.index ?? 0);
+              const tt = this.tilemap.getTileAt(cellX, cellY, false, "Ground");
+              // fgOnly: zero out the ground so plain paste (mode "both")
+              // still only places the decor. Lets ⌘⌥C copy "just the
+              // fence" and ⌘V drop it on a road without touching the
+              // road GID — even in default paste mode.
+              row.push(detail.fgOnly ? 0 : (tt?.index ?? 0));
               drow.push(decorMap.get(key) ?? null);
+              // Capture every per-cell modification so paste reproduces
+              // the EXACT visual the user copied — tint adjust + the
+              // collision flag travel with the tile.
+              const idx = cellY * mapW + cellX;
+              const blocked = (this.collisionLayerData?.[idx] ?? 0) > 0;
+              const tintForCell = tints[`${cellX},${cellY}`] ?? null;
+              if (tintForCell || blocked) {
+                mrow.push({ tint: tintForCell ?? undefined, blocked: blocked || undefined });
+              } else {
+                mrow.push(null);
+              }
             } else {
               // Tiles outside the selection within the bounding rect
-              // paste as "no-op" (zero GID, no decor)
+              // paste as "no-op" (zero GID, no decor, no meta)
               row.push(0);
               drow.push(null);
+              mrow.push(null);
             }
           }
           tiles.push(row);
           decor.push(drow);
+          meta.push(mrow);
         }
         this.blockSelection = {
           startX: minX, startY: minY,
           endX: maxX, endY: maxY,
-          tiles, decor,
+          tiles, decor, meta,
         };
+        this.blockPasteMode = "both";
         emitEditorEvent("editor:block-copied", { width: w, height: h, tileCount: detail.tiles.length });
+        // Visual confirmation: the captured tiles flash green for ~1s so
+        // the user can see exactly what landed on the clipboard.
+        emitEditorEvent("editor:flash-tiles", { tiles: detail.tiles, color: detail.fgOnly ? 0x22c55e : 0x4ade80 });
         this.emitBlockStatus();
       }),
       onEditorEvent("editor:copy-single-tile", (detail: { x: number; y: number }) => {
@@ -1587,8 +1989,31 @@ export class EditorScene extends Phaser.Scene {
           tiles: [[gid]],
           decor: [[decor]],
         };
+        this.blockPasteMode = "both";
         emitEditorEvent("editor:block-copied", { width: 1, height: 1, tileCount: 1 });
         this.emitBlockStatus();
+      }),
+      // Esc tier: clear the tile selection set. Fires before the entity-
+      // selection clear so a ⇧+drag-rect state unwinds first.
+      onEditorEvent("editor:clear-tile-selection", () => {
+        this.setSelection([]);
+      }),
+      // ⇧+Arrow extends the selection one tile in that direction, using
+      // `lastClickedTile` as the moving cursor. Each press adds a new
+      // cell and advances the cursor — matches the path-extension UX of
+      // spreadsheet editors and tile-based level designers.
+      onEditorEvent("editor:extend-selection-arrow", (detail: { dx: number; dy: number } | null) => {
+        if (!this.tilemap || !detail) return;
+        const start = this.lastClickedTile;
+        if (!start) {
+          emitEditorEvent("editor:toast", { message: "No tile picked — double-click a tile first, then ⇧+Arrow extends." });
+          return;
+        }
+        const nx = Math.max(0, Math.min(this.tilemap.width - 1, start.x + detail.dx));
+        const ny = Math.max(0, Math.min(this.tilemap.height - 1, start.y + detail.dy));
+        if (nx === start.x && ny === start.y) return; // clamped at the edge
+        this.addTintHighlight(nx, ny);
+        this.setLastClickedTile(nx, ny);
       }),
       onEditorEvent("editor:clear-block-selection", () => {
         this.blockSelection = null;
@@ -1598,6 +2023,82 @@ export class EditorScene extends Phaser.Scene {
         }
         this.clearBlockGhost();
         this.emitBlockStatus();
+      }),
+      // Brief green flash on the tiles that just got copied to the
+      // clipboard — visual confirmation that ⌘C / ⌘⌥C captured the
+      // right cells. Auto-fades in ~1s; doesn't interfere with the
+      // selection highlight (which is a separate graphics layer).
+      onEditorEvent("editor:flash-tiles", (detail: { tiles: { x: number; y: number }[]; color?: number } | null) => {
+        if (!detail?.tiles?.length) return;
+        const color = detail.color ?? 0x4ade80;
+        const g = this.add.graphics();
+        g.setDepth(720);
+        g.fillStyle(color, 0.55);
+        g.lineStyle(2, color, 0.95);
+        for (const t of detail.tiles) {
+          g.fillRect(t.x * TILE_SIZE, t.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          g.strokeRect(t.x * TILE_SIZE + 0.5, t.y * TILE_SIZE + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        }
+        this.tweens.add({
+          targets: g,
+          alpha: { from: 1, to: 0 },
+          duration: 1100,
+          ease: "Quad.easeOut",
+          onComplete: () => g.destroy(),
+        });
+      }),
+      // ⌘V paste — drops the current clipboard at the pointer's tile. All
+      // the same affordances as the old click-to-paste (R rotate, F flip,
+      // B mode cycle) still apply; just the trigger changed. Wrapped in
+      // a before/after snapshot so ⌘Z reverts the entire paste (ground
+      // + decor + collision) in one action.
+      onEditorEvent("editor:paste-at-cursor", () => {
+        if (!this.blockSelection || !this.tilemap) {
+          emitEditorEvent("editor:toast", { message: "Clipboard is empty — press ⌘C to copy a selection first." });
+          return;
+        }
+        const p = this.input.activePointer;
+        const tx = Math.floor((p?.worldX ?? 0) / TILE_SIZE);
+        const ty = Math.floor((p?.worldY ?? 0) / TILE_SIZE);
+        const { tiles } = this.blockSelection;
+        const h = tiles.length;
+        const w = tiles[0]?.length ?? 0;
+        const cells: Array<{ x: number; y: number }> = [];
+        for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
+          const cx = tx + dx, cy = ty + dy;
+          if (cx >= 0 && cx < this.tilemap.width && cy >= 0 && cy < this.tilemap.height) {
+            cells.push({ x: cx, y: cy });
+          }
+        }
+        const before = this.snapshotCells(cells);
+        this.pasteBlockAt(tx, ty);
+        const after = this.snapshotCells(cells);
+        emitEditorEvent("editor:paste-snapshot", { before, after });
+      }),
+      // Replay a paste snapshot — fired when the user hits ⌘Z (restores
+      // "before") or ⌘Y (reapplies "after"). Bypasses the normal paste
+      // path so the emitted snapshot isn't re-added to the undo stack.
+      onEditorEvent("editor:apply-paste-snapshot", (detail: { cells: Array<{ x: number; y: number; gid: number; decor: any; blocked: boolean }> } | null) => {
+        if (!detail?.cells?.length || !this.tilemap) return;
+        this.applyPasteSnapshot(detail.cells);
+      }),
+      // Backspace / Delete-selection — erases every tile currently in
+      // the unified selection (ground + decor). Batched as one undo.
+      onEditorEvent("editor:delete-selection", () => {
+        if (!this.tilemap || !this.tintHighlights || this.tintHighlights.size === 0) return;
+        this.beginPaintBatch();
+        try {
+          for (const key of this.tintHighlights.keys()) {
+            const [xs, ys] = key.split(",");
+            const x = parseInt(xs, 10);
+            const y = parseInt(ys, 10);
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+              this.eraseTileAndDecor(x, y);
+            }
+          }
+        } finally {
+          this.flushPaintBatch();
+        }
       }),
       onEditorEvent("editor:clear-pending-ops", () => {
         this.clearPendingOpQueue();
@@ -1611,12 +2112,62 @@ export class EditorScene extends Phaser.Scene {
       onEditorEvent("editor:fit-map", () => {
         this.fitMapToViewport();
       }),
+      // Replay a tile paint — fired when the user hits ⌘Z on a PAINT_TILE
+      // action (inverse) or ⌘Y (redo). Bypasses `paintTile()` because
+      // undo/redo shouldn't re-emit editor:tile-paint and double-push
+      // to the undo stack.
+      onEditorEvent("editor:apply-paint", (detail: { x: number; y: number; gid: number } | null) => {
+        if (!detail || !this.tilemap) return;
+        this.tilemap.putTileAt(detail.gid, detail.x, detail.y, false, "Ground");
+      }),
+      // Batched replay — same, for whole drag-paint strokes / fill-bucket.
+      onEditorEvent("editor:apply-paint-batch", (detail: { changes: Array<{ x: number; y: number; gid: number }> } | null) => {
+        if (!detail || !this.tilemap) return;
+        for (const c of detail.changes) {
+          this.tilemap.putTileAt(c.gid, c.x, c.y, false, "Ground");
+        }
+      }),
+      // Undo/redo of a collision toggle. Bypasses toggleCollisionAt so
+      // we don't re-emit editor:collision-toggle and push a duplicate
+      // undo entry.
+      onEditorEvent("editor:set-collision", (detail: { x: number; y: number; blocked: boolean } | null) => {
+        if (!detail || !this.tilemap) return;
+        const idx = detail.y * this.tilemap.width + detail.x;
+        this.collisionLayerData[idx] = detail.blocked ? 1 : 0;
+        const layer = this.tilemap.getLayer("Collision");
+        if (layer?.tilemapLayer) {
+          this.tilemap.putTileAt(detail.blocked ? 1 : 0, detail.x, detail.y, false, "Collision");
+        }
+        if (this.collisionVisible) this.renderCollisionOverlay();
+      }),
+      // Undo/redo of a selection change. Goes through setSelection
+      // which rebuilds the highlight graphics, but flags the scene as
+      // "replaying" so the selection-change emit is suppressed —
+      // otherwise React would dispatch another SET_SELECTION and we'd
+      // loop forever on each undo.
+      onEditorEvent("editor:apply-selection", (detail: { tiles: Array<{ x: number; y: number }> } | null) => {
+        if (!detail) return;
+        this.isReplayingSelection = true;
+        try {
+          this.setSelection(detail.tiles);
+        } finally {
+          this.isReplayingSelection = false;
+        }
+      }),
       onEditorEvent("editor:preview-gid", (detail: { gid: number } | null) => {
         this.hoverPreviewGid = detail?.gid ?? 0;
         if (!this.hoverPreviewGid && this.hoverPreviewGhost) {
           this.hoverPreviewGhost.destroy();
           this.hoverPreviewGhost = null;
         }
+        // Swatch hover also shows *where* that GID already lives on the map
+        // so the user can spot existing instances before painting new ones.
+        if (this.hoverPreviewGid > 0) this.renderSwatchMatchHighlights(this.hoverPreviewGid);
+        else this.clearSwatchMatchHighlights();
+      }),
+      onEditorEvent("editor:preview-entity", (detail: { x: number; y: number } | null) => {
+        if (!detail) { this.clearEntityPreview(); return; }
+        this.renderEntityPreview(detail.x, detail.y);
       }),
       onEditorEvent("editor:select-tile-gid", (detail: { gid: number }) => {
         this.selectedTileGid = detail.gid;
@@ -1726,6 +2277,16 @@ export class EditorScene extends Phaser.Scene {
     const tileY = Math.floor(pointer.worldY / TILE_SIZE);
     const mapW = this.tilemap?.width ?? MAP_WIDTH;
     const mapH = this.tilemap?.height ?? MAP_HEIGHT;
+
+    // Freeze the readout while the user is mid-gesture — the tooltip
+    // flashing during pan / drag-paint is noise, not signal.
+    const gestureActive = this.isPanning || this.isDragPainting ||
+                          this.isShiftDragging || this.isBlockDragPasting;
+    if (gestureActive) return;
+
+    // While the cursor is on an entity, the entity bubble owns the readout.
+    // Don't re-emit the tile tooltip or they'll stack.
+    if (this.hoveredEntityId) return;
 
     // Outside the map bounds OR pointer left the canvas → emit null so the
     // React hover badge disappears. We also clear the in-scene coordText.
@@ -2199,9 +2760,19 @@ export class EditorScene extends Phaser.Scene {
     this.emitSelectionChange();
   }
 
+  /**
+   * Suppresses `editor:selection-change` emission while the scene is
+   * in the middle of replaying an undo/redo. Without this, the React
+   * dispatcher would see the replay as a fresh user selection and
+   * push a duplicate SET_SELECTION onto the undo stack, creating
+   * an infinite loop.
+   */
+  private isReplayingSelection = false;
+
   /** Emit the full selection list so React can mirror it. */
   private emitSelectionChange(): void {
-    const tiles: { x: number; y: number; layer: "ground" | "top" }[] = [];
+    if (this.isReplayingSelection) return;
+    const tiles: { x: number; y: number; layer: "ground" | "top"; origin?: "replay" }[] = [];
     for (const key of this.tintHighlights.keys()) {
       const [xs, ys] = key.split(",");
       const x = parseInt(xs, 10);

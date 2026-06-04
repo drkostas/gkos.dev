@@ -104,6 +104,19 @@ export async function getTopPages(days = 30, limit = 10): Promise<UmamiMetric[]>
   return data ?? [];
 }
 
+/**
+ * Top blog-post pages by views for the last N days.
+ * Filters /blog/<slug> from the wider top-pages list, drops the listing page
+ * itself (/blog), and returns up to `limit` results sorted by views desc.
+ */
+export async function getTopBlogPosts(days = 30, limit = 5): Promise<UmamiMetric[]> {
+  // Fetch generously so we have headroom after filtering.
+  const all = await getTopPages(days, 50);
+  return all
+    .filter((m) => /^\/blog\/[^/]+\/?$/.test(m.x))
+    .slice(0, limit);
+}
+
 /** Top referrers for the last N days. */
 export async function getTopReferrers(days = 30, limit = 10): Promise<UmamiMetric[]> {
   const data = await umamiFetch<UmamiMetric[]>("/metrics", {

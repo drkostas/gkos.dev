@@ -28,12 +28,14 @@ function formatPath(path: string): string {
 /**
  * Renders top pages, visitors, referrers from Umami Cloud API.
  * Fetches /api/stats/umami on mount (edge-cached for 5 min).
+ * Pass `demoData` to bypass the fetch (used by the /widgets catalog).
  */
-export function UmamiStatsReact() {
-  const [data, setData] = useState<UmamiData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function UmamiStatsReact({ demoData }: { demoData?: UmamiData } = {}) {
+  const [data, setData] = useState<UmamiData | null>(demoData ?? null);
+  const [isLoading, setIsLoading] = useState(!demoData);
 
   useEffect(() => {
+    if (demoData) return; // Skip network in demo mode.
     let cancelled = false;
     fetch("/api/stats/umami")
       .then((r) => r.json())
@@ -47,7 +49,7 @@ export function UmamiStatsReact() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demoData]);
 
   const stats = data?.stats;
   const topPages = data?.topPages ?? [];

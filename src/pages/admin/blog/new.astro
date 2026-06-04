@@ -1,0 +1,32 @@
+---
+export const prerender = false;
+
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { PostEditor } from "@/components/admin/PostEditor";
+import { getCollection } from "astro:content";
+
+// Collect known categories from existing posts so the editor can autocomplete.
+const posts = await getCollection("blog");
+const categorySet = new Set<string>();
+for (const p of posts) for (const c of p.data.categories || []) categorySet.add(c.toLowerCase());
+const knownCategories = Array.from(categorySet).sort();
+
+const initialFrontmatter = {
+  title: "",
+  publishedAt: new Date().toISOString().replace(/\.\d{3}Z$/, ""),
+  summary: "",
+  imageName: "",
+  categories: [],
+  draft: true,
+};
+---
+
+<AdminLayout title="New post — Admin" pageLabel="New post">
+  <h1 class="mb-6 text-3xl font-medium tracking-tight">New post</h1>
+  <PostEditor
+    initialFrontmatter={initialFrontmatter}
+    initialBody="Write your post…"
+    knownCategories={knownCategories}
+    client:only="react"
+  />
+</AdminLayout>

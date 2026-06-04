@@ -28,19 +28,19 @@ const DEFAULT_STICKERS: StickerData[] = [
     caption: "Where I publish trained models and find pretrained backbones.",
   },
   {
-    src: "https://cdn.simpleicons.org/openai",
+    src: "https://api.iconify.design/simple-icons:openai.svg",
     width: 72,
     caption: "CLIP and GPT changed how I think about multi-modal AI.",
   },
   {
     src: "https://cdn.simpleicons.org/googlescholar",
     width: 60,
-    caption: "102+ citations. The scoreboard that keeps me publishing.",
+    caption: "Papers that other people kept finding useful.",
   },
   {
     src: "https://cdn.simpleicons.org/python",
     width: 72,
-    caption: "7 PyPI packages, 10 papers, every side project.",
+    caption: "A handful of PyPI packages, a few papers, every side project.",
   },
 ];
 

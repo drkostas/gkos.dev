@@ -1,18 +1,19 @@
 import type { APIRoute } from "astro";
-import { getStats, getTopPages, getTopReferrers, getTopCountries } from "@/lib/umami";
+import { getStats, getTopPages, getTopReferrers, getTopCountries, getTopBlogPosts } from "@/lib/umami";
 
 export const prerender = false;
 
 export const GET: APIRoute = async () => {
-  const [stats, topPages, topReferrers, topCountries] = await Promise.all([
+  const [stats, topPages, topReferrers, topCountries, topBlogPosts] = await Promise.all([
     getStats(30),
     getTopPages(30, 10),
     getTopReferrers(30, 10),
     getTopCountries(30, 10),
+    getTopBlogPosts(30, 5),
   ]);
 
   return new Response(
-    JSON.stringify({ stats, topPages, topReferrers, topCountries }),
+    JSON.stringify({ stats, topPages, topReferrers, topCountries, topBlogPosts }),
     {
       status: 200,
       headers: {

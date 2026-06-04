@@ -1,0 +1,36 @@
+---
+/* Shared hero for all variant prototypes. tldr prop toggles the side card. */
+import GridWrapper from "@/components/GridWrapper.astro";
+interface Props {
+  tldr?: boolean;
+  title?: string;
+  subtitle?: string;
+}
+const { tldr = true, title = "I'm Kostas. Here's my story.", subtitle = "Software engineer, then data engineer, then a PhD in ML." } = Astro.props;
+---
+<GridWrapper class="space-y-12">
+  <div class="relative">
+    <h1 class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]">
+      {title}
+    </h1>
+    <p class="mx-auto mt-6 max-w-2xl text-center leading-8 text-text-secondary">{subtitle}</p>
+    {tldr && (
+      <div class="mx-auto mt-10 max-w-md lg:absolute lg:right-[-1.5rem] lg:top-0 lg:mt-0 lg:max-w-xs">
+        <div class="group relative overflow-hidden rss-card-light rounded-2xl border border-border-primary p-3 transition-colors hover:border-indigo-300/60">
+          <div class="user-select-none pointer-events-none absolute inset-0 z-0 bg-gradient-to-tl from-indigo-400/15 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100"></div>
+          <div class="relative z-10 flex items-center gap-3">
+            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1 text-xs font-medium text-text-primary">Just want the CV?</div>
+            <a href="/kostas-georgiou-resume.pdf" download class="inline-flex flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-200 dark:bg-indigo-500 dark:text-white dark:hover:bg-indigo-600">Download</a>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</GridWrapper>

@@ -3,10 +3,98 @@ export const prerender = false;
 
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
+import { RSSSubscribeCard } from "@/components/RSSSubscribeCard";
 import { BlogSearch } from "@/components/BlogSearch";
 import { FeaturedBlogCardReact } from "@/components/FeaturedBlogCardReact";
 import { getCollection } from "astro:content";
+import { siteMetadata } from "@/data/siteMetadata";
+
+const FEATURED_COUNT = 4;
+const WORDS_PER_MINUTE = 200;
+
+/**
+ * Subtitle matrix: 5 slots × 6 category contexts.
+ * Slot index is picked once per page load (SSR via Math.random), then reused
+ * across filter changes so the "personality" stays consistent as the user
+ * clicks between pills. Each column is a parallel rewrite of the default row.
+ */
+const SUBTITLE_MATRIX: Record<string, readonly string[]> = {
+  _default: [
+    "Informal write-ups of whatever I've been working on.",
+    "Stuff I'd tell you over coffee, but longer.",
+    "Longer than a tweet, looser than a paper.",
+    "Write-ups, walkthroughs, and occasional rabbit holes.",
+    "ML, research, side projects, and the tools in between.",
+  ],
+  personal: [
+    "Informal write-ups of whatever's on my mind.",
+    "Personal stuff I'd tell you over coffee.",
+    "Longer than a tweet, more honest than a LinkedIn post.",
+    "Notes, stories, and occasional rabbit holes.",
+    "Stories, reflections, and the stuff between projects.",
+  ],
+  meta: [
+    "Informal notes about this site.",
+    "Site stuff I'd tell you over coffee.",
+    "Longer than a tweet, lighter than a changelog.",
+    "Launch notes, tweaks, and occasional rabbit holes.",
+    "Launches, tweaks, and the bits that run this site.",
+  ],
+  builds: [
+    "Informal write-ups of things I've built.",
+    "What I built, but over coffee.",
+    "Longer than a README, looser than docs.",
+    "Build-logs, dev-diaries, and occasional rabbit holes.",
+    "Projects, process, and what I learned making them.",
+  ],
+  papers: [
+    "Informal notes on papers I've been reading.",
+    "Paper takes I'd share over coffee.",
+    "Looser than the papers themselves.",
+    "Paper notes, summaries, and occasional rabbit holes.",
+    "Papers, ideas, and the research behind them.",
+  ],
+  guides: [
+    "Informal write-ups of how I got things working.",
+    "How-tos I'd walk you through over coffee.",
+    "Longer than a Stack Overflow answer, looser than docs.",
+    "How-tos, walkthroughs, and occasional rabbit holes.",
+    "Tools, workflows, and how I actually use them.",
+  ],
+};
+const heroSlot = Math.floor(Math.random() * SUBTITLE_MATRIX._default.length);
+
+function readingMinutesFrom(body: string | undefined) {
+  if (!body) return 1;
+  const words = body.trim().split(/\s+/).length;
+  return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+}
+
+/**
+ * Strip common Markdown/MDX syntax so search snippets read as prose, not source.
+ * Conservative: keeps all visible text, drops markers and URLs.
+ */
+function stripMarkdown(md: string | undefined): string {
+  if (!md) return "";
+  return md
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+    .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/^---+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 const allBlogPosts = (await getCollection("blog"))
   .filter((post) => !post.data.draft)
@@ -14,22 +102,51 @@ const allBlogPosts = (await getCollection("blog"))
     (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
   );
 
-// Extract unique categories across all posts
-const categoriesSet = new Set<string>();
-for (const post of allBlogPosts) {
+const decoratedPosts = allBlogPosts.map((post) => ({
+  ...post,
+  readingMinutes: readingMinutesFrom(post.body),
+}));
+
+// Count posts per category (only categories with ≥1 post become pills).
+const categoryCounts = new Map<string, number>();
+for (const post of decoratedPosts) {
   for (const cat of post.data.categories || []) {
-    categoriesSet.add(cat);
+    const key = cat.toLowerCase();
+    categoryCounts.set(key, (categoryCounts.get(key) || 0) + 1);
   }
 }
-const categories = Array.from(categoriesSet);
+// Sort by defined matrix order (personal, meta, builds, papers, guides) so
+// the visible pills follow a stable left-to-right sequence, not frontmatter order.
+const MATRIX_ORDER = ["personal", "meta", "builds", "papers", "guides"];
+const visibleCategories = MATRIX_ORDER.filter((c) => categoryCounts.has(c));
 
-// Read category filter from URL
-const currentCategory = Astro.url.searchParams.get("category")?.toLowerCase() || "";
-const displayedPosts = currentCategory
-  ? allBlogPosts.filter((post) =>
+const currentCategory = (Astro.url.searchParams.get("category") || "").toLowerCase();
+const categoryFiltered = currentCategory
+  ? decoratedPosts.filter((post) =>
       post.data.categories?.map((c: string) => c.toLowerCase()).includes(currentCategory),
     )
-  : allBlogPosts;
+  : decoratedPosts;
+
+// Featured row hides when a filter is active OR when catalog is too small.
+const showFeatured = !currentCategory && decoratedPosts.length >= FEATURED_COUNT;
+const featuredPosts = showFeatured ? decoratedPosts.slice(0, FEATURED_COUNT) : [];
+const featuredIds = new Set(featuredPosts.map((p) => p.id));
+const displayedPosts = showFeatured
+  ? categoryFiltered.filter((p) => !featuredIds.has(p.id))
+  : categoryFiltered;
+
+function capitalize(cat: string) {
+  return cat.charAt(0).toUpperCase() + cat.slice(1);
+}
+
+function heroH1(cat: string) {
+  return cat ? `The blog: ${capitalize(cat)}.` : "The blog.";
+}
+
+function heroSubtitle(cat: string, slot: number) {
+  const pool = SUBTITLE_MATRIX[cat] || SUBTITLE_MATRIX._default;
+  return pool[slot];
+}
 
 function formatDate(date: Date) {
   return date.toLocaleDateString("en-US", {
@@ -43,20 +160,32 @@ function formatDate(date: Date) {
 <Layout title="Blog | Kostas Georgiou">
   <div class="mt-14 space-y-16 md:mt-16">
     <GridWrapper>
-      <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
-        {currentCategory ? `Articles about ${currentCategory}` : "Insightful and helpful content curated for you."}
+      <h1
+        id="blog-hero-h1"
+        class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]"
+      >
+        {heroH1(currentCategory)}
       </h1>
     </GridWrapper>
-
-    {!currentCategory && allBlogPosts.length > 0 && (
     <GridWrapper>
-      <ul class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-        {allBlogPosts.slice(0, 4).map((post, index) => (
+      <p
+        id="blog-hero-subtitle"
+        class="mx-auto -mt-8 max-w-2xl text-center leading-8 text-text-secondary"
+      >
+        {heroSubtitle(currentCategory, heroSlot)}
+      </p>
+    </GridWrapper>
+
+    {showFeatured && (
+    <GridWrapper>
+      <ul id="blog-featured-row" class="z-50 grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+        {featuredPosts.map((post, index) => (
           <FeaturedBlogCardReact
             slug={post.id}
             imageName={post.data.imageName}
             title={post.data.title}
             summary={post.data.summary}
+            readingMinutes={post.readingMinutes}
             direction={index % 2 === 0 ? "left" : "right"}
             className={index === 3 ? "hidden md:flex lg:hidden" : undefined}
             client:visible
@@ -67,11 +196,16 @@ function formatDate(date: Date) {
     )}
 
     <div>
-      <!-- Category Select -->
       <!-- Search -->
       <div class="px-4">
         <BlogSearch
-          posts={allBlogPosts.map(p => ({ id: p.id, title: p.data.title, summary: p.data.summary }))}
+          posts={decoratedPosts.map(p => ({
+            id: p.id,
+            title: p.data.title,
+            summary: p.data.summary,
+            body: stripMarkdown(p.body),
+            categories: p.data.categories,
+          }))}
           client:load
         />
       </div>
@@ -81,103 +215,240 @@ function formatDate(date: Date) {
         <div class="flex flex-wrap gap-2">
           <a
             href="/blog"
+            data-pill=""
             class:list={[
-              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "blog-pill rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
               !currentCategory
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                ? "is-active border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                 : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
             ]}
           >
-            All
+            <span class="blog-pill-label">All</span>
+            <span class="blog-pill-sep text-text-tertiary"> · </span>
+            <span class="blog-pill-count">{decoratedPosts.length}</span>
           </a>
-          {categories.map((cat) => (
+          {visibleCategories.map((cat) => (
             <a
-              href={`/blog?category=${encodeURIComponent(cat.toLowerCase())}`}
+              href={`/blog?category=${encodeURIComponent(cat)}`}
+              data-pill={cat}
               class:list={[
-                "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                cat.toLowerCase() === currentCategory
-                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                "blog-pill rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                cat === currentCategory
+                  ? "is-active border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                   : "border-border-primary text-text-secondary hover:border-purple-primary hover:text-purple-primary",
               ]}
             >
-              {cat}
+              <span class="blog-pill-label">{capitalize(cat)}</span>
+              <span class="blog-pill-sep text-text-tertiary"> · </span>
+              <span class="blog-pill-count">{categoryCounts.get(cat)}</span>
             </a>
           ))}
         </div>
       </div>
 
       <!-- Post list -->
-      <ul class="flex flex-col">
-        {displayedPosts.length > 0 ? (
-          displayedPosts.map((post) => (
-            <li>
-              <div class="block rounded-lg transition-colors hover:bg-white/60">
-                <article>
-                  <div class="group grid h-full grid-cols-1 md:grid-cols-12">
-                    <div class="hidden space-y-2 p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-2">
-                      <div class="font-mono text-sm leading-none text-text-secondary">
+      <ul id="blog-post-list" class="flex flex-col">
+        {categoryFiltered.length > 0 ? (
+          categoryFiltered.map((post) => (
+            <li
+              data-post-item
+              data-categories={(post.data.categories || []).map((c: string) => c.toLowerCase()).join(",")}
+              data-featured={featuredIds.has(post.id) ? "true" : "false"}
+              class:list={[featuredIds.has(post.id) ? "blog-post-featured-dup hidden" : ""]}
+            >
+              <a
+                href={`/blog/${post.id}`}
+                class="block rounded-lg transition-colors hover:bg-bg-primary/60"
+              >
+                <article class="group grid h-full grid-cols-1 md:grid-cols-12">
+                  <div class="hidden space-y-2 p-4 md:col-span-3 md:col-start-1 md:block lg:col-span-2">
+                    <div class="font-mono text-sm leading-none text-text-secondary">
+                      <time datetime={post.data.publishedAt.toISOString()}>
+                        {formatDate(post.data.publishedAt)}
+                      </time>
+                    </div>
+                    <div class="font-mono text-xs leading-none text-text-tertiary">
+                      {post.readingMinutes} min read
+                    </div>
+                  </div>
+                  <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
+                  <div class="col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
+                    <div class="z-10 text-balance">
+                      <!-- Mobile-only metadata row (hidden on md+, where left column shows it) -->
+                      <div class="mb-2 flex items-center gap-2 font-mono text-xs text-text-tertiary md:hidden">
                         <time datetime={post.data.publishedAt.toISOString()}>
                           {formatDate(post.data.publishedAt)}
                         </time>
+                        <span aria-hidden="true">·</span>
+                        <span>{post.readingMinutes} min read</span>
                       </div>
-                    </div>
-                    <div class="col-start-4 hidden h-full border-x border-border-primary md:block md:border-dashed"></div>
-                    <div class="group col-span-8 flex w-full flex-grow flex-col py-4 md:col-start-5 md:col-end-12 md:p-4">
-                      <div class="z-10 text-balance">
-                        <h2 class="mb-3 text-base font-medium leading-6 tracking-tight text-slate-900 md:leading-none">
-                          {post.data.title}
-                        </h2>
-                        <p class="mb-3 flex-grow text-base leading-6 text-text-secondary">
-                          {post.data.summary}
-                        </p>
-                        <a
-                          href={`/blog/${post.id}`}
-                          class="flex items-center text-sm font-medium text-indigo-600"
+                      <h2 class="mb-3 text-base font-medium leading-6 tracking-tight text-text-primary group-hover:text-purple-primary md:leading-none">
+                        {post.data.title}
+                      </h2>
+                      <p class="mb-3 flex-grow text-base leading-6 text-text-secondary">
+                        {post.data.summary}
+                      </p>
+                      {(post.data.categories?.length ?? 0) > 0 && (
+                        <div class="mb-3 flex flex-wrap gap-1.5">
+                          {post.data.categories!.map((cat: string) => (
+                            <span class="rounded-full border border-border-primary px-2 py-0.5 text-xs font-medium text-text-tertiary">
+                              {capitalize(cat)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <span class="inline-flex items-center text-sm font-medium text-purple-primary">
+                        <span class="text-sm leading-6">Read more</span>
+                        <svg
+                          class="relative ml-2.5 mt-px overflow-visible transition-transform group-hover:translate-x-1"
+                          width="3"
+                          height="6"
+                          viewBox="0 0 3 6"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
                         >
-                          <span class="text-sm leading-6">Read More</span>
-                          <svg
-                            class="relative ml-2.5 mt-px overflow-visible"
-                            width="3"
-                            height="6"
-                            viewBox="0 0 3 6"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          >
-                            <path d="M0 0L3 3L0 6"></path>
-                          </svg>
-                        </a>
-                      </div>
+                          <path d="M0 0L3 3L0 6"></path>
+                        </svg>
+                      </span>
                     </div>
                   </div>
                 </article>
-              </div>
+              </a>
               <div class="h-0 w-full border-t border-border-primary/50"></div>
             </li>
           ))
-        ) : (
-          <li class="py-12">
-            <div class="mx-auto max-w-md rounded-2xl border border-dashed border-border-primary/60 bg-bg-primary/50 p-10 text-center">
-              <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-primary">
-                <svg class="h-5 w-5 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-                  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-                </svg>
-              </div>
-              <h3 class="font-medium text-text-primary">No posts yet</h3>
-              <p class="mt-1 text-sm text-text-secondary">
-                {currentCategory
-                  ? `Nothing published in ${currentCategory} yet.`
-                  : "New posts are brewing. Check back soon."}
-              </p>
-            </div>
-          </li>
-        )}
+        ) : null}
       </ul>
+
+      <!-- Empty state shown by JS when filter matches nothing -->
+      <div id="blog-empty-state" class="hidden py-12">
+        <div class="mx-auto max-w-md rounded-2xl border border-dashed border-border-primary/60 bg-bg-primary/50 p-10 text-center">
+          <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-primary">
+            <svg class="h-5 w-5 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+              <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+            </svg>
+          </div>
+          <h3 class="font-medium text-text-primary">No posts yet</h3>
+          <p class="mt-1 text-sm text-text-secondary" id="blog-empty-text">
+            New posts are brewing. Check back soon.
+          </p>
+        </div>
+      </div>
     </div>
 
-    <GetInTouchReact client:visible />
+    <GridWrapper>
+      <div class="mx-auto md:w-1/2">
+        <RSSSubscribeCard siteUrl={siteMetadata.siteUrl} client:visible />
+      </div>
+    </GridWrapper>
   </div>
 </Layout>
+
+<style>
+  /* When a pill is active, dim the separator + count so the label leads
+     but the count stays readable. Active uses white text (solid dark bg). */
+  .blog-pill.is-active .blog-pill-sep,
+  .blog-pill.is-active .blog-pill-count {
+    color: rgb(255 255 255 / 0.4);
+  }
+  :global(.dark) .blog-pill.is-active .blog-pill-sep,
+  :global(.dark) .blog-pill.is-active .blog-pill-count {
+    color: rgb(24 24 27 / 0.4);
+  }
+</style>
+
+<!-- Matrix + slot shipped as JSON so the client-side filter can pick subtitles. -->
+<script id="blog-subtitle-matrix" type="application/json" set:html={JSON.stringify(SUBTITLE_MATRIX)} is:inline></script>
+<script id="blog-hero-slot" type="application/json" set:html={JSON.stringify({ slot: heroSlot })} is:inline></script>
+
+<script is:inline>
+  (function () {
+    const matrix = JSON.parse(document.getElementById("blog-subtitle-matrix").textContent || "{}");
+    const slot = JSON.parse(document.getElementById("blog-hero-slot").textContent || "{}").slot || 0;
+
+    const h1 = document.getElementById("blog-hero-h1");
+    const subtitle = document.getElementById("blog-hero-subtitle");
+    const featured = document.getElementById("blog-featured-row");
+    const postList = document.getElementById("blog-post-list");
+    const emptyState = document.getElementById("blog-empty-state");
+    const emptyText = document.getElementById("blog-empty-text");
+    const pills = document.querySelectorAll(".blog-pill");
+
+    const ACTIVE_CLASSES = ["is-active", "border-zinc-900", "bg-zinc-900", "text-white", "dark:border-zinc-100", "dark:bg-zinc-100", "dark:text-zinc-900"];
+    const INACTIVE_CLASSES = ["border-border-primary", "text-text-secondary", "hover:border-purple-primary", "hover:text-purple-primary"];
+
+    function capitalize(s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function applyFilter(cat) {
+      // H1
+      h1.textContent = cat ? "The blog: " + capitalize(cat) + "." : "The blog.";
+
+      // Subtitle — pull from matrix, reusing the same slot chosen at page load
+      const pool = matrix[cat] || matrix._default;
+      subtitle.textContent = pool[slot];
+
+      // Pill styles
+      pills.forEach((pill) => {
+        const isActive = (pill.dataset.pill || "") === cat;
+        if (isActive) {
+          pill.classList.add(...ACTIVE_CLASSES);
+          pill.classList.remove(...INACTIVE_CLASSES);
+        } else {
+          pill.classList.remove(...ACTIVE_CLASSES);
+          pill.classList.add(...INACTIVE_CLASSES);
+        }
+      });
+
+      // Featured row: hide when a filter is active
+      if (featured) featured.classList.toggle("hidden", Boolean(cat));
+
+      // Post list visibility
+      let visibleCount = 0;
+      postList.querySelectorAll("[data-post-item]").forEach((li) => {
+        const cats = (li.dataset.categories || "").split(",");
+        const isFeaturedDup = li.dataset.featured === "true";
+        // When no filter + featured row is visible, duplicates stay hidden.
+        // When a filter is on, featured row hides, so dup-hidden posts can show.
+        const matches = cat ? cats.includes(cat) : true;
+        const suppressAsDup = isFeaturedDup && !cat;
+        const visible = matches && !suppressAsDup;
+        li.classList.toggle("hidden", !visible);
+        if (visible) visibleCount++;
+      });
+
+      // Empty state
+      if (emptyState) {
+        emptyState.classList.toggle("hidden", visibleCount > 0);
+        if (emptyText) {
+          emptyText.textContent = cat
+            ? "Nothing published in " + cat + " yet."
+            : "New posts are brewing. Check back soon.";
+        }
+      }
+    }
+
+    function categoryFromUrl() {
+      return (new URL(window.location.href).searchParams.get("category") || "").toLowerCase();
+    }
+
+    pills.forEach((pill) => {
+      pill.addEventListener("click", (e) => {
+        e.preventDefault();
+        const cat = pill.dataset.pill || "";
+        const url = cat ? "/blog?category=" + encodeURIComponent(cat) : "/blog";
+        history.pushState({ cat }, "", url);
+        applyFilter(cat);
+      });
+    });
+
+    window.addEventListener("popstate", () => {
+      applyFilter(categoryFromUrl());
+    });
+  })();
+</script>
