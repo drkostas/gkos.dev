@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "blog-post": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "4a695b9be73d15798cf887a5c55732a8247e4926d2ce3d844c97ae57c44bb3f2"
+    },
     "dark-mode": {
       "source": "smithery.ai",
       "sourceType": "well-known",

@@ -23,6 +23,7 @@ export interface ArxivPaper {
   title: string;
   authors: string[];
   publishedDate: string; // ISO
+  abstract: string;
 }
 
 // Module-scoped cache: lookups are expensive (network + 3.5s wait per call),
@@ -80,13 +81,51 @@ function parseEntry(entry: string): ArxivPaper | null {
   if (!idMatch) return null;
   const id = idMatch[1];
 
+  const summary = extractTag(entry, "summary");
   return {
     id,
     url: `https://arxiv.org/abs/${id}`,
     title: title.replace(/\s+/g, " "),
     authors: extractAuthors(entry),
     publishedDate: published ?? "",
+    abstract: (summary ?? "").replace(/\s+/g, " ").trim(),
   };
+}
+
+// ----------------------------------------------------------------------------
+// Direct lookup by arXiv ID (faster — skips title-search ranking)
+// ----------------------------------------------------------------------------
+
+const idCache = new Map<string, ArxivPaper | null>();
+
+export async function getArxivById(id: string): Promise<ArxivPaper | null> {
+  if (idCache.has(id)) return idCache.get(id)!;
+  await rateLimit();
+  const url = `${ARXIV_API}?id_list=${encodeURIComponent(id)}`;
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "gkos.dev portfolio (kgeorgio@vols.utk.edu)" },
+    });
+    if (!response.ok) {
+      idCache.set(id, null);
+      return null;
+    }
+    const xml = await response.text();
+    const entries = extractEntries(xml);
+    const parsed = entries.map(parseEntry).find((p): p is ArxivPaper => p !== null) ?? null;
+    idCache.set(id, parsed);
+    return parsed;
+  } catch (error) {
+    console.warn(`[arxiv] id-fetch failed for "${id}":`, error);
+    idCache.set(id, null);
+    return null;
+  }
+}
+
+/** Extract the bare ID from a URL like https://arxiv.org/abs/2308.16258v1 */
+export function arxivIdFromUrl(url: string): string | null {
+  const m = url.match(/arxiv\.org\/abs\/([^v\s/?#]+)/i);
+  return m ? m[1] : null;
 }
 
 // ----------------------------------------------------------------------------

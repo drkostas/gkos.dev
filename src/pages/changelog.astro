@@ -1,11 +1,14 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
+import { RSSSubscribeCard } from "@/components/RSSSubscribeCard";
+import { ChangelogRailReact } from "@/components/ChangelogRailReact";
+import { siteMetadata } from "@/data/siteMetadata";
+
+
 import CodePlayground from "@/components/CodePlayground.astro";
 import { getCollection, render } from "astro:content";
 
-// Component map passed to MDX renderer for unknown components the templates use.
 const mdxComponents = { CodePlayground };
 
 const allChangelogItems = (await getCollection("changelog"))
@@ -21,71 +24,133 @@ function formatDate(date: Date) {
     year: "numeric",
   });
 }
+
+function formatRelative(date: Date) {
+  const diffMs = Date.now() - date.valueOf();
+  const day = Math.floor(diffMs / 86400000);
+  if (day < 0) return "scheduled";
+  if (day === 0) return "today";
+  if (day === 1) return "yesterday";
+  if (day < 7) return `${day} days ago`;
+  const week = Math.floor(day / 7);
+  if (week < 4) return `${week} week${week === 1 ? "" : "s"} ago`;
+  const month = Math.floor(day / 30);
+  if (month < 12) return `${month} month${month === 1 ? "" : "s"} ago`;
+  const year = Math.floor(day / 365);
+  return `${year} year${year === 1 ? "" : "s"} ago`;
+}
 ---
 
-<Layout title="Changelog | Kostas Georgiou">
+<Layout
+  title="Site updates | Kostas Georgiou"
+  description="Site updates on gkos.dev: new blog posts, features, and improvements to Kostas Georgiou's portfolio."
+>
   <div class="w-full space-y-16">
     <div class="mx-auto text-balance pt-14 md:pt-16">
       <GridWrapper>
-        <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
-          Here's what's new and exciting on my site.
+        <h1 class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]">
+          Site updates.
         </h1>
       </GridWrapper>
     </div>
 
-    <ul class="flex flex-col">
-      {allChangelogItems.length > 0 ? (
-        allChangelogItems.map(async (post) => {
-          const { Content } = await render(post);
-          const iso = post.data.publishedAt.toISOString();
-          return (
-            <li>
-              <div class="grid h-full grid-cols-1 rounded-2xl md:grid-cols-12">
-                <div class="col-span-2 col-start-1 hidden space-y-2 p-4 md:block">
-                  <div class="font-mono text-sm leading-none text-text-secondary">
-                    <time datetime={iso}>{formatDate(post.data.publishedAt)}</time>
+    <div class="relative mx-auto max-w-4xl">
+      {/* Animated rail — desktop position (right of date column).
+          top/bottom values aim to align the rail's endpoints with the first and last
+          marker dots (which are now vertically centered in their entry box). */}
+      <div class="pointer-events-none absolute z-20 -translate-x-1/2 hidden md:block" style="left:220px; top:7%; bottom:7%; width:6px;">
+        <ChangelogRailReact client:visible />
+      </div>
+      {/* Animated rail — mobile position (far left) */}
+      <div class="pointer-events-none absolute z-20 -translate-x-1/2 md:hidden" style="left:20px; top:7%; bottom:7%; width:6px;">
+        <ChangelogRailReact client:visible />
+      </div>
+
+      <ul class="relative flex flex-col">
+        {allChangelogItems.length > 0 ? (
+          allChangelogItems.map(async (post) => {
+            const { Content } = await render(post);
+            const iso = post.data.publishedAt.toISOString();
+            return (
+              <li class="entry relative py-6">
+                {/* Marker dot — desktop (aligned with desktop rail at x=220, vertically centered in entry) */}
+                <div class="absolute z-30 rounded-full bg-indigo-500 shadow hidden md:block" style="left:220px; top:50%; width:14px; height:14px; transform:translate(-50%, -50%); border:3px solid rgb(var(--color-bg-primary));"></div>
+                {/* Marker dot — mobile (aligned with mobile rail at x=20, vertically centered in entry) */}
+                <div class="absolute z-30 rounded-full bg-indigo-500 shadow md:hidden" style="left:20px; top:50%; width:14px; height:14px; transform:translate(-50%, -50%); border:3px solid rgb(var(--color-bg-primary));"></div>
+                <div class="entry-date">
+                  <time datetime={iso} class="block text-sm leading-snug text-text-secondary">
+                    {formatDate(post.data.publishedAt)}
+                  </time>
+                  <div class="text-xs leading-snug text-text-tertiary">
+                    {formatRelative(post.data.publishedAt)}
                   </div>
                 </div>
-                <div class="col-start-3 col-end-4 hidden h-full border-x border-dashed border-border-primary md:block"></div>
-                <div class="col-span-9 col-start-4 flex w-full flex-grow flex-col p-4">
-                  <div class="mb-3 font-mono text-sm leading-none text-text-secondary md:hidden">
-                    <time datetime={iso}>{formatDate(post.data.publishedAt)}</time>
-                  </div>
-                  <h2 class="mb-8 text-balance text-2xl font-medium leading-none tracking-tight text-text-primary">
+                <div class="entry-body">
+                  <h2 class="mb-5 text-balance text-xl font-medium leading-tight tracking-tight text-text-primary">
                     {post.data.title}
                   </h2>
                   {post.data.imageName ? (
                     <img
-                      class="drama-shadow mb-12 aspect-video rounded-xl object-cover"
+                      class="drama-shadow mb-8 aspect-video rounded-xl object-cover"
                       src={`/${post.data.imageName}`}
                       alt=""
                     />
                   ) : null}
-                  <div class="prose prose-lg max-w-none prose-p:mb-8 prose-p:leading-8 prose-p:text-text-secondary prose-a:text-indigo-600 prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-strong:font-medium prose-headings:tracking-tighter prose-headings:font-medium prose-li:text-text-secondary prose-li:leading-8">
+                  <div class="prose max-w-none prose-p:mb-4 prose-p:leading-6 prose-p:text-text-secondary prose-a:text-indigo-600 prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-strong:font-medium prose-headings:tracking-tighter prose-headings:font-medium prose-li:text-text-secondary prose-li:leading-6">
                     <Content components={mdxComponents} />
                   </div>
                 </div>
+              </li>
+            );
+          })
+        ) : (
+          <li class="py-12">
+            <div class="mx-auto max-w-md rounded-2xl border border-dashed border-border-primary/60 bg-bg-primary/50 p-10 text-center">
+              <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-primary">
+                <svg class="h-5 w-5 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                </svg>
               </div>
-              <div class="h-0 w-full border-t border-dashed border-border-primary"></div>
-            </li>
-          );
-        })
-      ) : (
-        <li class="py-12">
-          <div class="mx-auto max-w-md rounded-2xl border border-dashed border-border-primary/60 bg-bg-primary/50 p-10 text-center">
-            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-primary">
-              <svg class="h-5 w-5 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-                <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-              </svg>
+              <h3 class="font-medium text-text-primary">Nothing yet.</h3>
+              <p class="mt-1 text-sm text-text-secondary">First site updates are on the way.</p>
             </div>
-            <h3 class="font-medium text-text-primary">No updates yet</h3>
-            <p class="mt-1 text-sm text-text-secondary">First changelog entries are coming soon.</p>
-          </div>
-        </li>
-      )}
-    </ul>
+          </li>
+        )}
+      </ul>
+    </div>
 
-    <GetInTouchReact client:visible />
+    <GridWrapper>
+      <div class="mx-auto md:w-1/2">
+        <RSSSubscribeCard siteUrl={siteMetadata.siteUrl} client:visible />
+      </div>
+    </GridWrapper>
   </div>
 </Layout>
+
+<style>
+  .entry { padding-left: 56px; }
+  .entry-date { margin-bottom: 16px; }
+  .entry:not(:first-child) {
+    border-top: 1px solid rgb(var(--color-border-primary));
+    padding-top: 40px !important;
+  }
+  @media (min-width: 768px) {
+    .entry {
+      display: grid;
+      grid-template-columns: 180px 80px 1fr;
+      gap: 0;
+      padding-left: 0;
+    }
+    .entry-date {
+      grid-column: 1;
+      margin-bottom: 0;
+      padding-top: 24px;
+      padding-right: 24px;
+      text-align: right;
+    }
+    .entry-body {
+      grid-column: 3;
+      padding-top: 16px;
+    }
+  }
+</style>

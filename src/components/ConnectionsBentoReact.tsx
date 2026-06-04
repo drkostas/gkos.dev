@@ -14,6 +14,12 @@ type Satellite = {
   delay: number;
   sizeClass?: string;
   paddingClass?: string;
+  /** "contain" (default) is right for logos that have built-in whitespace;
+   *  "cover" is right for face photos / book covers that should fill the circle. */
+  fit?: "contain" | "cover";
+  /** Optional background color for the circle. Useful for dark-on-transparent
+   *  SVG logos (e.g. NeurIPS) that disappear against the default light grey. */
+  iconBg?: string;
   alt: string;
 };
 
@@ -21,6 +27,7 @@ type MobileSatellite = {
   src: string;
   positionClass: string;
   sizeClass: string;
+  fit?: "contain" | "cover";
   alt: string;
 };
 
@@ -29,7 +36,11 @@ type Variant = {
   description: string;
   centralSrc: string;
   centralAlt: string;
+  /** Satellites visible at rest. Hover triggers a re-entry animation. */
   satellites: Satellite[];
+  /** Extra satellites that ONLY appear during hover. Used to convey
+   *  "there's more here — visit the page" without crowding the resting state. */
+  hoverExtras?: Satellite[];
   mobileSatellites: MobileSatellite[];
 };
 
@@ -52,7 +63,7 @@ const LOGOS = {
   spotify: icon("spotify"),
 };
 
-const VARIANTS: Record<"workbench" | "inspirations", Variant> = {
+const VARIANTS: Record<"workbench" | "inspirations" | "projects", Variant> = {
   workbench: {
     title: "Workbench",
     description: "Frameworks and services I ship with every day.",
@@ -77,18 +88,85 @@ const VARIANTS: Record<"workbench" | "inspirations", Variant> = {
     description: "Books, papers, and people that shape my thinking.",
     centralSrc: "/kostas_neurips_square.jpg",
     centralAlt: "Kostas",
+    // Five satellites at tiered sizes orbiting Kostas. All face/icon shots —
+    // book covers and wide wordmarks read as blobs at this scale, so the
+    // bento only shows things recognizable at ≤56px.
     satellites: [
-      { src: LOGOS.arxiv, top: "55%", left: "23%", delay: 0.1, sizeClass: "w-12 h-12", alt: "arXiv" },
-      { src: LOGOS.googleScholar, top: "53%", left: "67%", delay: 0.3, alt: "Google Scholar" },
-      { src: LOGOS.openai, top: "4%", left: "32%", delay: 0.2, sizeClass: "w-14 h-14", alt: "OpenAI" },
-      { src: LOGOS.youtube, top: "15%", left: "78%", delay: 0.4, sizeClass: "w-10 h-10", alt: "YouTube" },
-      { src: LOGOS.spotify, top: "5%", left: "7%", delay: 0.5, sizeClass: "w-9 h-9", alt: "Spotify" },
+      // Bottom-left (medium): Kaiming He — research-aligned
+      { src: "/inspirations/kaiming-he.jpg", top: "55%", left: "23%", delay: 0.1, sizeClass: "w-12 h-12", paddingClass: "p-0", fit: "cover", alt: "Kaiming He" },
+      // Bottom-right (largest, default w-16): Hairong Qi — PhD advisor, most personal
+      { src: "/inspirations/hairong-qi.jpg", top: "53%", left: "67%", delay: 0.3, paddingClass: "p-0", fit: "cover", alt: "Hairong Qi" },
+      // Top-center-left (large): Andrew Ng — foundational ML teacher.
+      // top: "12%" instead of "4%" so the w-14 circle doesn't clip the card edge.
+      { src: "/inspirations/andrew-ng.jpg", top: "12%", left: "32%", delay: 0.2, sizeClass: "w-14 h-14", paddingClass: "p-0", fit: "cover", alt: "Andrew Ng" },
+      // Top-right (small): Yann LeCun — extremely recognizable face at small sizes
+      { src: "/inspirations/yann-lecun.jpg", top: "15%", left: "78%", delay: 0.4, sizeClass: "w-10 h-10", paddingClass: "p-0", fit: "cover", alt: "Yann LeCun" },
+      // Top-far-left (x-small): 3Blue1Brown — Pi-character avatar reads at any size
+      { src: "/inspirations/yt-3blue1brown.jpg", top: "8%", left: "7%", delay: 0.5, sizeClass: "w-9 h-9", paddingClass: "p-0", fit: "cover", alt: "3Blue1Brown" },
+    ],
+    // Hover-only extras: a second wave that drops in around the resting ones.
+    // Positions chosen to avoid the title text (bottom-center) and the
+    // central avatar — fills outer-edge negative space + corners so the
+    // ring layout reads as a wider orbit on hover.
+    hoverExtras: [
+      // Far-left mid (book cover): PRML
+      { src: "/inspirations/book-prml.jpg", top: "32%", left: "2%", delay: 0.15, sizeClass: "w-9 h-9", paddingClass: "p-0", fit: "cover", alt: "PRML" },
+      // Mid-upper inner-left gap: Karpathy. Sits between 3b1b and Andrew Ng on the top arc.
+      { src: "/inspirations/andrej-karpathy.jpg", top: "32%", left: "16%", delay: 0.25, sizeClass: "w-9 h-9", paddingClass: "p-0", fit: "cover", alt: "Andrej Karpathy" },
+      // Far-right mid (researcher): Fei-Fei Li
+      { src: "/inspirations/fei-fei-li.jpg", top: "35%", left: "92%", delay: 0.35, sizeClass: "w-9 h-9", paddingClass: "p-0", fit: "cover", alt: "Fei-Fei Li" },
+      // Mid-upper inner-right gap: Hugging Face mascot. Between Yann LeCun and central avatar.
+      { src: "/inspirations/blog-hugging-face.svg", top: "32%", left: "60%", delay: 0.45, sizeClass: "w-8 h-8", paddingClass: "p-1", fit: "contain", alt: "Hugging Face" },
     ],
     mobileSatellites: [
-      { src: LOGOS.arxiv, positionClass: "left-4 top-6 md:left-24", sizeClass: "w-10 h-10", alt: "arXiv" },
-      { src: LOGOS.openai, positionClass: "bottom-20 left-14 md:left-52", sizeClass: "w-12 h-12", alt: "OpenAI" },
-      { src: LOGOS.googleScholar, positionClass: "right-16 top-4 md:right-52", sizeClass: "w-14 h-14", alt: "Google Scholar" },
-      { src: LOGOS.youtube, positionClass: "bottom-20 right-4 md:right-12", sizeClass: "w-11 h-11", alt: "YouTube" },
+      { src: "/inspirations/kaiming-he.jpg", positionClass: "left-4 top-6 md:left-24", sizeClass: "w-10 h-10", fit: "cover", alt: "Kaiming He" },
+      { src: "/inspirations/hairong-qi.jpg", positionClass: "bottom-20 left-14 md:left-52", sizeClass: "w-14 h-14", fit: "cover", alt: "Hairong Qi" },
+      { src: "/inspirations/andrew-ng.jpg", positionClass: "right-16 top-4 md:right-52", sizeClass: "w-12 h-12", fit: "cover", alt: "Andrew Ng" },
+      { src: "/inspirations/yann-lecun.jpg", positionClass: "bottom-20 right-4 md:right-12", sizeClass: "w-11 h-11", fit: "cover", alt: "Yann LeCun" },
+    ],
+  },
+  projects: {
+    title: "Projects",
+    description: "What I've built and what I've published.",
+    centralSrc: "/kostas_neurips_square.jpg",
+    centralAlt: "Kostas",
+    // Each satellite represents one project, using a recognizable proxy logo:
+    //   FleetSmart       → its own radar+vessel mark
+    //   Soma             → its own teal "S" app icon
+    //   XPensAI          → xpens.AI wordmark
+    //   MEDiC            → arXiv logo (paper home)
+    //   Cross-Scale MAE  → NeurIPS logo (venue)
+    satellites: [
+      // Bottom-left (medium): MEDiC → arXiv mark
+      { src: "/projects/arxiv-logo.svg", top: "55%", left: "23%", delay: 0.1, sizeClass: "w-12 h-12", paddingClass: "p-2", fit: "contain", alt: "MEDiC (arXiv)" },
+      // Bottom-right (largest): FleetSmart radar+vessel mark
+      { src: "/projects/fleetsmart-logo.svg", top: "53%", left: "67%", delay: 0.3, paddingClass: "p-2", fit: "contain", alt: "FleetSmart.ai" },
+      // Top-center-left (large): XPensAI wordmark
+      { src: "/projects/xpensai-logo.png", top: "12%", left: "32%", delay: 0.2, sizeClass: "w-14 h-14", paddingClass: "p-2", fit: "contain", alt: "XPensAI" },
+      // Top-right (small): Cross-Scale MAE → NeurIPS mark on a white background
+      // (NeurIPS logo is dark purple/black on transparent; the default light
+      // grey card background swallowed it.)
+      { src: "/projects/neurips-logo.png", top: "15%", left: "78%", delay: 0.4, sizeClass: "w-10 h-10", paddingClass: "p-1", fit: "contain", iconBg: "#FFFFFF", alt: "Cross-Scale MAE (NeurIPS)" },
+      // Top-far-left (x-small): Soma S
+      { src: "/projects/soma-logo.png", top: "8%", left: "7%", delay: 0.5, sizeClass: "w-9 h-9", paddingClass: "p-0", fit: "cover", alt: "Soma" },
+    ],
+    // Hover-only extras: a different second wave so hover reveals new things,
+    // not duplicates. These represent project categories not in the resting set:
+    //   YouTube Comment Bot   → red YouTube logo (Fun bots)
+    //   TuneCraft             → green Spotify logo (Fun bots, Spotify automation)
+    //   PyPi packages (×7)    → PyPi logo (Tools category)
+    //   MaskDistill-PyTorch   → PyTorch logo (more research)
+    hoverExtras: [
+      { src: "/projects/youtube-logo.svg", top: "32%", left: "2%", delay: 0.15, sizeClass: "w-9 h-9", paddingClass: "p-2", fit: "contain", iconBg: "#FFFFFF", alt: "YouTube Comment Bot" },
+      { src: "/projects/spotify-logo.svg", top: "32%", left: "16%", delay: 0.25, sizeClass: "w-9 h-9", paddingClass: "p-2", fit: "contain", iconBg: "#FFFFFF", alt: "TuneCraft (Spotify)" },
+      { src: "/projects/pypi-logo.svg", top: "35%", left: "92%", delay: 0.35, sizeClass: "w-9 h-9", paddingClass: "p-2", fit: "contain", iconBg: "#FFFFFF", alt: "PyPi packages" },
+      { src: "/projects/pytorch-logo.svg", top: "32%", left: "60%", delay: 0.45, sizeClass: "w-8 h-8", paddingClass: "p-1", fit: "contain", iconBg: "#FFFFFF", alt: "MaskDistill-PyTorch" },
+    ],
+    mobileSatellites: [
+      { src: "/projects/arxiv-logo.svg", positionClass: "left-4 top-6 md:left-24", sizeClass: "w-10 h-10", fit: "contain", alt: "MEDiC (arXiv)" },
+      { src: "/projects/fleetsmart-logo.svg", positionClass: "bottom-20 left-14 md:left-52", sizeClass: "w-14 h-14", fit: "contain", alt: "FleetSmart.ai" },
+      { src: "/projects/xpensai-logo.png", positionClass: "right-16 top-4 md:right-52", sizeClass: "w-12 h-12", fit: "contain", alt: "XPensAI" },
+      { src: "/projects/neurips-logo.png", positionClass: "bottom-20 right-4 md:right-12", sizeClass: "w-11 h-11", fit: "contain", alt: "NeurIPS" },
     ],
   },
 };
@@ -102,15 +180,19 @@ function SatelliteCircle({
   sizeClass = "w-16 h-16",
   paddingClass = "p-1",
   className,
+  iconBg,
 }: {
   children: React.ReactNode;
   sizeClass?: string;
   paddingClass?: string;
   className?: string;
+  iconBg?: string;
 }) {
+  const bgClass = iconBg ? "" : "bg-[#EDEEF0]";
   return (
     <div
-      className={`border-bg-secondary rounded-full border bg-[#EDEEF0] ${sizeClass} ${paddingClass} ${className || ""}`}
+      className={`border-bg-secondary rounded-full border ${bgClass} ${sizeClass} ${paddingClass} ${className || ""}`}
+      style={iconBg ? { backgroundColor: iconBg } : undefined}
     >
       {children}
     </div>
@@ -122,6 +204,8 @@ function AnimatedSatellite({
   alt,
   sizeClass = "w-16 h-16",
   paddingClass = "p-1",
+  fit = "contain",
+  iconBg,
   top,
   left,
   delay,
@@ -131,25 +215,75 @@ function AnimatedSatellite({
   alt: string;
   sizeClass?: string;
   paddingClass?: string;
+  fit?: "contain" | "cover";
+  iconBg?: string;
   top: string;
   left: string;
   delay: number;
   controls: any;
 }) {
+  const fitClass = fit === "cover" ? "object-cover" : "object-contain";
   return (
     <motion.div
-      initial="idle"
+      initial="resting"
       animate={controls}
       variants={{
-        idle: { scale: 0, opacity: 0, y: 0 },
-        active: { y: [-20, 0, 4, 0], scale: [0.75, 1], opacity: [0, 1] },
+        resting: { scale: 1, opacity: 1, y: 0 },
+        active: { y: [-16, 0, 3, 0], scale: [0.85, 1.05, 1], opacity: [0.5, 1, 1] },
       }}
-      transition={{ duration: 0.25, delay, ease: "easeOut" }}
+      transition={{ duration: 0.5, delay, ease: "easeOut" }}
       style={{ top, left }}
       className={`absolute ${sizeClass} ${paddingClass} z-10`}
     >
-      <SatelliteCircle sizeClass={sizeClass} paddingClass={paddingClass}>
-        <img className="h-full w-full rounded-full object-contain" src={src} alt={alt} />
+      <SatelliteCircle sizeClass={sizeClass} paddingClass={paddingClass} iconBg={iconBg}>
+        <img className={`h-full w-full rounded-full ${fitClass}`} src={src} alt={alt} />
+      </SatelliteCircle>
+    </motion.div>
+  );
+}
+
+/**
+ * Same shape as AnimatedSatellite but invisible at rest. Drops in on hover.
+ * Used to layer in a second wave of inspirations to hint at the full list.
+ */
+function HoverOnlySatellite({
+  src,
+  alt,
+  sizeClass = "w-10 h-10",
+  paddingClass = "p-0",
+  fit = "cover",
+  iconBg,
+  top,
+  left,
+  delay,
+  controls,
+}: {
+  src: string;
+  alt: string;
+  sizeClass?: string;
+  paddingClass?: string;
+  fit?: "contain" | "cover";
+  iconBg?: string;
+  top: string;
+  left: string;
+  delay: number;
+  controls: any;
+}) {
+  const fitClass = fit === "cover" ? "object-cover" : "object-contain";
+  return (
+    <motion.div
+      initial="resting"
+      animate={controls}
+      variants={{
+        resting: { scale: 0, opacity: 0, y: 0 },
+        active: { y: [-14, 0, 3, 0], scale: [0, 1.05, 1], opacity: [0, 1, 1] },
+      }}
+      transition={{ duration: 0.55, delay, ease: "easeOut" }}
+      style={{ top, left }}
+      className={`absolute ${sizeClass} ${paddingClass} z-10`}
+    >
+      <SatelliteCircle sizeClass={sizeClass} paddingClass={paddingClass} iconBg={iconBg}>
+        <img className={`h-full w-full rounded-full ${fitClass}`} src={src} alt={alt} />
       </SatelliteCircle>
     </motion.div>
   );
@@ -188,7 +322,7 @@ export function ConnectionsBentoReact({
   variant = "workbench",
   linkTo,
 }: {
-  variant?: "workbench" | "inspirations";
+  variant?: "workbench" | "inspirations" | "projects";
   linkTo?: string;
 }) {
   const preset = VARIANTS[variant];
@@ -198,7 +332,7 @@ export function ConnectionsBentoReact({
     <div
       className="group relative flex flex-col rounded-2xl border border-border-primary bg-bg-primary p-6 hover:bg-white overflow-hidden h-[300px]"
       onMouseEnter={() => controls.start("active")}
-      onMouseLeave={() => controls.start("idle")}
+      onMouseLeave={() => controls.start("resting")}
     >
       <div className="user-select-none pointer-events-none absolute inset-0 z-30 bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100" />
       {linkTo && (
@@ -211,8 +345,12 @@ export function ConnectionsBentoReact({
       )}
 
       <div className="flex h-full flex-col">
-        <div className="group-hover:from-bg-white absolute inset-y-0 left-0 z-20 w-1/3 bg-gradient-to-r from-bg-primary to-transparent" />
-        <div className="group-hover:from-bg-white absolute inset-y-0 right-0 z-20 w-1/3 bg-gradient-to-l from-bg-primary to-transparent" />
+        {/* Side fades, narrow enough that the orbit rings stay visible across
+            the full card width but soft enough to hide the SVG ring stubs
+            that overflow the card edges. Previously w-1/3 which truncated
+            the left/right rings entirely. */}
+        <div className="group-hover:from-bg-white absolute inset-y-0 left-0 z-20 w-16 bg-gradient-to-r from-bg-primary to-transparent" />
+        <div className="group-hover:from-bg-white absolute inset-y-0 right-0 z-20 w-16 bg-gradient-to-l from-bg-primary to-transparent" />
         <div>
           <BackgroundPattern />
           <span className="absolute left-1/2 top-2.5 -translate-x-1/2">
@@ -243,10 +381,13 @@ export function ConnectionsBentoReact({
             </div>
           </span>
 
-          {/* Desktop animated satellites */}
+          {/* Desktop animated satellites — resting + hover-extras layered */}
           <span className="hidden md:block">
             {preset.satellites.map((sat, i) => (
-              <AnimatedSatellite key={i} {...sat} controls={controls} />
+              <AnimatedSatellite key={`r-${i}`} {...sat} controls={controls} />
+            ))}
+            {preset.hoverExtras?.map((sat, i) => (
+              <HoverOnlySatellite key={`h-${i}`} {...sat} controls={controls} />
             ))}
           </span>
 
@@ -256,9 +397,10 @@ export function ConnectionsBentoReact({
               <SatelliteCircle
                 key={i}
                 sizeClass={sat.sizeClass}
+                paddingClass={sat.fit === "cover" ? "p-0" : "p-1"}
                 className={`absolute ${sat.positionClass}`}
               >
-                <img className="h-full w-full rounded-full object-contain" src={sat.src} alt={sat.alt} />
+                <img className={`h-full w-full rounded-full ${sat.fit === "cover" ? "object-cover" : "object-contain"}`} src={sat.src} alt={sat.alt} />
               </SatelliteCircle>
             ))}
           </span>

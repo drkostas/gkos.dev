@@ -1,0 +1,94 @@
+---
+title: "Hello world!"
+publishedAt: 2026-04-15T12:00:00
+summary: "A fresh site, a fond farewell to the old one, and a small tease of what's coming next."
+categories: ["personal", "meta"]
+imageName: hello-world/old-home.png
+draft: false
+---
+
+If you're reading this, it means my new portfolio is finally live. In this post I want to talk about the history behind the previous portfolio, the reasons I built a new one, and a few of the technical details behind both sites.
+
+## Why should you care?
+
+Since you're here, you're probably one of the following people:
+
+1. A recruiter who, for some reason, has the time to explore my site beyond the 30-second scan of my CV and wants to see how I explain things.
+2. Someone who found me on [GitHub](https://github.com/drkostas) or [LinkedIn](https://www.linkedin.com/in/gkos) and got curious.
+3. Or maybe you already know me personally and you're wondering why I'm suddenly writing blogs.
+
+Either way, you might have something to gain from reading further.
+
+## Who am I
+
+I'm Kostas. I grew up in Greece, studied Computer Science and Engineering at the [University of Patras](https://www.upatras.gr/) from 2012 to 2019, and started my career as a software engineer in the UK at [Global Voices](https://www.globalvoices.com/). After that I spent a couple of years in Greece as a data engineer at [Performance Technologies](https://www.performance.gr/) before I got hooked on machine learning and moved to the U.S. in 2021 to start a PhD at the [University of Tennessee](https://www.utk.edu/), working with [Dr. Hairong Qi](https://scholar.google.com/citations?user=GqnNG-kAAAAJ&hl=en).
+
+I'll be defending in April 2026 and graduating in May. During the last year of the PhD I interned at Amazon as an Applied Scientist, which gave me the chance to combine my love for research with my love for shipping products.
+
+If you want the full, long version with all the stories in between, I wrote it as its own post: [How I got here](/blog/how-i-got-here).
+
+## About my old website
+
+When I first started my PhD I didn't have a personal portfolio. All my projects were already on [GitHub](https://github.com/drkostas) and my experience was laid out in my CV, so for a while that was enough. But as the number of GitHub projects grew and I started publishing papers, I decided I needed to organize everything properly in one place.
+
+Being a tinkerer at heart, I didn't want to build just another boring website. I've always liked those classic sites that look like Windows 98 desktops, so I wanted to make something that appealed to me and that I was familiar with. I built a VS Code portfolio, where each open tab was a different page (`home.jsx`, `resume.html`, and so on).
+
+![The old portfolio home page](/blog/hello-world/old-home.png)
+
+It was a bold portfolio that got the job done (though maybe not very easily if you were a recruiter). The response from the GitHub community was surprisingly positive. The [repository](https://github.com/drkostas/drkostas.github.io) has been forked by more than 20 people and picked up over 200 stars.
+
+The projects and publications pages followed the same idea:
+
+![The old portfolio projects page](/blog/hello-world/old-projects.png)
+
+![The old portfolio publications page](/blog/hello-world/old-papers.png)
+
+Under the hood it is a [Next.js](https://nextjs.org/) app, statically exported and deployed on [Vercel](https://vercel.com/). Every file in the sidebar is a real page, the tab bar is draggable (you can physically reorder tabs the way you would in actual VS Code), the Explorer is an expandable file tree, and the status bar at the bottom even fakes the syntax-highlighting mode indicators based on which tab you have open. There's a proper Settings page that lets you pick between six editor themes (Dracula, GitHub Dark, Ayu Dark, Ayu Mirage, Nord, and Night Owl), with your choice saved to `localStorage` so it survives reloads. The GitHub tab pulls your repos, avatar, and the live contribution calendar straight from the GitHub API. It was a fun thing to build.
+
+## If it was so interesting, why build a new one?
+
+A few years passed and I wanted to land an internship. I realized this probably was not the most professional way to present myself to the job market, but I was really proud of it so I kept it. I was lucky enough to get an offer from Amazon in the end, though probably not because of the website.
+
+Here we are now, in April 2026, with me finally graduating with a PhD in Machine Learning and hitting the job market again. About a month before graduation I decided to spend some of my time building something that represents my current self. I'm still the same nerdy Kostas, drawn to techy and creative portfolios, but I'm more mature now. I understand this isn't only about me. It's a tool for conveying my professional background to other professionals.
+
+## Two sides of the same coin
+
+Leaving the VS Code portfolio behind doesn't mean the site has to be plain. So I decided to split it in two.
+
+The main part of this website is a clean, modern portfolio. Building on the structure of the old one, it has an About page, a Projects page, and a Publications page, plus this new Blog. To make it a little more personal I also added two more pages: Inspirations and Workbench.
+
+[Inspirations](/inspirations) is where I keep the papers, books, people, and courses that shaped how I think. Things like the Masked Autoencoders paper that directly inspired my own PhD work, or Andrew Ng's Deep Learning courses from back when I was figuring out if I even wanted to pursue ML seriously. It's the reading list of the version of me that ended up here.
+
+[Workbench](/workbench) is the tools side. Every framework, library, and service I actually reach for when I'm shipping something, with a short note on where I use it and why. Not an exhaustive inventory, just the stuff that's earned its place.
+
+I hope I won't regret this, but I also wanted to let anyone leave their own mark on the site, so I added a [Community Wall](/community-wall). You can drop a note, a question, or just a hello. If it becomes a spam magnet I'll reconsider, but for now it's open.
+
+For the data-curious, there's also a [Stats](/stats) page that pulls live numbers from this site together with a few of my public accounts (GitHub commits, Strava activity, Spotify listening) into one place. It's mostly for my own amusement, but it's public.
+
+## Some technical details
+
+The new site runs on [Astro 6](https://astro.build/) with [React 19](https://react.dev/) islands, so most of what you're looking at is static HTML pre-rendered at build time, and only the interactive bits (the home-page cards, the reading-progress bar, the contact form, the Explore Mode entry) run on the client. Content lives in MDX Content Collections with typed frontmatter, code blocks render with [Shiki](https://shiki.style/), math with [KaTeX](https://katex.org/), everything is styled with [Tailwind](https://tailwindcss.com/), and the whole thing deploys on [Vercel](https://vercel.com/).
+
+A lot of the content is live: citation counts pull from [OpenAlex](https://openalex.org/) at build time, and the home page surfaces my current Spotify track, latest Strava activity, and live GitHub stats through serverless Vercel Functions. Explore Mode will lazy-load [Phaser 3](https://phaser.io/) on demand when it ships.
+
+## So what is the other side of the coin?
+
+If you're reading this a few weeks in the future, you probably already know what it is. But for the few of you reading this only a few days after the launch, let me give you some hints.
+
+**Hint 1:** It's going to be an interactive way to explore my background (hence the name [Explore Mode](/explore)).
+
+**Hint 2:** If you were born in the 90s, you'll probably be very familiar with it.
+
+**Hint 3:** The logo.
+
+## Where to start
+
+If you want the short version of me, start with [Projects](/projects) or [Publications](/publications).
+If you want the long version, read [How I got here](/blog/how-i-got-here) or the [About page](/about).
+If you want to see the tools I actually use, check out [Workbench](/workbench).
+If you want the papers, books, and people that shaped me, head to [Inspirations](/inspirations).
+If you want to say hi, drop a note on the [Community Wall](/community-wall), or reach me through [Contact](/contact) or on [GitHub](https://github.com/drkostas).
+
+And if you want to be the first to try Explore Mode when it drops, keep an eye on this blog. That'll be the next post.
+
+Thanks for stopping by.

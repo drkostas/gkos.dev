@@ -5,6 +5,7 @@ import "@fontsource/geist-sans/600.css";
 import "@fontsource/geist-sans/700.css";
 import "@fontsource/geist-mono/400.css";
 import "@fontsource/geist-mono/500.css";
+import "@fontsource/patrick-hand/400.css";
 import "@/styles/global.css";
 import Navbar from "@/components/Navbar.astro";
 import Footer from "@/components/Footer.astro";
@@ -38,6 +39,8 @@ const isProd = import.meta.env.PROD;
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="alternate icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="alternate" type="application/rss+xml" title={title} href="/rss.xml" />
+    <!-- KaTeX stylesheet for math rendering in MDX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous" />
     <title>{title}</title>
     <!-- Open Graph / Social sharing -->
     <meta property="og:type" content="website" />

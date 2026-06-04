@@ -81,6 +81,64 @@ When adding new papers, projects, experience entries, or packages, always add th
 6. Pokemon normal-mode DNA (pixel accents, 🎮 toggle)
 7. Pokemon explore mode (Phaser, tilemaps, sprites, NPCs, auto-generated Pokemon)
 
+## Voice and Tone (site-wide)
+
+For ALL site copy — blog posts, page titles, subtitles, widget descriptions, CTAs, alt text — read [`docs/written-voice.md`](docs/written-voice.md) first. It defines Kostas's written voice: hedged, modest, anti-corporate, slightly Greek-flavored, no em-dashes as separators (use `:`), no MBA/marketing jargon, first-person honest. The doc contains a 6-question quick test to run any line through before shipping. Adapted from his interview-call spoken-voice profile in `~/Insync/Gdrive/Projects/jobs/communication-profile/synthesis/spoken-voice.md`.
+
+This applies BEFORE the blog-specific workflow below. Voice rules are universal; the blog workflow is layered on top for long-form posts.
+
+## Writing Blog Posts
+
+When writing, drafting, outlining, or revising any blog post for this site, apply this **three-stage workflow** in order. Do not write blog content freehand; all three stages are mandatory.
+
+### Stage 1 — Structure (`blog-post` skill)
+
+Invoke the project-scoped `blog-post` skill at `.claude/skills/blog-post` first. It owns: research-first workflow, five-section structure (hook → context → main content → practical application → conclusion + CTA), SEO rules, and a final quality checklist.
+
+**Divergence note:** the skill's file convention (`blogs/<slug>/post.md` + `hero.png`) does not match this site. Posts go to `src/content/blog/<slug>.mdx`; images to `public/blog/<slug>/`; frontmatter fields: `title, publishedAt, summary, categories, imageName, draft` (see `src/content.config.ts`). Always set `publishedAt` with a time component (e.g. `2026-04-15T12:00:00`) to avoid UTC-to-local date drift.
+
+### Stage 2 — Voice (humanizer "Personality and Soul")
+
+Apply the `humanizer` skill's "Personality and Soul" guidance **while drafting**, not as a post-pass. Core rules:
+- Have opinions. React to facts; don't neutrally list them.
+- Vary rhythm. Short punchy sentences. Then longer ones.
+- Acknowledge complexity. Mixed feelings are more human than clean takes.
+- Use "I" when it fits. First person is honest, not unprofessional.
+- Let some mess in. Tangents, asides, half-formed thoughts.
+- Be specific about feelings. Not "this is concerning" but the concrete thing that bothers you.
+
+Sterile, voiceless writing is as obvious as slop. Good writing has a human behind it.
+
+### Stage 3 — Final edit pass (humanizer + anti-slop)
+
+Before declaring the draft done, scan against these flags:
+
+**Em dash overuse** — the single biggest LLM tell. Most em dashes should be commas, periods, or parentheses. Keep only the ones that genuinely earn their emphasis.
+
+**AI vocabulary to strip**: *delve, pivotal, testament, landscape (abstract), vibrant, underscore, emphasize, foster, showcase, tapestry, interplay, intricate, enduring, Additionally, crucial (as filler)*.
+
+**Copula avoidance** — replace *serves as, stands as, marks, represents* with a plain *is/are*.
+
+**Negative parallelism** — *"It's not just X, it's Y"*, *"Not only... but..."* — pick one side.
+
+**Rule-of-three overuse** — break up forced triplets that don't earn their shape.
+
+**Promotional / real-estate-listing language**: *boasts, nestled, stunning, breathtaking, groundbreaking, must-visit, renowned, rich (figurative)*.
+
+**Anti-slop buzzwords**: *leverage* → *use*; *synergistic* → *cooperative*; *paradigm shift* → *major change*; *seamless, intuitive, powerful* → pick the specific one.
+
+**Filler phrases**: *in order to* → *to*; *has the ability to* → *can*; *at this point in time* → *now*; *it is important to note that* → delete.
+
+**Collaborative / sycophantic artifacts**: kill *"I hope this helps!"*, *"Certainly!"*, *"Great question!"*, *"Let me know if..."*.
+
+**Generic positive conclusions** — vague upbeat endings ("exciting times ahead", "a step in the right direction") → replace with one concrete fact or next step.
+
+**Style nits**: straight quotes (`"..."`) not curly (`"..."`); sentence case in headings (not Title Case); no decorative emojis in headings or bullets; inline code (backticks) for file names, commands, and technical identifiers.
+
+### Triggers
+
+This workflow runs on any of: "write a blog post", "draft a post", "outline a tutorial", "technical writeup", "thought-leadership piece", "article", or any edit to files under `src/content/blog/`.
+
 ## Orchestrator Integration
 
 This project is tracked by the cross-project orchestrator.

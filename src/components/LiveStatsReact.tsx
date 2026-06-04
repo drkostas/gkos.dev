@@ -142,8 +142,8 @@ export function GitHubStatsReact() {
         <ContributionGraph weeks={weeks} contributions={data?.contributions ?? 0} />
       </div>
       <div className="flex h-full flex-col gap-2 md:col-span-3">
-        <StatCard label="GitHub Stars">
-          <CountUp target={data?.stars ?? 0} label="GitHub Stars" />
+        <StatCard label="GitHub stars">
+          <CountUp target={data?.stars ?? 0} label="GitHub stars" />
         </StatCard>
         <StatCard label="Forks">
           <CountUp target={data?.forks ?? 0} label="Forks" />
@@ -166,7 +166,9 @@ export function CoffeeCupsReact() {
       .catch(() => {});
   }, []);
 
-  const perDay = cups !== null && cups > 0 ? (cups / 365).toFixed(1) : "0";
+  // perDay assumes ~250 active workdays/year (≈365 − weekends − holidays).
+  // Using 365 understates intensity because it averages in days of zero commits.
+  const perDay = cups !== null && cups > 0 ? (cups / 250).toFixed(1) : "0";
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
@@ -181,8 +183,8 @@ export function CoffeeCupsReact() {
         <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl dark:bg-[rgba(120,90,30,0.5)]">
           &#9749;
         </div>
-        <h2 className="mb-2 font-medium text-text-primary">Coffee Consumed</h2>
-        <p className="text-sm text-text-secondary">Estimated from commits</p>
+        <h2 className="mb-2 font-medium text-text-primary">Coffee consumed</h2>
+        <p className="text-sm text-text-secondary">~1 cup per 4 commits</p>
         <div className="mt-auto">
           <div className="flex items-baseline gap-1">
             <span className="text-3xl font-semibold tabular-nums tracking-tight text-purple-primary">
@@ -191,7 +193,7 @@ export function CoffeeCupsReact() {
             <span className="text-sm text-text-secondary">cups</span>
           </div>
           <p className="mt-2 text-xs text-text-tertiary">
-            ~{perDay} cups/day · scales with commit intensity
+            ~{perDay} cups/workday
           </p>
         </div>
       </div>
@@ -212,7 +214,7 @@ export function PyPIStatsReact() {
         <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
           <div className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <div className="relative z-20 flex h-full flex-col">
-            <h2 className="mb-1 font-medium text-text-primary">PyPI Packages</h2>
+            <h2 className="mb-1 font-medium text-text-primary">PyPI packages</h2>
             <p className="mt-auto text-3xl font-semibold tabular-nums tracking-tight text-purple-primary">
               {data?.packageCount ?? "—"}
             </p>
@@ -223,7 +225,7 @@ export function PyPIStatsReact() {
         <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-primary p-6 transition-all duration-300 hover:border-indigo-400 hover:bg-white">
           <div className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-gradient-to-tl from-indigo-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <div className="relative z-20 flex h-full flex-col">
-            <h2 className="mb-1 font-medium text-text-primary">PyPI Downloads</h2>
+            <h2 className="mb-1 font-medium text-text-primary">PyPI downloads</h2>
             <p className="text-xs text-text-tertiary">Last 30 days</p>
             <div className="mt-auto">
               <p className="text-3xl font-semibold tabular-nums tracking-tight text-purple-primary">

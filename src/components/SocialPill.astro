@@ -1,24 +1,11 @@
 ---
 import { siteMetadata } from "@/data/siteMetadata";
+
+const currentPath = Astro.url.pathname;
+const isContactActive = currentPath === "/contact" || currentPath.startsWith("/contact/");
 ---
 
 <div class="z-30 flex place-items-center space-x-1 rounded-full border border-border-primary bg-white px-3 py-1.5 dark:border-zinc-700 dark:bg-slate-900">
-  <a href={siteMetadata.twitter} aria-label="Twitter / X" data-umami-event="social-twitter">
-    <svg
-      class="h-6 w-6 text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-gray-300"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M9.31 18.25C14.7819 18.25 17.7744 13.4403 17.7744 9.26994C17.7744 9.03682 17.9396 8.83015 18.152 8.73398C18.8803 8.40413 19.8249 7.49943 18.8494 5.97828C18.2031 6.32576 17.6719 6.51562 16.9603 6.74448C15.834 5.47393 13.9495 5.41269 12.7514 6.60761C11.9785 7.37819 11.651 8.52686 11.8907 9.62304C9.49851 9.49618 6.69788 7.73566 5.1875 5.76391C4.39814 7.20632 4.80107 9.05121 6.10822 9.97802C5.63461 9.96302 5.1716 9.82741 4.75807 9.58305V9.62304C4.75807 11.1255 5.75654 12.4191 7.1444 12.7166C6.70672 12.8435 6.24724 12.8622 5.80131 12.771C6.19128 14.0565 7.87974 15.4989 9.15272 15.5245C8.09887 16.4026 6.79761 16.8795 5.45806 16.8782C5.22126 16.8776 4.98504 16.8626 4.75 16.8326C6.11076 17.7588 7.69359 18.25 9.31 18.2475V18.25Z"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"></path>
-    </svg>
-    <span class="sr-only">Twitter</span>
-  </a>
   <a href={siteMetadata.linkedin} aria-label="LinkedIn" data-umami-event="social-linkedin">
     <svg
       class="h-6 w-6 text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-gray-300"
@@ -80,5 +67,48 @@ import { siteMetadata } from "@/data/siteMetadata";
         stroke-linejoin="round"></path>
     </svg>
     <span class="sr-only">GitHub</span>
+  </a>
+  <a href={siteMetadata.twitter} aria-label="Twitter / X" data-umami-event="social-twitter">
+    <svg
+      class="h-6 w-6 text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-gray-300"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M9.31 18.25C14.7819 18.25 17.7744 13.4403 17.7744 9.26994C17.7744 9.03682 17.9396 8.83015 18.152 8.73398C18.8803 8.40413 19.8249 7.49943 18.8494 5.97828C18.2031 6.32576 17.6719 6.51562 16.9603 6.74448C15.834 5.47393 13.9495 5.41269 12.7514 6.60761C11.9785 7.37819 11.651 8.52686 11.8907 9.62304C9.49851 9.49618 6.69788 7.73566 5.1875 5.76391C4.39814 7.20632 4.80107 9.05121 6.10822 9.97802C5.63461 9.96302 5.1716 9.82741 4.75807 9.58305V9.62304C4.75807 11.1255 5.75654 12.4191 7.1444 12.7166C6.70672 12.8435 6.24724 12.8622 5.80131 12.771C6.19128 14.0565 7.87974 15.4989 9.15272 15.5245C8.09887 16.4026 6.79761 16.8795 5.45806 16.8782C5.22126 16.8776 4.98504 16.8626 4.75 16.8326C6.11076 17.7588 7.69359 18.25 9.31 18.2475V18.25Z"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"></path>
+    </svg>
+    <span class="sr-only">Twitter</span>
+  </a>
+  <a href="/contact" aria-label="Contact" aria-current={isContactActive ? "page" : undefined} data-umami-event="social-contact">
+    <svg
+      class:list={[
+        "h-6 w-6 transition-colors",
+        isContactActive
+          ? "text-indigo-500 dark:text-indigo-400"
+          : "text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-gray-300",
+      ]}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4.75 7.75C4.75 6.64543 5.64543 5.75 6.75 5.75H17.25C18.3546 5.75 19.25 6.64543 19.25 7.75V16.25C19.25 17.3546 18.3546 18.25 17.25 18.25H6.75C5.64543 18.25 4.75 17.3546 4.75 16.25V7.75Z"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"></path>
+      <path
+        d="M5.5 6.5L12 12.25L18.5 6.5"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"></path>
+    </svg>
+    <span class="sr-only">Contact</span>
   </a>
 </div>

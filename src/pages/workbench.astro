@@ -1,7 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import GridWrapper from "@/components/GridWrapper.astro";
-import { GetInTouchReact } from "@/components/GetInTouchReact";
+import { ContactCompactReact } from "@/components/ContactCompactReact";
 import { workbenchItems, WORKBENCH_CATEGORIES } from "@/data/workbench";
 
 // Group items by category, preserving the category order
@@ -16,12 +16,7 @@ const itemsByCategory = WORKBENCH_CATEGORIES.map((category) => ({
     <div class="relative space-y-16 md:space-y-24">
       <div class="mx-auto text-balance pt-14 md:pt-16">
         <GridWrapper>
-          <div class="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-purple-primary">
-            <span>Workbench</span>
-          </div>
-        </GridWrapper>
-        <GridWrapper>
-          <h1 class="mx-auto max-w-2xl text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-6xl md:leading-[64px]">
+          <h1 class="mx-auto max-w-2xl text-balance text-center text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]">
             Frameworks and services I keep in my workbench.
           </h1>
         </GridWrapper>
@@ -97,7 +92,7 @@ const itemsByCategory = WORKBENCH_CATEGORIES.map((category) => ({
         </section>
       ))}
 
-      <GetInTouchReact client:visible />
+      <ContactCompactReact client:visible />
     </div>
   </div>
 </Layout>

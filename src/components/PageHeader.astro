@@ -1,0 +1,36 @@
+---
+// Canonical page-hero header. Centralizes title + subtitle styling so every
+// top-level page hits the same h1 size, leading, max-width, and subtitle
+// rhythm. If a future page drifts, fix it by switching to this component
+// rather than re-tweaking the classes inline.
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  /** Optional small uppercase eyebrow rendered above the title. */
+  eyebrow?: string;
+  /** Optional id on the h1 (used by some pages for scroll-to-heading scripts). */
+  titleId?: string;
+}
+
+const { title, subtitle, eyebrow, titleId } = Astro.props;
+---
+
+<div class="text-center">
+  {eyebrow && (
+    <div class="mb-4 text-xs font-semibold uppercase tracking-widest text-purple-primary">
+      {eyebrow}
+    </div>
+  )}
+  <h1
+    id={titleId}
+    class="mx-auto max-w-2xl text-balance text-4xl font-medium leading-tight tracking-tighter text-text-primary md:text-5xl md:leading-[56px]"
+  >
+    {title}
+  </h1>
+  {subtitle && (
+    <p class="mx-auto mt-6 max-w-2xl leading-8 text-text-secondary">
+      {subtitle}
+    </p>
+  )}
+</div>

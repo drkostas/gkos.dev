@@ -1,0 +1,105 @@
+---
+title: "How I got here"
+publishedAt: "2026-04-20T04:00:00"
+summary: "The long version of my background, from Greece to a PhD in Tennessee, with a few detours in between."
+imageName: "how-i-got-here/kostas-speaking.jpg"
+categories: ["personal"]
+draft: false
+---
+
+I wanted to give you the full story here, since the [Hello World](/blog/hello-world) post only scratches the surface. If you're in a hurry, the [About page](/about) has the short version.
+
+## Greece
+
+<img src="/blog/how-i-got-here/patras-graduation.jpg" alt="Graduation day at Patras, with two of my closest friends" width="559" class="img-left" style="margin: 0em 0.75em 0em 0em" />I grew up in Greece and studied Computer Science and Engineering at the [University of Patras](https://www.upatras.gr/) from 2012 to 2019, finishing with a Hybrid Master's degree. I'd been writing code since high school, so once I got there I gravitated toward the software and machine learning specialization. There was a lot of C++ and Java in the early years, more Python later, algorithms and data structures, data mining, information retrieval, and the machine learning fundamentals that I'd end up going much deeper into later.
+
+## First time in industry
+
+At some point during undergrad I got awarded an Erasmus Placement fellowship to do a software engineering internship abroad. I spent three months in the UK as a software engineering intern at [Global Voices](https://www.globalvoices.com/), which turned into a full-time role. Over the year I was there I shipped 20+ features for the company's translation CMS, mostly Python services and SQL-backed workflows. It was my first time building things that paying customers used every day, and it stuck with me.
+
+## Back to research
+
+After about a year I wanted to come back to Greece and try the research side for a while. I spent a year as a machine learning researcher at the University of Patras. The project I cared about most was a distributed community detection algorithm for social graphs, which we called Hybrid Girvan Newman. It became my Master's dissertation, and got [published in the Algorithms journal](https://www.mdpi.com/1999-4893/12/8/175) right before I graduated.
+
+## Data engineering
+
+The research year was good, but I wanted to build things again and I'd gotten curious about big data. So I joined [Performance Technologies](https://www.performance.gr/) as a Data Engineer.
+
+The project I remember most vividly was for [OTE](https://www.ote.gr/), the main telecommunications provider in Greece. They had hundreds of databases scattered across the country and needed a single low-latency view of all of it in one data lake. Terabyte scale. I used Python, [Apache Spark](https://spark.apache.org/), and [Kafka](https://kafka.apache.org/) to stream change-data-capture events into [Vertica](https://www.vertica.com/), then built a machine learning model on top of that feed to predict order fulfillment times. It was the first time I got to own a full ML system from data ingestion through to production inference, and it was the thing that convinced me I wanted to go much deeper into machine learning.
+
+## The PhD
+
+I spent a little over two years at Performance Technologies and learned a lot about distributed systems and shipping things to production. But I kept coming back to the ML pieces, and I wanted to understand them in real depth, not just use them. So I applied for PhDs.
+
+In 2021 I moved to the U.S. and started a PhD in Machine Learning at the [University of Tennessee](https://www.utk.edu/), working with [Dr. Hairong Qi](https://scholar.google.com/citations?user=GqnNG-kAAAAJ\&hl=en) at the [Bredesen Center](https://bredesencenter.utk.edu/).
+
+<img src="/blog/how-i-got-here/utk-campus.jpg" alt="The University of Tennessee campus in Knoxville" width="772" height="617" />
+
+The research there focused on self-supervised learning, masked autoencoders, and knowledge distillation, applied mostly to remote sensing and medical imaging. The short version: how do you train models that understand images without millions of hand-labeled examples, and how do you distill what a big expensive model has learned into a smaller, faster one?
+
+<img src="/blog/how-i-got-here/kostas-igarss.jpg" alt="Presenting at IGARSS" width="480" class="img-left" style="margin: 0.25em 1em 1em 0em" />Over four years it became nine papers and more than a hundred citations. The full list lives on the [Publications](/publications) page (and on [Google Scholar](https://scholar.google.com/citations?user=b___QQ8AAAAJ)), but the ones I'm most proud of are:
+
+* **ExPLoRe: Loss-Coupled MoE for Masked Image Modeling.** My latest work, currently under review at ECCV 2026.
+* [**Cross-Scale MAE**](https://proceedings.neurips.cc/paper_files/paper/2023/hash/3fadcbd0437f4717723ff3f6f7216800-Abstract-Conference.html) (NeurIPS 2023): the first work to push masked autoencoders into multi-scale remote sensing. It still gets forks and emails.
+* [**MEDiC: Multi-objective Exploration of Distillation from CLIP**](https://arxiv.org/abs/2603.29009) (arXiv 2026): a CLIP distillation pipeline that became my open-source PyTorch release.
+
+I defended in April 2026. I graduate in May.
+
+## Amazon (the internship)
+
+During the last year of the PhD I did a summer internship at Amazon as an Applied Scientist. It gave me the chance to combine my love for research with my love for shipping products.
+
+<div class="img-row">
+  <img src="/blog/how-i-got-here/amazon-backdrop.jpg" alt="On the Amazon campus" width="444" />
+
+  <img src="/blog/how-i-got-here/amazon-chalkboard.png" alt="First day of Amazon" width="363" />
+</div>
+
+The main thing I built there was a multi-agent LLM framework that turns natural language requests into executable code. On smart-home automations it reached 82% functional success, and on the MBPP coding benchmark it reached 87.6%. I also engineered an impossibility detector that flagged over 93% of unfeasible requests (4.5x over the baseline), which prevented the system from hallucinating code it had no way of running.
+
+I didn't end up accepting the return offer. I wanted to move back to Greece.
+
+## XpensAI
+
+In parallel with the PhD, I co-founded [XpensAI](https://www.xpensai.com/), an AI-powered expense management SaaS platform. It's now used by more than 30 small and medium-sized businesses, where it has reduced manual expense entry by roughly 65%.
+
+I led the AI side of the product: automated expense tracking, real-time analytics, and the receipt scanning pipeline. The current version runs about 120% faster than our first baseline and hits around 95% accuracy on receipt scanning. It was the most rewarding side project of my PhD, and the first time I got to see my own work land directly in people's daily routines.
+
+## FleetSmart.ai
+
+Alongside the PhD, I took on a freelance engagement with [FleetSmart.ai](https://fleetsmart.ai/), building out their AI decision engine for maritime vessel positioning.
+
+The system combines deterministic market filtering with multi-provider LLM reasoning (Gemini, OpenAI, and Claude) to generate five to ten ranked recommendations for each vessel, with structured output validation through [Pydantic](https://docs.pydantic.dev/). Around that, I built real-time market-intelligence pipelines that pull [Baltic Exchange](https://www.balticexchange.com/) indices, bunker futures from [FIS Live](https://www.freightinvestorservices.com/) (the [forward freight agreement](https://en.wikipedia.org/wiki/Forward_freight_agreement) curves), port congestion predictions, and live news sentiment into a single decision context for each recommendation.
+
+The stack is [FastAPI](https://fastapi.tiangolo.com/) on the backend, [Next.js](https://nextjs.org/) on the frontend, deployed to [Google Cloud Run](https://cloud.google.com/run) with [Terraform](https://www.terraform.io/) managing separate prod and staging environments, and automated regression testing across every LLM provider so drift gets caught the moment one of them changes behavior.
+
+{/* HIDDEN — saved for future blog posts. Uncomment to restore.
+
+## Soma
+
+The biggest side project from the PhD years is [Soma](https://github.com/drkostas/soma), a personal health and fitness dashboard that pulls [Garmin](https://connect.garmin.com), [Strava](https://www.strava.com), and [Hevy](https://www.hevyapp.com) data into one place. The elevator pitch is simple, but the thing has quietly grown into a full training-science platform.
+
+Under the hood, it's a strict split: a Python sync layer that writes, and a [Next.js](https://nextjs.org/) and [React](https://react.dev/) web layer that reads. The training-science layer uses the classics (Banister impulse-response for fitness and fatigue, Daniels and Gilbert [VDOT](https://vdoto2.com/) for running, Keytel for HR-zone calorie burn) with hard safety overrides on top, and an interactive computation-graph UI that lets you step through any of the math.
+
+My favorite feature is the live HR-driven DJ. A Python daemon polls Garmin heart rate every 30 seconds, maps percent-HRR to target BPM via a piecewise table anchored in Karageorghis music-for-running research, and hot-swaps the Spotify queue whenever the heart rate shifts by 8+ BPM.
+
+Soma is single-user by design, but fully self-hostable through [Vercel](https://vercel.com/). There's a live demo at [soma-demo.gkos.dev](https://soma-demo.gkos.dev).
+
+## The side stuff
+
+Outside of the big ones, I kept tinkering on smaller projects:
+
+* **ShiftMD**: an intelligent shift scheduling system for medical departments, built on constraint programming ([OR-Tools](https://developers.google.com/optimization)). I shipped the multi-tenant backend on [Supabase](https://supabase.com/) over a single weekend.
+* [**YouTube First-Comment Bot**](https://github.com/drkostas/Youtube-FirstCommentBot): a Python bot that camps on a list of YouTube channels and races to post the first comment when a new video drops. It rotates through per-channel comment pools to avoid looking like spam, runs on Heroku with MySQL on RDS, and yo-yos its OAuth keys to Dropbox to survive dyno restarts.
+* [**hevy2garmin**](https://github.com/drkostas/hevy2garmin): a tool that syncs my Hevy gym workouts to [Garmin Connect](https://connect.garmin.com) with proper exercise structure and calorie estimates. The fun parts were a 434-entry hand-built table mapping Hevy exercise names to Garmin's FIT SDK categories (Turkish get-ups get mapped to "burpee" because FIT has no category for them) and a Cloudflare Worker that routes Garmin's auth around its AWS-IP block.
+* [**macro-engine**](https://github.com/drkostas/macro-engine): a self-hosted nutrition tracker for people who take their macros seriously. It bootstraps TDEE from Garmin instead of Mifflin-St Jeor, parses meals from natural language through the [Vercel AI Gateway](https://vercel.com/ai-gateway) with Claude, and has a dedicated alcohol module that estimates how many hours of fat oxidation you just paused, because I wanted to know.
+
+And there are seven open-source [PyPI packages](https://pypi.org/user/drkostas/) I use across almost everything I ship: Garmin Auth, High SQL, Cloud File Manager, YAML Wrapper, Color Logger, Email Sender, and Benchmark Tools. Small tools, each earning its place.
+
+*/}
+
+## Where I am now
+
+So that's the long version. I defended, I graduate in a month, and I'm looking for a remote machine learning or AI engineer role (Applied Scientist also works) that lets me work from Greece. Hopefully by the time you're reading this, I've already found it.
+
+If you want to see what I'm actually working on, [Projects](/projects) is probably the right place to start. If you want to read the papers, [Publications](/publications) has all nine with live citation counts. If you want the short version of me, the [About page](/about) has it.

@@ -1,0 +1,39 @@
+---
+/* One narrative section row: heading + paragraph + side photo. side="left|right" controls layout.
+   focal: CSS object-position for the photo. Use to keep the important part of an
+   off-center subject visible after the 180×270 portrait crop. Examples:
+     "center"        — default
+     "center top"    — head/face is high in the frame
+     "center 35%"    — slightly toward the top
+     "left center"   — subject is on the left of the source
+     "right center"  — subject is on the right of the source */
+interface Props {
+  title: string;
+  body: string;
+  photo: string;
+  alt: string;
+  side?: "left" | "right";
+  rotate?: number;
+  padY?: string; /* py-* tailwind class */
+  focal?: string;
+}
+const { title, body, photo, alt, side = "left", rotate = -8, padY = "py-24", focal = "center" } = Astro.props;
+const sbW = 188;
+const sbH = 278;
+const photoOnLeft = side === "left";
+const padX = photoOnLeft ? "md:pr-12 md:pl-0" : "md:pl-12 md:pr-0";
+---
+<div class={`grid grid-cols-1 gap-8 ${padY} px-4 ${padX} lg:grid-cols-2 lg:items-center lg:justify-between`} data-curve-side={side}>
+  <div class={`flex flex-col items-center text-left ${photoOnLeft ? "lg:order-2 lg:items-start" : "lg:items-start"}`}>
+    <h2 class="mb-6 w-full text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">{title}</h2>
+    <p class="mb-6 text-base leading-8 text-text-secondary" set:html={body}></p>
+  </div>
+  <div class={`hidden lg:block ${photoOnLeft ? "lg:order-1" : ""}`}>
+    <div class="relative mx-auto w-fit">
+      <div class="rounded-[20px] border border-border-primary p-2" style={`width: ${sbW}px; height: ${sbH}px;`}>
+        <div class="grid h-full place-items-center rounded-xl border-2 border-[#A5AEB81F]/10 bg-[#EDEEF0]" style="box-shadow: 0px 2px 1.5px 0px #A5AEB852 inset;"></div>
+      </div>
+      <img class="absolute left-0 top-0 h-[270px] w-[180px] rounded-lg object-cover shadow" style={`transform: rotate(${rotate}deg); object-position: ${focal};`} src={photo} alt={alt} />
+    </div>
+  </div>
+</div>

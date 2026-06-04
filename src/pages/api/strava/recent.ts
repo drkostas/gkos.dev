@@ -7,18 +7,11 @@ export const GET: APIRoute = async () => {
   try {
     const activity = await getLatestActivity();
 
+    // Forward the full StravaActivity shape so the widget can compute stats
+    // (distance / duration / elevation / hr / kudos / type) without us having
+    // to keep the API and the React schema in sync by hand.
     return new Response(
-      JSON.stringify({
-        activity: activity
-          ? {
-              type: activity.type,
-              name: activity.name,
-              distance: activity.distanceMeters,
-              movingTime: activity.movingTimeSeconds,
-              startDate: activity.startDate,
-            }
-          : null,
-      }),
+      JSON.stringify({ activity }),
       {
         status: 200,
         headers: {

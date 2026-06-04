@@ -3,7 +3,7 @@ export const siteMetadata = {
   author: "Konstantinos (Kostas) Georgiou",
   headerTitle: "Kostas's Portfolio",
   description:
-    "ML Engineer with a PhD, building AI systems that ship to production. Research published at NeurIPS, WACV, IGARSS. 8,300+ GitHub followers.",
+    "ML engineer with a PhD. Research, side projects, and open source on self-supervised learning, LLMs, and computer vision.",
   language: "en-us",
   siteUrl: "https://gkos.dev",
   siteRepo: "https://github.com/drkostas/portfolio-v2",
@@ -16,6 +16,7 @@ export const siteMetadata = {
   linkedin: "https://www.linkedin.com/in/gkos/",
   scholar: "https://scholar.google.com/citations?user=b___QQ8AAAAJ",
   huggingface: "https://huggingface.co/drkostas",
+  calcom: "g.kos/15min",
   resume: "/static/kostas_georgiou_resume.pdf",
   locale: "en-US",
 };

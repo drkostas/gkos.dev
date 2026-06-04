@@ -1,0 +1,25 @@
+---
+/* Shared Experience header + Resume widget + Timeline rail. */
+import GridWrapper from "@/components/GridWrapper.astro";
+import Resume from "@/components/Resume.astro";
+import { TimelineReact } from "@/components/TimelineReact";
+
+interface Props {
+  heading?: string;
+  eyebrow?: string;
+}
+const { heading = "My work history and achievements timeline.", eyebrow = "Experience" } = Astro.props;
+---
+<div class="relative space-y-8 text-center">
+  <div class="space-y-4">
+    <GridWrapper><div class="text-center text-xs font-semibold uppercase tracking-widest text-purple-primary"><span>{eyebrow}</span></div></GridWrapper>
+    <GridWrapper><h2 class="mx-auto max-w-lg text-balance text-3xl font-medium leading-[40px] tracking-tighter text-text-primary">{heading}</h2></GridWrapper>
+  </div>
+</div>
+<div class="space-y-16">
+  <GridWrapper>
+    <Resume>
+      <TimelineReact slot="timeline" avatarUrl="/kostas_neurips_square.jpg" client:visible />
+    </Resume>
+  </GridWrapper>
+</div>
