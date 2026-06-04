@@ -11,29 +11,37 @@ import { Resend } from "resend";
 
 type NotifyKind = "comment" | "reaction" | "wall" | "cv" | "moderation_digest";
 
+/** Rich visitor block surfaced at the bottom of every event email. */
+export interface VisitorBlock {
+  country?: string | null;
+  city?: string | null;
+  region?: string | null;
+  device?: string | null;
+  browser?: string | null;
+  browserVersion?: string | null;
+  os?: string | null;
+  userAgent?: string | null;
+  referrer?: string | null;
+  language?: string | null;
+}
+
 interface CommentPayload {
   postSlug: string;
   authorName: string | null;
   body: string;
-  country?: string | null;
-  device?: string | null;
-  browser?: string | null;
+  visitor?: VisitorBlock;
 }
 interface ReactionPayload {
   postSlug: string;
   emoji: "like" | "heart" | "celebrate" | "insightful";
   postTotalAfter: number;
-  country?: string | null;
-  device?: string | null;
-  browser?: string | null;
+  visitor?: VisitorBlock;
 }
 interface WallPayload {
   name: string;
   message: string;
   color: string;
-  country?: string | null;
-  device?: string | null;
-  browser?: string | null;
+  visitor?: VisitorBlock;
 }
 interface CvPayload {
   ip: string;
@@ -111,48 +119,77 @@ function titleCase(s?: string | null): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-/** Tiny inline meta strip: country flag · device · browser. */
-function metaStrip(country?: string | null, device?: string | null, browser?: string | null): string {
-  const parts: string[] = [];
-  if (country && country !== "XX") {
-    const flag = countryFlag(country);
-    parts.push(`${flag ? `${flag} ` : ""}${escapeHtml(country)}`);
+/** Full HTML visitor block — table with each available signal on its own row. */
+function visitorBlock(v?: VisitorBlock): string {
+  if (!v) return "";
+  const rows: { label: string; value: string }[] = [];
+  if (v.country && v.country !== "XX") {
+    const flag = countryFlag(v.country);
+    const place = [v.city, v.region, v.country].filter(Boolean).join(", ");
+    rows.push({ label: "Location", value: `${flag ? flag + " " : ""}${place}` });
   }
-  if (device) parts.push(escapeHtml(titleCase(device)));
-  if (browser) parts.push(escapeHtml(titleCase(browser)));
-  if (parts.length === 0) return "";
-  return `<p style="margin: 8px 0 0 0; font-size: 12px; color: #9ca3af; font-family: ui-monospace, monospace; letter-spacing: 0.04em;">${parts.join(" · ")}</p>`;
+  if (v.device) rows.push({ label: "Device", value: titleCase(v.device) });
+  if (v.os) rows.push({ label: "OS", value: v.os });
+  if (v.browser) {
+    const b = titleCase(v.browser) + (v.browserVersion ? ` ${v.browserVersion}` : "");
+    rows.push({ label: "Browser", value: b });
+  }
+  if (v.language) rows.push({ label: "Language", value: v.language.split(",")[0] });
+  if (v.referrer) rows.push({ label: "Referrer", value: v.referrer });
+  if (v.userAgent) rows.push({ label: "User-Agent", value: v.userAgent.slice(0, 240) });
+  if (rows.length === 0) return "";
+  return `
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+      <p style="margin: 0 0 8px 0; font-size: 11px; color: #9ca3af; font-family: ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.08em;">Visitor</p>
+      <table style="font-size: 12px; color: #4b5563; line-height: 1.5; border-collapse: collapse;">
+        ${rows
+          .map(
+            (r) =>
+              `<tr><td style="padding: 2px 12px 2px 0; color: #9ca3af; vertical-align: top; white-space: nowrap;">${escapeHtml(r.label)}</td><td style="padding: 2px 0; word-break: break-all;">${escapeHtml(r.value)}</td></tr>`,
+          )
+          .join("")}
+      </table>
+    </div>
+  `;
 }
 
-/** Same data as metaStrip but plain-text for the text/plain MIME part. */
-function metaStripText(country?: string | null, device?: string | null, browser?: string | null): string {
-  const parts: string[] = [];
-  if (country && country !== "XX") parts.push(country);
-  if (device) parts.push(titleCase(device));
-  if (browser) parts.push(titleCase(browser));
-  return parts.length ? `\n[${parts.join(" · ")}]` : "";
+/** Plain-text visitor block for the text/plain MIME part. */
+function visitorBlockText(v?: VisitorBlock): string {
+  if (!v) return "";
+  const lines: string[] = [];
+  if (v.country && v.country !== "XX") {
+    const place = [v.city, v.region, v.country].filter(Boolean).join(", ");
+    lines.push(`Location: ${place}`);
+  }
+  if (v.device) lines.push(`Device: ${titleCase(v.device)}`);
+  if (v.os) lines.push(`OS: ${v.os}`);
+  if (v.browser) lines.push(`Browser: ${titleCase(v.browser)}${v.browserVersion ? ` ${v.browserVersion}` : ""}`);
+  if (v.language) lines.push(`Language: ${v.language.split(",")[0]}`);
+  if (v.referrer) lines.push(`Referrer: ${v.referrer}`);
+  if (v.userAgent) lines.push(`UA: ${v.userAgent.slice(0, 240)}`);
+  return lines.length ? "\n\n" + lines.join("\n") : "";
 }
 
 function render(payload: NotifyPayload): { subject: string; html: string; text: string } {
   switch (payload.kind) {
     case "comment": {
-      const { postSlug, authorName, body, country, device, browser } = payload.data;
+      const { postSlug, authorName, body, visitor } = payload.data;
       const author = authorName || "Anonymous";
-      const preview = body.length > 220 ? body.slice(0, 220) + "..." : body;
+      const preview = body.length > 280 ? body.slice(0, 280) + "..." : body;
       const link = `https://gkos.dev/blog/${postSlug}#comments`;
       return {
         subject: `[gkos.dev] New comment on /${postSlug} from ${author}`,
         html: frame(
           header(`${escapeHtml(author)} commented on /${escapeHtml(postSlug)}`, "New blog comment") +
             `<div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #fafafa;">${escapeHtml(preview)}</div>` +
-            metaStrip(country, device, browser) +
-            footer(link, "Open the post"),
+            footer(link, "Open the post") +
+            visitorBlock(visitor),
         ),
-        text: `${author} commented on /${postSlug}${metaStripText(country, device, browser)}\n\n${preview}\n\n${link}`,
+        text: `${author} commented on /${postSlug}\n\n${preview}\n\n${link}${visitorBlockText(visitor)}`,
       };
     }
     case "reaction": {
-      const { postSlug, emoji, postTotalAfter, country, device, browser } = payload.data;
+      const { postSlug, emoji, postTotalAfter, visitor } = payload.data;
       const label = EMOJI_LABEL[emoji];
       const link = `https://gkos.dev/blog/${postSlug}`;
       return {
@@ -160,14 +197,14 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
         html: frame(
           header(`${label} on /${escapeHtml(postSlug)}`, "New reaction") +
             `<p style="margin: 0; font-size: 15px; color: #1f2937;">Total reactions on this post: <strong>${postTotalAfter}</strong></p>` +
-            metaStrip(country, device, browser) +
-            footer(link, "Open the post"),
+            footer(link, "Open the post") +
+            visitorBlock(visitor),
         ),
-        text: `${label} on /${postSlug}${metaStripText(country, device, browser)}\nTotal reactions: ${postTotalAfter}\n${link}`,
+        text: `${label} on /${postSlug}\nTotal reactions: ${postTotalAfter}\n${link}${visitorBlockText(visitor)}`,
       };
     }
     case "wall": {
-      const { name, message, color, country, device, browser } = payload.data;
+      const { name, message, color, visitor } = payload.data;
       const preview = message.length > 280 ? message.slice(0, 280) + "..." : message;
       const link = `https://gkos.dev/community-wall`;
       return {
@@ -176,10 +213,10 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
           header(`${escapeHtml(name)} left a note`, "New community wall message") +
             `<div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #fafafa;">${escapeHtml(preview)}</div>` +
             `<p style="margin: 12px 0 0 0; font-size: 12px; color: #9ca3af;">Color: ${escapeHtml(color)}</p>` +
-            metaStrip(country, device, browser) +
-            footer(link, "Open the wall"),
+            footer(link, "Open the wall") +
+            visitorBlock(visitor),
         ),
-        text: `${name} left a wall note${metaStripText(country, device, browser)}\n\n${preview}\n\nColor: ${color}\n${link}`,
+        text: `${name} left a wall note\n\n${preview}\n\nColor: ${color}\n${link}${visitorBlockText(visitor)}`,
       };
     }
     case "cv": {
