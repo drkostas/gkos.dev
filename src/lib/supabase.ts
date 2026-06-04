@@ -149,6 +149,110 @@ export async function addReaction(
 }
 
 // ----------------------------------------------------------------------------
+// Blog comments
+// ----------------------------------------------------------------------------
+
+export interface BlogComment {
+  id: string;
+  postSlug: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string; // ISO
+}
+
+export interface TopCommentedPost {
+  postSlug: string;
+  totalComments: number;
+}
+
+function rowToComment(row: any): BlogComment {
+  return {
+    id: row.id,
+    postSlug: row.post_slug,
+    authorName: row.author_name ?? null,
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
+/** List visible comments for one post, newest first. Hard-capped at 200. */
+export async function getCommentsForPost(postSlug: string, limit = 200): Promise<BlogComment[]> {
+  const supabase = getSupabasePublic();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("blog_comments")
+    .select("id, post_slug, author_name, body, created_at")
+    .eq("post_slug", postSlug)
+    .eq("hidden", false)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(limit, 200));
+  if (error || !data) {
+    console.warn("[supabase] getCommentsForPost:", error);
+    return [];
+  }
+  return data.map(rowToComment);
+}
+
+/** Total visible comments across all posts. Cheap aggregate for /stats. */
+export async function getTotalCommentCount(): Promise<number> {
+  const supabase = getSupabasePublic();
+  if (!supabase) return 0;
+  const { count, error } = await supabase
+    .from("blog_comments")
+    .select("*", { count: "exact", head: true })
+    .eq("hidden", false);
+  if (error) {
+    console.warn("[supabase] getTotalCommentCount:", error);
+    return 0;
+  }
+  return count ?? 0;
+}
+
+/** Top-N most-commented blog posts. */
+export async function getTopCommentedPosts(limit = 5): Promise<TopCommentedPost[]> {
+  const supabase = getSupabasePublic();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("blog_comments_top_posts")
+    .select("post_slug, total_comments")
+    .limit(limit);
+  if (error || !data) {
+    console.warn("[supabase] getTopCommentedPosts:", error);
+    return [];
+  }
+  return data.map((r) => ({ postSlug: r.post_slug, totalComments: r.total_comments ?? 0 }));
+}
+
+/**
+ * Insert a comment. Returns the new row on success. Service-role required.
+ * Caller is responsible for moderation + rate limit checks; this just writes.
+ */
+export async function addComment(
+  postSlug: string,
+  authorName: string | null,
+  body: string,
+  ipHash: string,
+): Promise<BlogComment | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("blog_comments")
+    .insert({
+      post_slug: postSlug,
+      author_name: authorName,
+      body,
+      ip_hash: ipHash,
+    })
+    .select("id, post_slug, author_name, body, created_at")
+    .single();
+  if (error || !data) {
+    console.warn("[supabase] addComment:", error);
+    return null;
+  }
+  return rowToComment(data);
+}
+
+// ----------------------------------------------------------------------------
 // Wall message types
 // ----------------------------------------------------------------------------
 
