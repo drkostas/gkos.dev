@@ -1,0 +1,21 @@
+name: Chore
+description: Refactor, cleanup, dependency bump — no user-facing change
+title: "chore(area): "
+labels: ["type:chore"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What does this unlock or unblock?
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Which files / areas does this touch?

@@ -1,0 +1,21 @@
+name: Content
+description: Blog post, copy edit, data update — anything text-only
+title: "content(area): "
+labels: ["type:content"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: New post? Copy edit on existing page? Data refresh?
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where (page / file)
+      placeholder: /about · src/data/projects.ts · new blog post under src/content/blog/
+  - type: textarea
+    id: draft
+    attributes:
+      label: Draft / outline (optional)
