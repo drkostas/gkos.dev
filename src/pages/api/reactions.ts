@@ -118,6 +118,8 @@ export const POST: APIRoute = async ({ request }) => {
         emoji,
         postTotalAfter: total,
         country: visitor.country,
+        device: visitor.deviceType,
+        browser: visitor.browserFamily,
       },
     });
   }

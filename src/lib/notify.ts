@@ -16,18 +16,24 @@ interface CommentPayload {
   authorName: string | null;
   body: string;
   country?: string | null;
+  device?: string | null;
+  browser?: string | null;
 }
 interface ReactionPayload {
   postSlug: string;
   emoji: "like" | "heart" | "celebrate" | "insightful";
   postTotalAfter: number;
   country?: string | null;
+  device?: string | null;
+  browser?: string | null;
 }
 interface WallPayload {
   name: string;
   message: string;
   color: string;
   country?: string | null;
+  device?: string | null;
+  browser?: string | null;
 }
 interface CvPayload {
   ip: string;
@@ -94,71 +100,103 @@ function frame(body: string): string {
   return `<div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">${body}</div>`;
 }
 
-function countryLabel(country?: string | null): string {
-  if (!country || country === "XX") return "";
-  return ` <span style="font-size: 12px; color: #9ca3af;">· ${escapeHtml(country)}</span>`;
+function countryFlag(iso?: string | null): string {
+  if (!iso || iso.length !== 2) return "";
+  const cps = iso.toUpperCase().split("").map((c) => 0x1f1e6 + c.charCodeAt(0) - 65);
+  return String.fromCodePoint(...cps);
+}
+
+function titleCase(s?: string | null): string {
+  if (!s) return "";
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+/** Tiny inline meta strip: country flag · device · browser. */
+function metaStrip(country?: string | null, device?: string | null, browser?: string | null): string {
+  const parts: string[] = [];
+  if (country && country !== "XX") {
+    const flag = countryFlag(country);
+    parts.push(`${flag ? `${flag} ` : ""}${escapeHtml(country)}`);
+  }
+  if (device) parts.push(escapeHtml(titleCase(device)));
+  if (browser) parts.push(escapeHtml(titleCase(browser)));
+  if (parts.length === 0) return "";
+  return `<p style="margin: 8px 0 0 0; font-size: 12px; color: #9ca3af; font-family: ui-monospace, monospace; letter-spacing: 0.04em;">${parts.join(" · ")}</p>`;
+}
+
+/** Same data as metaStrip but plain-text for the text/plain MIME part. */
+function metaStripText(country?: string | null, device?: string | null, browser?: string | null): string {
+  const parts: string[] = [];
+  if (country && country !== "XX") parts.push(country);
+  if (device) parts.push(titleCase(device));
+  if (browser) parts.push(titleCase(browser));
+  return parts.length ? `\n[${parts.join(" · ")}]` : "";
 }
 
 function render(payload: NotifyPayload): { subject: string; html: string; text: string } {
   switch (payload.kind) {
     case "comment": {
-      const { postSlug, authorName, body, country } = payload.data;
+      const { postSlug, authorName, body, country, device, browser } = payload.data;
       const author = authorName || "Anonymous";
       const preview = body.length > 220 ? body.slice(0, 220) + "..." : body;
       const link = `https://gkos.dev/blog/${postSlug}#comments`;
       return {
         subject: `[gkos.dev] New comment on /${postSlug} from ${author}`,
         html: frame(
-          header(`${escapeHtml(author)} commented on /${escapeHtml(postSlug)}${countryLabel(country)}`, "New blog comment") +
+          header(`${escapeHtml(author)} commented on /${escapeHtml(postSlug)}`, "New blog comment") +
             `<div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #fafafa;">${escapeHtml(preview)}</div>` +
+            metaStrip(country, device, browser) +
             footer(link, "Open the post"),
         ),
-        text: `${author} commented on /${postSlug}${country ? ` (${country})` : ""}\n\n${preview}\n\n${link}`,
+        text: `${author} commented on /${postSlug}${metaStripText(country, device, browser)}\n\n${preview}\n\n${link}`,
       };
     }
     case "reaction": {
-      const { postSlug, emoji, postTotalAfter, country } = payload.data;
+      const { postSlug, emoji, postTotalAfter, country, device, browser } = payload.data;
       const label = EMOJI_LABEL[emoji];
       const link = `https://gkos.dev/blog/${postSlug}`;
       return {
         subject: `[gkos.dev] ${label} on /${postSlug}`,
         html: frame(
-          header(`${label} on /${escapeHtml(postSlug)}${countryLabel(country)}`, "New reaction") +
+          header(`${label} on /${escapeHtml(postSlug)}`, "New reaction") +
             `<p style="margin: 0; font-size: 15px; color: #1f2937;">Total reactions on this post: <strong>${postTotalAfter}</strong></p>` +
+            metaStrip(country, device, browser) +
             footer(link, "Open the post"),
         ),
-        text: `${label} on /${postSlug}${country ? ` (${country})` : ""}\nTotal reactions: ${postTotalAfter}\n${link}`,
+        text: `${label} on /${postSlug}${metaStripText(country, device, browser)}\nTotal reactions: ${postTotalAfter}\n${link}`,
       };
     }
     case "wall": {
-      const { name, message, color, country } = payload.data;
+      const { name, message, color, country, device, browser } = payload.data;
       const preview = message.length > 280 ? message.slice(0, 280) + "..." : message;
       const link = `https://gkos.dev/community-wall`;
       return {
         subject: `[gkos.dev] New wall note from ${name}`,
         html: frame(
-          header(`${escapeHtml(name)} left a note${countryLabel(country)}`, "New community wall message") +
+          header(`${escapeHtml(name)} left a note`, "New community wall message") +
             `<div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #fafafa;">${escapeHtml(preview)}</div>` +
             `<p style="margin: 12px 0 0 0; font-size: 12px; color: #9ca3af;">Color: ${escapeHtml(color)}</p>` +
+            metaStrip(country, device, browser) +
             footer(link, "Open the wall"),
         ),
-        text: `${name} left a wall note${country ? ` (${country})` : ""}\n\n${preview}\n\nColor: ${color}\n${link}`,
+        text: `${name} left a wall note${metaStripText(country, device, browser)}\n\n${preview}\n\nColor: ${color}\n${link}`,
       };
     }
     case "cv": {
       const { ip, country, userAgent, referrer } = payload.data;
+      const flag = countryFlag(country);
       return {
-        subject: `[gkos.dev] Resume PDF was downloaded`,
+        subject: `[gkos.dev] Resume PDF was downloaded${country ? ` (${country})` : ""}`,
         html: frame(
-          header(`Someone fetched the resume${countryLabel(country)}`, "CV download") +
+          header(`${flag ? flag + " " : ""}Someone fetched the resume`, "CV download") +
             `<table style="font-size: 13px; color: #4b5563; line-height: 1.6;">
-              <tr><td style="padding-right: 12px; color: #9ca3af;">IP hash</td><td><code>${escapeHtml(ip)}</code></td></tr>
               ${country ? `<tr><td style="padding-right: 12px; color: #9ca3af;">Country</td><td>${escapeHtml(country)}</td></tr>` : ""}
               ${referrer ? `<tr><td style="padding-right: 12px; color: #9ca3af;">Referrer</td><td>${escapeHtml(referrer)}</td></tr>` : ""}
               ${userAgent ? `<tr><td style="padding-right: 12px; color: #9ca3af; vertical-align: top;">User-Agent</td><td style="word-break: break-all;">${escapeHtml(userAgent.slice(0, 200))}</td></tr>` : ""}
+              <tr><td style="padding-right: 12px; color: #9ca3af;">IP hash</td><td><code>${escapeHtml(ip)}</code></td></tr>
             </table>`,
         ),
-        text: `CV PDF download\nIP hash: ${ip}${country ? `\nCountry: ${country}` : ""}${referrer ? `\nReferrer: ${referrer}` : ""}${userAgent ? `\nUA: ${userAgent.slice(0, 200)}` : ""}`,
+        text: `CV PDF download${country ? `\nCountry: ${country}` : ""}${referrer ? `\nReferrer: ${referrer}` : ""}${userAgent ? `\nUA: ${userAgent.slice(0, 200)}` : ""}\nIP hash: ${ip}`,
       };
     }
     case "moderation_digest": {

@@ -226,6 +226,8 @@ export const POST: APIRoute = async ({ request }) => {
       authorName: comment.authorName,
       body: comment.body,
       country: visitor.country,
+      device: visitor.deviceType,
+      browser: visitor.browserFamily,
     },
   });
 

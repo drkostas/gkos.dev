@@ -394,7 +394,14 @@ export const POST: APIRoute = async ({ request }) => {
   // Fire-and-forget notification email.
   void notify({
     kind: "wall",
-    data: { name, message, color, country: visitor.country },
+    data: {
+      name,
+      message,
+      color,
+      country: visitor.country,
+      device: visitor.deviceType,
+      browser: visitor.browserFamily,
+    },
   });
 
   return new Response(JSON.stringify({ message: rowToMessage(data) }), {
