@@ -17,6 +17,7 @@ import {
   getTopCommentedPosts,
   getTotalCommentCount,
   logModerationBlock,
+  deleteOwnComment,
 } from "@/lib/supabase";
 import { checkContent } from "@/lib/moderation";
 import { getVisitorInfo } from "@/lib/visitor";
@@ -209,6 +210,7 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: check.reason + suffix }, 400);
   }
 
+  // (DELETE method handler defined below.)
   const comment = await addComment(
     postSlug,
     author || null,
@@ -242,4 +244,46 @@ export const POST: APIRoute = async ({ request }) => {
   });
 
   return json({ comment }, 201);
+};
+
+// ----------------------------------------------------------------------------
+// DELETE — self-delete a comment posted from the same IP
+// ----------------------------------------------------------------------------
+//
+// Authorization model:
+//   - Body: { id: <comment uuid> }
+//   - Server hashes the requester's IP+UA the same way the POST handler does.
+//   - Row is deleted only if (id, ip_hash) both match.
+//   - No email, no moderation digest entry — this is the author taking back
+//     their own comment.
+//
+// This is a soft auth: a determined attacker on the same IP could remove
+// someone else's comment. Acceptable for a personal portfolio where most
+// readers are on unique residential IPs; the admin "Hide" email link is the
+// stronger moderation path.
+
+export const DELETE: APIRoute = async ({ request }) => {
+  let payload: { id?: string };
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+  const id = String(payload.id ?? "").trim();
+  if (!id || id.length < 8 || id.length > 40) {
+    return json({ error: "Missing or oversized comment id" }, 400);
+  }
+
+  const ip = getClientIp(request);
+  const ua = request.headers.get("user-agent") ?? "";
+  const ipHash = hashIp(ip, ua);
+
+  const ok = await deleteOwnComment(id, ipHash);
+  if (!ok) {
+    return json(
+      { error: "Comment not found or not posted from this device" },
+      404,
+    );
+  }
+  return json({ ok: true, id });
 };

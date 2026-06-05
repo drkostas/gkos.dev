@@ -32,6 +32,28 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+function ownedStorageKey(slug: string) {
+  return `ownedComments:${slug}`;
+}
+
+function readOwned(slug: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(ownedStorageKey(slug));
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeOwned(slug: string, owned: Set<string>) {
+  try {
+    localStorage.setItem(ownedStorageKey(slug), JSON.stringify(Array.from(owned)));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function BlogCommentsReact({ postSlug }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +62,13 @@ export function BlogCommentsReact({ postSlug }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [owned, setOwned] = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setOwned(readOwned(postSlug));
+  }, [postSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +122,11 @@ export function BlogCommentsReact({ postSlug }: Props) {
         setError(data.error ?? "Could not post your comment.");
       } else if (data.comment) {
         setComments((prev) => [data.comment, ...prev]);
+        // Mark this comment as owned-by-this-browser so the Delete button shows.
+        const nextOwned = new Set(owned);
+        nextOwned.add(data.comment.id);
+        setOwned(nextOwned);
+        writeOwned(postSlug, nextOwned);
         setBody("");
         setSuccess(true);
       }
@@ -101,6 +134,40 @@ export function BlogCommentsReact({ postSlug }: Props) {
       setError("Network error. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function onDelete(id: string) {
+    if (deletingId) return;
+    const snapshot = comments;
+    setDeletingId(id);
+    // Optimistic remove
+    setComments((prev) => prev.filter((c) => c.id !== id));
+    const nextOwned = new Set(owned);
+    nextOwned.delete(id);
+    setOwned(nextOwned);
+    writeOwned(postSlug, nextOwned);
+    try {
+      const res = await fetch("/api/blog/comments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        // Roll back — the row probably isn't ours (e.g., session changed IP).
+        setComments(snapshot);
+        const restore = new Set(nextOwned);
+        restore.add(id);
+        setOwned(restore);
+        writeOwned(postSlug, restore);
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not delete that comment.");
+      }
+    } catch {
+      setComments(snapshot);
+      setError("Network error while deleting.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -178,28 +245,45 @@ export function BlogCommentsReact({ postSlug }: Props) {
 
       {!loading && comments.length > 0 && (
         <ul className="space-y-4">
-          {comments.map((c) => (
-            <li
-              key={c.id}
-              className="rounded-xl border border-border-primary bg-bg-primary/40 p-4"
-            >
-              <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="text-sm font-medium text-text-primary">
-                  {c.authorName || "Anonymous"}
-                </span>
-                <time
-                  dateTime={c.createdAt}
-                  title={new Date(c.createdAt).toLocaleString()}
-                  className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary"
-                >
-                  {timeAgo(c.createdAt)}
-                </time>
-              </div>
-              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-secondary">
-                {c.body}
-              </p>
-            </li>
-          ))}
+          {comments.map((c) => {
+            const isMine = owned.has(c.id);
+            const isDeleting = deletingId === c.id;
+            return (
+              <li
+                key={c.id}
+                className={`rounded-xl border border-border-primary bg-bg-primary/40 p-4 transition-opacity ${isDeleting ? "opacity-50" : ""}`}
+              >
+                <div className="mb-1 flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-medium text-text-primary">
+                    {c.authorName || "Anonymous"}
+                  </span>
+                  <div className="flex items-baseline gap-3">
+                    {isMine && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(c.id)}
+                        disabled={isDeleting}
+                        title="Delete your comment"
+                        className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary transition-colors hover:text-rose-600 disabled:opacity-50"
+                      >
+                        {isDeleting ? "Deleting…" : "Delete"}
+                      </button>
+                    )}
+                    <time
+                      dateTime={c.createdAt}
+                      title={new Date(c.createdAt).toLocaleString()}
+                      className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary"
+                    >
+                      {timeAgo(c.createdAt)}
+                    </time>
+                  </div>
+                </div>
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-secondary">
+                  {c.body}
+                </p>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

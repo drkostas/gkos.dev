@@ -158,6 +158,29 @@ export async function removeReaction(
   return getReactionCounts(postSlug);
 }
 
+/**
+ * Hard-delete a comment if it was posted from the same IP (ip_hash match).
+ * Used by the per-comment "Delete" button shown to the original author.
+ * Returns true on success, false if no row matched or not authorized.
+ */
+export async function deleteOwnComment(
+  id: string,
+  ipHash: string,
+): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const { count, error } = await supabase
+    .from("blog_comments")
+    .delete({ count: "exact" })
+    .eq("id", id)
+    .eq("ip_hash", ipHash);
+  if (error) {
+    console.warn("[supabase] deleteOwnComment:", error);
+    return false;
+  }
+  return (count ?? 0) > 0;
+}
+
 /** Hard-delete a reaction by row id (admin-only). */
 export async function deleteReactionById(id: string): Promise<boolean> {
   const supabase = getSupabaseAdmin();
