@@ -90,11 +90,17 @@ function json(body: unknown, status = 200): Response {
 // GET
 // ----------------------------------------------------------------------------
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, request }) => {
   const post = url.searchParams.get("post");
   if (post) {
-    const comments = await getCommentsForPost(post);
-    return json({ post, comments });
+    // Hash the viewer the same way POST does so getCommentsForPost can
+    // annotate which comments are theirs. No-cache on this branch so the
+    // ownedIds set always reflects the current IP+UA.
+    const ip = getClientIp(request);
+    const ua = request.headers.get("user-agent") ?? "";
+    const ipHash = hashIp(ip, ua);
+    const { comments, ownedIds } = await getCommentsForPost(post, 200, ipHash);
+    return json({ post, comments, ownedIds });
   }
   const [total, top] = await Promise.all([
     getTotalCommentCount(),

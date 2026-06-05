@@ -77,6 +77,16 @@ export function BlogCommentsReact({ postSlug }: Props) {
       .then((d) => {
         if (cancelled) return;
         setComments(Array.isArray(d.comments) ? d.comments : []);
+        // Server-confirmed ownership (matches via stored ip_hash) merged
+        // with whatever localStorage has tracked for this device.
+        if (Array.isArray(d.ownedIds) && d.ownedIds.length > 0) {
+          setOwned((prev) => {
+            const merged = new Set(prev);
+            for (const id of d.ownedIds) merged.add(id);
+            writeOwned(postSlug, merged);
+            return merged;
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) setComments([]);

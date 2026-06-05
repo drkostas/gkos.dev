@@ -296,22 +296,50 @@ function rowToComment(row: any): BlogComment {
   };
 }
 
-/** List visible comments for one post, newest first. Hard-capped at 200. */
-export async function getCommentsForPost(postSlug: string, limit = 200): Promise<BlogComment[]> {
+/**
+ * List visible comments for one post, newest first. Hard-capped at 200.
+ *
+ * If `viewerIpHash` is passed, the result also returns `ownedIds` — comments
+ * whose ip_hash matches, so the UI can show a "Delete" affordance for the
+ * original author even if they cleared localStorage or switched browsers.
+ */
+export async function getCommentsForPost(
+  postSlug: string,
+  limit = 200,
+  viewerIpHash?: string,
+): Promise<{ comments: BlogComment[]; ownedIds: string[] }> {
   const supabase = getSupabasePublic();
-  if (!supabase) return [];
+  if (!supabase) return { comments: [], ownedIds: [] };
   const { data, error } = await supabase
     .from("blog_comments")
-    .select("id, post_slug, author_name, body, created_at")
+    .select("id, post_slug, author_name, body, created_at, country")
     .eq("post_slug", postSlug)
     .eq("hidden", false)
     .order("created_at", { ascending: false })
     .limit(Math.min(limit, 200));
   if (error || !data) {
     console.warn("[supabase] getCommentsForPost:", error);
-    return [];
+    return { comments: [], ownedIds: [] };
   }
-  return data.map(rowToComment);
+  const comments = data.map(rowToComment);
+
+  // ownedIds lookup — only runs if we have a viewer hash and there are
+  // visible comments to check. Uses the service-role client so it can read
+  // the otherwise-protected ip_hash column.
+  let ownedIds: string[] = [];
+  if (viewerIpHash && comments.length > 0) {
+    const admin = getSupabaseAdmin();
+    if (admin) {
+      const { data: ownedRows } = await admin
+        .from("blog_comments")
+        .select("id")
+        .eq("post_slug", postSlug)
+        .eq("ip_hash", viewerIpHash);
+      ownedIds = (ownedRows ?? []).map((r: { id: string }) => r.id);
+    }
+  }
+
+  return { comments, ownedIds };
 }
 
 /** Total visible comments across all posts. Cheap aggregate for /stats. */
