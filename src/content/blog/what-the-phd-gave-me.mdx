@@ -1,0 +1,95 @@
+---
+title: "What the PhD gave me"
+publishedAt: 2026-06-05T14:00:00
+summary: "Four years of research, half a year of decompressing. Five things I picked up about shipping software that I wouldn't have learned at a startup, and the one habit the PhD cost me."
+categories: ["career", "personal", "ml"]
+draft: true
+---
+
+I finished my PhD this May. Four years of research, half a year of decompressing, and now I'm rejoining the job market with a different brain than the one I had in 2021.
+
+The brain change is the part I want to write about.
+
+I started the PhD because I wanted to understand machine learning in real depth: not just call `.fit()` and move on, but actually know what was happening under the hood and why. The understanding came. But four years later, the thing I'm most grateful for is something else entirely. The PhD made me a better engineer.
+
+That's not what I expected when I packed my bags for Tennessee. So I want to write it down, partly for the version of me who would have benefited from hearing it in 2021, and partly because I keep meeting engineers who think a PhD is just academia and miss what it actually trains you to do.
+
+Here are five things I picked up that I now use every day, plus the one habit the PhD cost me.
+
+## 1. Reading is shipping
+
+The first thing my advisor told me when I joined the lab was to spend two months just reading. No code. No experiments. Just papers.
+
+That sounded insane. I'd come from industry, where every two months was supposed to produce a deliverable. Two months of reading felt like falling behind.
+
+What I learned: the papers I read in those two months saved me a year of work later. Every problem I touched in the PhD turned out to be a problem somebody else had already partly solved, or had at least mapped out the failure modes of. The job was usually to read enough to know which existing pieces to combine, then to do the combining.
+
+I still work this way. Before I started building [FleetSmart's](https://fleetsmart.ai/) recommendation engine, I spent a week reading. Not on maritime AI specifically, because there isn't much, but on multi-provider LLM orchestration, structured-output validation, and what the agentic frameworks were doing in 2024. By the time I wrote the first line of Pydantic schema, I knew what would and wouldn't work. The build was faster as a result.
+
+If you don't have time for a paper a week, read the abstracts. Skim the figures. The point isn't to memorize: it's to know where to come back later.
+
+## 2. The thing you publish is not the work you did
+
+Every paper I wrote went through at least one major rewrite where the framing changed completely. Sometimes the experiments I'm proudest of didn't make it into the final draft. Sometimes the section I dashed off in an afternoon turned out to be the one reviewers cared about most.
+
+The same is true in engineering. Most prod features I've shipped were the seventh attempt. The git log shows a clean ramp; the truth is six branches I quietly deleted.
+
+This sounds discouraging but it's the opposite. Once you accept that the visible work is a fraction of the actual work, you stop being surprised when something takes longer than the estimate said. You also start being more generous with the work of others. When a colleague ships something, you can see the hidden iceberg below it.
+
+The corollary: don't optimize for the elegance of the final draft. Optimize for the speed of iteration. The final draft sorts itself out if you've iterated enough.
+
+## 3. Calibration matters more than confidence
+
+In industry, if you say "I think this will take a week," nobody checks back to see if you were right.
+
+In research, three anonymous reviewers check. Every time. If you wrote "our model achieves 87.6% on MBPP," that number had better hold. If you wrote "we believe this approach generalizes," you'd better have evidence. The reviewer who catches a sloppy claim is doing you a favor, because the alternative is that you've published something wrong and the field eventually finds out.
+
+After four years of that, I'm physically uncomfortable making a confident claim I can't back. It's slowed me down on a few occasions and it'll probably slow me down in some interviews. But it's also why, when I do say something will work, I'm usually right.
+
+Calibrated confidence reads less impressive than overconfidence in the short term, especially in a job market that rewards bold claims. In the long term it builds trust, which compounds. I'll take that trade.
+
+## 4. Latency to decide beats latency to query
+
+The single biggest mistake I made in my first year was spending three weeks tuning hyperparameters on a model that, in retrospect, was the wrong architecture. The two-day baseline run would have told me the same thing. I just didn't run it because I "knew" the architecture was right.
+
+I knew nothing.
+
+The engineering version of this lesson: ship a measurement before a feature. If you're about to spend a week building something, ask whether there's a one-day experiment that would tell you whether the week-long build is the right one. Usually there is. Usually it would have saved you the week.
+
+This is the one I most wish I'd internalized earlier. It applies far beyond ML.
+
+## 5. The world is full of people who already solved your problem
+
+This sounds banal. It isn't.
+
+The reflex most engineers have: "I have a problem. Let me figure out how to solve it." The reflex a PhD trains: "I have a problem. Who else has had this problem and what did they do about it?"
+
+The second reflex is usually right. Most problems worth solving have been solved before, by somebody, in some form. The job is not to be clever. It's to find that solution and adapt it. Cleverness happens in the gap between what's been done and what you need.
+
+I keep a small text file of "things I expected to be hard but turned out to be a known problem." It's longer than I'd like.
+
+## What it cost: I lost a gear
+
+For all of the above, the PhD took something away too. It made me slow.
+
+In the lab, the right answer matters more than the time it took. The reviewer doesn't reward you for shipping fast: they reward you for shipping correct. Over four years, that pressure shifts your defaults. You start optimizing for elegance, for completeness, for the rigorous explanation. You stop optimizing for "ship the ugly version that closes the loop and revisit it later."
+
+In industry, that's sometimes wrong. Often the ugly version is the version that should ship, because the cost of the rigorous one is weeks you don't have. I'm still recalibrating. I catch myself making things more elegant than they need to be, and I have to actively tell myself "good enough, move on."
+
+If you're an engineer thinking about a PhD: know that this is the cost. You'll come out a better thinker. You may also come out a slower shipper. The trade is worth it if you'll spend the next decade on hard problems. It's probably not if you want to ship fast at a YC-style startup.
+
+## For engineers who don't want to do a PhD
+
+You don't need the PhD to get most of this. Three habits get you most of the way:
+
+1. Read a paper or a technical writeup a week. Doesn't matter what. The habit of reading other people's hard work is the multiplier.
+2. Write design docs you'd be embarrassed to defend if they were torn apart. Then have someone tear them apart. Code reviews aren't enough; the thinking happens earlier than that.
+3. Keep a list of every approach you tried and abandoned. Not for nostalgia, for calibration. When you next say "this is the right approach," you'll have data on how often past-you was wrong.
+
+The PhD compresses these habits into four years of forced practice. You can build them yourself in two, if you're patient. You probably won't, because nothing forces you to. But you could.
+
+## Where I am now
+
+I graduated in May. I'm in Greece, looking for a remote ML or Applied Scientist role I can do from here. I'm writing more than I used to: that's part of the recalibration, I think. The PhD made me slow at shipping but careful at thinking, and I'm trying to figure out which parts of each to keep.
+
+If any of this resonates, or if you disagree, leave a comment below. I'm curious what other people's version of the same list looks like, especially from engineers who never went through grad school. The lessons are probably very different. They might also be the same.
