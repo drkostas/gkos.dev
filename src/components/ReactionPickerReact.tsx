@@ -2,11 +2,11 @@
  * Reaction picker for the bottom of a blog post.
  *
  * Renders four emoji buttons (like / heart / celebrate / insightful) with live
- * counts. On click, POSTs to /api/reactions; the server de-dupes by IP-hash so
- * a re-click is a no-op (and the count won't go up a second time).
+ * counts. Clicking a button toggles the reaction:
+ *   - first click  → POST /api/reactions (insert + email)
+ *   - second click → DELETE /api/reactions (remove, no email)
  *
- * The component remembers locally which emoji this browser has clicked so the
- * button can show a "filled" state without an extra round-trip.
+ * Picked state is mirrored in localStorage so the filled UI survives reloads.
  */
 import { useEffect, useState } from "react";
 
@@ -62,23 +62,41 @@ export function ReactionPickerReact({ postSlug }: { postSlug: string }) {
   }, [postSlug]);
 
   async function onPick(emoji: EmojiType) {
-    if (picked.has(emoji) || pending) return;
+    if (pending) return;
+    const isUndoing = picked.has(emoji);
     setPending(emoji);
-    // Optimistic update
-    setCounts((c) => ({ ...c, [emoji]: c[emoji] + 1 }));
+
+    // Optimistic count update + picked-set update + storage mirror.
+    setCounts((c) => ({
+      ...c,
+      [emoji]: Math.max(0, c[emoji] + (isUndoing ? -1 : 1)),
+    }));
     const next = new Set(picked);
-    next.add(emoji);
+    if (isUndoing) next.delete(emoji);
+    else next.add(emoji);
     setPicked(next);
     writePickedToStorage(postSlug, next);
+
     try {
       const res = await fetch("/api/reactions", {
-        method: "POST",
+        method: isUndoing ? "DELETE" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ post: postSlug, emoji }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.counts) setCounts(data.counts);
+      } else {
+        // Roll back optimistic update on server error.
+        setCounts((c) => ({
+          ...c,
+          [emoji]: Math.max(0, c[emoji] + (isUndoing ? 1 : -1)),
+        }));
+        const revert = new Set(picked);
+        if (isUndoing) revert.add(emoji);
+        else revert.delete(emoji);
+        setPicked(revert);
+        writePickedToStorage(postSlug, revert);
       }
     } catch {
       /* swallow — optimistic count stays */
@@ -100,12 +118,13 @@ export function ReactionPickerReact({ postSlug }: { postSlug: string }) {
               key={type}
               type="button"
               onClick={() => onPick(type)}
-              disabled={isPicked || pending === type}
+              disabled={pending !== null && pending !== type}
               aria-pressed={isPicked}
-              aria-label={`React with ${label}`}
+              aria-label={isPicked ? `Remove ${label} reaction` : `React with ${label}`}
+              title={isPicked ? "Click again to take it back" : `React with ${label}`}
               className={`group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-all ${
                 isPicked
-                  ? "border-indigo-400 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+                  ? "border-indigo-400 bg-indigo-50 text-indigo-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:border-rose-400/60 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
                   : "border-border-primary bg-bg-primary text-text-secondary hover:border-indigo-400 hover:text-indigo-700"
               } ${pending === type ? "opacity-60" : ""}`}
             >

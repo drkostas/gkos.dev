@@ -134,6 +134,30 @@ export async function getTopReactedPosts(limit = 5): Promise<TopReactedPost[]> {
 // See blogCommentsLacksDemographics. Same idea for the reactions table.
 let reactionsLacksDemographics = false;
 
+/**
+ * Remove a reaction by (postSlug, emoji, ipHash). Returns the post's counts
+ * after the delete. Used to let visitors take back a reaction.
+ */
+export async function removeReaction(
+  postSlug: string,
+  emoji: EmojiType,
+  ipHash: string,
+): Promise<ReactionCounts | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+  const { error } = await supabase
+    .from("reactions")
+    .delete()
+    .eq("post_slug", postSlug)
+    .eq("emoji_type", emoji)
+    .eq("ip_hash", ipHash);
+  if (error) {
+    console.warn("[supabase] removeReaction:", error);
+    return null;
+  }
+  return getReactionCounts(postSlug);
+}
+
 export async function addReaction(
   postSlug: string,
   emoji: EmojiType,

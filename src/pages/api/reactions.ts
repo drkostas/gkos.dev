@@ -17,6 +17,7 @@ import type { APIRoute } from "astro";
 import { createHash } from "node:crypto";
 import {
   addReaction,
+  removeReaction,
   getReactionCounts,
   getTopReactedPosts,
   getTotalReactions,
@@ -133,5 +134,39 @@ export const POST: APIRoute = async ({ request }) => {
     });
   }
 
+  return json({ post, counts });
+};
+
+// ----------------------------------------------------------------------------
+// DELETE — take back a reaction (same dedup key as POST)
+// ----------------------------------------------------------------------------
+
+export const DELETE: APIRoute = async ({ request }) => {
+  let payload: { post?: string; emoji?: string };
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const post = (payload.post ?? "").trim();
+  const emoji = (payload.emoji ?? "").trim() as EmojiType;
+
+  if (!post || post.length > 200) {
+    return json({ error: "Missing or oversized post slug" }, 400);
+  }
+  if (!EMOJI_TYPES.includes(emoji)) {
+    return json({ error: `emoji must be one of ${EMOJI_TYPES.join(", ")}` }, 400);
+  }
+
+  const ip = getClientIp(request);
+  const ua = request.headers.get("user-agent") ?? "";
+  const ipHash = hashIp(ip, ua);
+
+  const counts = await removeReaction(post, emoji, ipHash);
+  if (!counts) {
+    return json({ error: "Could not remove reaction" }, 500);
+  }
+  // Deliberately silent — no notification on un-react.
   return json({ post, counts });
 };
