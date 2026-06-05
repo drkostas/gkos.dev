@@ -158,12 +158,48 @@ export async function removeReaction(
   return getReactionCounts(postSlug);
 }
 
+/** Hard-delete a reaction by row id (admin-only). */
+export async function deleteReactionById(id: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const { error } = await supabase.from("reactions").delete().eq("id", id);
+  if (error) {
+    console.warn("[supabase] deleteReactionById:", error);
+    return false;
+  }
+  return true;
+}
+
+/** Soft-hide a comment by id (admin-only). */
+export async function hideCommentById(id: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const { error } = await supabase.from("blog_comments").update({ hidden: true }).eq("id", id);
+  if (error) {
+    console.warn("[supabase] hideCommentById:", error);
+    return false;
+  }
+  return true;
+}
+
+/** Soft-hide a wall message by id (admin-only). */
+export async function hideWallMessageById(id: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const { error } = await supabase.from("wall_messages").update({ hidden: true }).eq("id", id);
+  if (error) {
+    console.warn("[supabase] hideWallMessageById:", error);
+    return false;
+  }
+  return true;
+}
+
 export async function addReaction(
   postSlug: string,
   emoji: EmojiType,
   ipHash: string,
   visitor?: { country: string | null; deviceType: string; browserFamily: string } | null,
-): Promise<{ counts: ReactionCounts; isNew: boolean } | null> {
+): Promise<{ counts: ReactionCounts; isNew: boolean; id: string | null } | null> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
   const baseRow: Record<string, unknown> = {
@@ -181,13 +217,21 @@ export async function addReaction(
         }
       : baseRow;
 
-  let { error } = await supabase.from("reactions").insert(fullRow);
-  let isNew = true;
+  let { data, error } = await supabase
+    .from("reactions")
+    .insert(fullRow)
+    .select("id")
+    .single();
   if (error?.code === "42703" || error?.code === "PGRST204") {
     reactionsLacksDemographics = true;
     console.warn("[supabase] reactions demographics columns missing; falling back");
-    ({ error } = await supabase.from("reactions").insert(baseRow));
+    ({ data, error } = await supabase
+      .from("reactions")
+      .insert(baseRow)
+      .select("id")
+      .single());
   }
+  let isNew = true;
   if (error) {
     if (error.code === "23505") {
       isNew = false;
@@ -197,7 +241,7 @@ export async function addReaction(
     }
   }
   const counts = await getReactionCounts(postSlug);
-  return { counts, isNew };
+  return { counts, isNew, id: data?.id ?? null };
 }
 
 // ----------------------------------------------------------------------------

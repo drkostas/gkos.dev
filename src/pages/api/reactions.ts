@@ -107,7 +107,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (!result) {
     return json({ error: "Could not record reaction" }, 500);
   }
-  const { counts, isNew } = result;
+  const { counts, isNew, id: reactionId } = result;
 
   // Notify only on the first reaction from this IP+emoji, not on retries.
   if (isNew) {
@@ -118,6 +118,7 @@ export const POST: APIRoute = async ({ request }) => {
         postSlug: post,
         emoji,
         postTotalAfter: total,
+        entityId: reactionId ?? undefined,
         visitor: {
           country: visitor.country,
           city: visitor.city,

@@ -140,7 +140,7 @@ export function BlogCommentsReact({ postSlug }: Props) {
           placeholder="Name (optional)"
           maxLength={40}
           disabled={submitting}
-          className="mb-3 w-full rounded-lg border border-border-primary bg-white/80 px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-purple-primary focus:outline-none focus:ring-1 focus:ring-purple-primary disabled:opacity-50"
+          className="mb-3 w-full rounded-lg border border-border-primary bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-purple-primary focus:outline-none focus:ring-1 focus:ring-purple-primary disabled:opacity-50"
         />
         <textarea
           value={body}
@@ -150,7 +150,7 @@ export function BlogCommentsReact({ postSlug }: Props) {
           maxLength={1000}
           disabled={submitting}
           required
-          className="w-full resize-y rounded-lg border border-border-primary bg-white/80 px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-purple-primary focus:outline-none focus:ring-1 focus:ring-purple-primary disabled:opacity-50"
+          className="w-full resize-y rounded-lg border border-border-primary bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-purple-primary focus:outline-none focus:ring-1 focus:ring-purple-primary disabled:opacity-50"
         />
         <div className="mt-3 flex items-center justify-between gap-3">
           <span className="font-mono text-[10px] uppercase tracking-widest text-text-tertiary">

@@ -410,6 +410,7 @@ export const POST: APIRoute = async ({ request }) => {
       name,
       message,
       color,
+      entityId: data?.id,
       visitor: {
         country: visitor.country,
         city: visitor.city,

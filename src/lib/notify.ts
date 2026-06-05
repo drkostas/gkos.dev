@@ -8,6 +8,7 @@
  */
 
 import { Resend } from "resend";
+import { hideUrl } from "@/lib/admin-tokens";
 
 type NotifyKind = "comment" | "reaction" | "wall" | "cv" | "moderation_digest";
 
@@ -29,18 +30,21 @@ interface CommentPayload {
   postSlug: string;
   authorName: string | null;
   body: string;
+  entityId?: string; // row id — enables one-click "hide" link
   visitor?: VisitorBlock;
 }
 interface ReactionPayload {
   postSlug: string;
   emoji: "like" | "heart" | "celebrate" | "insightful";
   postTotalAfter: number;
+  entityId?: string;
   visitor?: VisitorBlock;
 }
 interface WallPayload {
   name: string;
   message: string;
   color: string;
+  entityId?: string;
   visitor?: VisitorBlock;
 }
 interface CvPayload {
@@ -100,6 +104,19 @@ function footer(href?: string, label?: string): string {
   return `
     <p style="margin-top: 32px; font-size: 13px;">
       <a href="${href}" style="color: #4f46e5; text-decoration: none;">${escapeHtml(label)} →</a>
+    </p>
+  `;
+}
+
+/** Render the "Hide / Delete" admin link if we can sign one. */
+function adminAction(kind: "comment" | "wall" | "reaction", id?: string): string {
+  if (!id) return "";
+  const url = hideUrl(kind, id);
+  if (!url) return "";
+  const label = kind === "reaction" ? "Delete this reaction" : `Hide this ${kind === "wall" ? "message" : kind}`;
+  return `
+    <p style="margin: 12px 0 0 0; font-size: 12px;">
+      <a href="${url}" style="color: #b91c1c; text-decoration: none;">${escapeHtml(label)}</a>
     </p>
   `;
 }
@@ -173,7 +190,7 @@ function visitorBlockText(v?: VisitorBlock): string {
 function render(payload: NotifyPayload): { subject: string; html: string; text: string } {
   switch (payload.kind) {
     case "comment": {
-      const { postSlug, authorName, body, visitor } = payload.data;
+      const { postSlug, authorName, body, entityId, visitor } = payload.data;
       const author = authorName || "Anonymous";
       const preview = body.length > 280 ? body.slice(0, 280) + "..." : body;
       const link = `https://gkos.dev/blog/${postSlug}#comments`;
@@ -183,13 +200,14 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
           header(`${escapeHtml(author)} commented on /${escapeHtml(postSlug)}`, "New blog comment") +
             `<div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #fafafa;">${escapeHtml(preview)}</div>` +
             footer(link, "Open the post") +
+            adminAction("comment", entityId) +
             visitorBlock(visitor),
         ),
         text: `${author} commented on /${postSlug}\n\n${preview}\n\n${link}${visitorBlockText(visitor)}`,
       };
     }
     case "reaction": {
-      const { postSlug, emoji, postTotalAfter, visitor } = payload.data;
+      const { postSlug, emoji, postTotalAfter, entityId, visitor } = payload.data;
       const label = EMOJI_LABEL[emoji];
       const link = `https://gkos.dev/blog/${postSlug}`;
       return {
@@ -198,13 +216,14 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
           header(`${label} on /${escapeHtml(postSlug)}`, "New reaction") +
             `<p style="margin: 0; font-size: 15px; color: #1f2937;">Total reactions on this post: <strong>${postTotalAfter}</strong></p>` +
             footer(link, "Open the post") +
+            adminAction("reaction", entityId) +
             visitorBlock(visitor),
         ),
         text: `${label} on /${postSlug}\nTotal reactions: ${postTotalAfter}\n${link}${visitorBlockText(visitor)}`,
       };
     }
     case "wall": {
-      const { name, message, color, visitor } = payload.data;
+      const { name, message, color, entityId, visitor } = payload.data;
       const preview = message.length > 280 ? message.slice(0, 280) + "..." : message;
       const link = `https://gkos.dev/community-wall`;
       return {
@@ -214,6 +233,7 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
             `<div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #fafafa;">${escapeHtml(preview)}</div>` +
             `<p style="margin: 12px 0 0 0; font-size: 12px; color: #9ca3af;">Color: ${escapeHtml(color)}</p>` +
             footer(link, "Open the wall") +
+            adminAction("wall", entityId) +
             visitorBlock(visitor),
         ),
         text: `${name} left a wall note\n\n${preview}\n\nColor: ${color}\n${link}${visitorBlockText(visitor)}`,
