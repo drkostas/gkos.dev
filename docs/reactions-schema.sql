@@ -9,12 +9,20 @@
 -- ----------------------------------------------------------------------------
 
 create table if not exists public.reactions (
-  id          uuid primary key default gen_random_uuid(),
-  post_slug   text not null check (char_length(post_slug) between 1 and 200),
-  emoji_type  text not null check (emoji_type in ('like', 'heart', 'celebrate', 'insightful')),
-  ip_hash     text not null,        -- server-set sha256 of (ip + UA + salt); never exposed
-  created_at  timestamptz not null default now()
+  id              uuid primary key default gen_random_uuid(),
+  post_slug       text not null check (char_length(post_slug) between 1 and 200),
+  emoji_type      text not null check (emoji_type in ('like', 'heart', 'celebrate', 'insightful')),
+  ip_hash         text not null,    -- server-set sha256 of (ip + UA + salt); never exposed
+  created_at      timestamptz not null default now(),
+  country         text,             -- ISO 3166-1 alpha-2 from Vercel geo header
+  device_type     text,             -- 'mobile' | 'tablet' | 'desktop' | 'bot' | 'unknown'
+  browser_family  text              -- 'Chrome' | 'Safari' | 'Firefox' | ...
 );
+
+-- Backfill for older deployments where the table predates these columns.
+alter table public.reactions add column if not exists country        text;
+alter table public.reactions add column if not exists device_type    text;
+alter table public.reactions add column if not exists browser_family text;
 
 -- One reaction per (post, emoji, ip_hash). Lets the same IP like AND heart
 -- the same post (one of each) but not double-like.
@@ -68,3 +76,16 @@ create or replace view public.reactions_top_posts as
   order by count(*) desc;
 
 grant select on public.reactions_top_posts to anon, authenticated;
+
+-- Reactions grouped by country. Used by the admin analytics widget.
+-- NULL / empty country values are excluded (those are usually local-dev hits).
+create or replace view public.reactions_countries as
+  select
+    country,
+    count(*)::int as reaction_count
+  from public.reactions
+  where country is not null and country <> ''
+  group by country
+  order by count(*) desc;
+
+grant select on public.reactions_countries to anon, authenticated;
