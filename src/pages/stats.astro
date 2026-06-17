@@ -6,6 +6,7 @@ import SectionEyebrow from "@/components/SectionEyebrow.astro";
 import { getCollection } from "astro:content";
 import { getWallMessageCount } from "@/lib/supabase";
 import { SiteViewsCardReact } from "@/components/SiteViewsCardReact";
+import { CvDownloadsCardReact } from "@/components/CvDownloadsCardReact";
 import { UmamiStatsReact } from "@/components/UmamiStatsReact";
 import { GitHubStatsReact, PyPIStatsReact, CoffeeCupsReact } from "@/components/LiveStatsReact";
 import { ReactionsStatsCardReact } from "@/components/ReactionsStatsCardReact";
@@ -343,6 +344,12 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- CV downloads — Supabase-backed counter from /api/cv. Full width
+               since it's a top-level engagement signal. -->
+          <div class="md:col-span-12">
+            <CvDownloadsCardReact client:load />
           </div>
 
           <!-- Comments — live from Supabase. Full width on its own row. -->

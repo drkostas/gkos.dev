@@ -12,8 +12,9 @@
 
 import type { APIRoute } from "astro";
 import { createHash } from "node:crypto";
-import { getCountry } from "@/lib/visitor";
+import { getCountry, getVisitorInfo } from "@/lib/visitor";
 import { notify } from "@/lib/notify";
+import { addCvDownload } from "@/lib/supabase";
 
 export const prerender = false;
 
@@ -66,12 +67,30 @@ export const GET: APIRoute = async ({ request, redirect }) => {
   const country = getCountry(request);
   const referrer = request.headers.get("referer") ?? null;
 
-  // Don't email on bots or repeat fetches from the same IP within the cooldown.
-  if (!isLikelyBot(ua) && shouldNotify(ipHash)) {
-    void notify({
-      kind: "cv",
-      data: { ip: ipHash, country, userAgent: ua, referrer },
-    });
+  // Don't count bots in either the notification or the Supabase counter.
+  if (!isLikelyBot(ua)) {
+    // Persist every non-bot download. The unique index on (ip_hash, day_bucket)
+    // dedups same-day refreshes for free, so the count reflects unique
+    // visitor-days, not raw fetch count.
+    const visitor = getVisitorInfo(request);
+    void addCvDownload(
+      ipHash,
+      {
+        country: visitor.country,
+        deviceType: visitor.deviceType,
+        browserFamily: visitor.browserFamily,
+      },
+      referrer,
+    );
+
+    // Notify only on the first download from this IP within the in-process
+    // cooldown window (10 min). Cheaper than hitting Supabase to dedup.
+    if (shouldNotify(ipHash)) {
+      void notify({
+        kind: "cv",
+        data: { ip: ipHash, country, userAgent: ua, referrer },
+      });
+    }
   }
 
   return redirect(PDF_PATH, 302);

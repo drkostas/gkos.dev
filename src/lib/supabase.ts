@@ -521,6 +521,92 @@ export const getWallCountries = () =>
   countryCountsFromView("wall_messages_countries", "message_count");
 
 // ----------------------------------------------------------------------------
+// CV downloads
+// ----------------------------------------------------------------------------
+
+export interface CvDownloadTotals {
+  total: number;
+  last_30_days: number;
+  last_7_days: number;
+  last_24_hours: number;
+}
+
+// Same column-resilience pattern as reactions: if cv_downloads predates the
+// demographics columns, this flag flips after the first 42703/PGRST204 and
+// subsequent inserts skip those fields. Resets on cold start.
+let cvDownloadsLacksDemographics = false;
+
+/**
+ * Record a CV download. Idempotent per (ip_hash, day_bucket) — refreshing
+ * the page on the same day counts as one. Returns true on a fresh insert,
+ * false on the deduped replay, null on an error.
+ */
+export async function addCvDownload(
+  ipHash: string,
+  visitor?: { country: string | null; deviceType: string; browserFamily: string } | null,
+  referrer?: string | null,
+): Promise<boolean | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+  const baseRow: Record<string, unknown> = { ip_hash: ipHash };
+  if (referrer) baseRow.referrer = referrer;
+  const fullRow =
+    visitor && !cvDownloadsLacksDemographics
+      ? {
+          ...baseRow,
+          country: visitor.country,
+          device_type: visitor.deviceType,
+          browser_family: visitor.browserFamily,
+        }
+      : baseRow;
+
+  let { error } = await supabase.from("cv_downloads").insert(fullRow);
+  if (error?.code === "42703" || error?.code === "PGRST204") {
+    cvDownloadsLacksDemographics = true;
+    console.warn("[supabase] cv_downloads demographics columns missing; falling back");
+    ({ error } = await supabase.from("cv_downloads").insert(baseRow));
+  }
+  if (error) {
+    if (error.code === "23505") return false; // duplicate on (ip_hash, day_bucket)
+    console.warn("[supabase] addCvDownload:", error);
+    return null;
+  }
+  return true;
+}
+
+/**
+ * Get CV download totals across windows. Returns zeros on any failure so
+ * the /stats card always has something to render.
+ */
+export async function getCvDownloadTotals(): Promise<CvDownloadTotals> {
+  const zero: CvDownloadTotals = {
+    total: 0,
+    last_30_days: 0,
+    last_7_days: 0,
+    last_24_hours: 0,
+  };
+  const supabase = getSupabasePublic();
+  if (!supabase) return zero;
+  const { data, error } = await supabase
+    .from("cv_downloads_totals")
+    .select("total, last_30_days, last_7_days, last_24_hours")
+    .single();
+  if (error || !data) {
+    console.warn("[supabase] getCvDownloadTotals:", error);
+    return zero;
+  }
+  return {
+    total: data.total ?? 0,
+    last_30_days: data.last_30_days ?? 0,
+    last_7_days: data.last_7_days ?? 0,
+    last_24_hours: data.last_24_hours ?? 0,
+  };
+}
+
+export const getCvDownloadCountries = () =>
+  countryCountsFromView("cv_downloads_countries", "download_count");
+
+// ----------------------------------------------------------------------------
 // Wall message types
 // ----------------------------------------------------------------------------
 
