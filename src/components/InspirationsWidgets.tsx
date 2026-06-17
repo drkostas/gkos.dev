@@ -169,6 +169,10 @@ export type Person = {
   role: string;
   avatar: string;
   url?: string;
+  /** Optional own-work backlink: links to /projects#project-<slug> with
+   *  a short label like "→ MEDiC" so the inspiration page tells a lineage
+   *  story instead of being just a list of researchers I admire. */
+  relatedWork?: { slug: string; label: string };
 };
 
 export function PeopleAvatarGridReact({
@@ -197,6 +201,15 @@ export function PeopleAvatarGridReact({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-text-primary">{person.name}</p>
                 <p className="truncate text-xs text-text-tertiary">{person.role}</p>
+                {person.relatedWork && (
+                  <a
+                    href={`/projects#project-${person.relatedWork.slug}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="truncate text-[11px] font-medium text-indigo-600 hover:underline"
+                  >
+                    → {person.relatedWork.label}
+                  </a>
+                )}
               </div>
               {person.url && <ExternalArrow />}
             </div>

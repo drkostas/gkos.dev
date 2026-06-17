@@ -11,6 +11,10 @@ export interface WorkbenchItem {
   imgSrc: string;
   link: string;
   category: WorkbenchCategory;
+  /** Project slugs (matching `/projects` slugs) where this tool was actually
+   *  used. The /workbench card surfaces these as small "Used in: <project>"
+   *  links so the tool listing has proof attached, not just self-claim. */
+  usedIn?: { slug: string; name: string }[];
 }
 
 // Simple-icons CDN for most brand logos — free, SVG, no asset management.
@@ -27,17 +31,26 @@ export const workbenchItems: WorkbenchItem[] = [
   {
     title: "PyTorch",
     description:
-      "My primary framework for research. Every paper I've published, every model I've trained — including MEDiC, MaskDistill-PyTorch, and Cross-Scale MAE — runs on PyTorch.",
+      "My primary framework for research. Every paper I've published, every model I've trained, runs on PyTorch.",
     imgSrc: sicon("pytorch"),
     link: "https://pytorch.org/",
     category: "ML & Research",
+    usedIn: [
+      { slug: "medic", name: "MEDiC" },
+      { slug: "maskdistill-pytorch", name: "MaskDistill-PyTorch" },
+      { slug: "cross-scale-mae", name: "Cross-Scale MAE" },
+    ],
   },
   {
     title: "HuggingFace",
     description:
-      "Pretrained backbones, datasets, and where I publish my own trained models and model cards. The first place I look when starting a new experiment.",
+      "Pretrained backbones, datasets, and where I publish my own trained models and model cards.",
     imgSrc: iconify("logos:hugging-face-icon"),
     link: "https://huggingface.co/drkostas",
+    usedIn: [
+      { slug: "medic", name: "MEDiC checkpoints" },
+      { slug: "maskdistill-pytorch", name: "MaskDistill weights" },
+    ],
     category: "ML & Research",
   },
   {
@@ -103,10 +116,14 @@ export const workbenchItems: WorkbenchItem[] = [
   {
     title: "FastAPI",
     description:
-      "Go-to for Python backends. Powers the APIs behind FleetSmart.ai and most of my side projects. Typed, fast, async by default.",
+      "Go-to for Python backends. Typed, fast, async by default.",
     imgSrc: sicon("fastapi"),
     link: "https://fastapi.tiangolo.com/",
     category: "Backend",
+    usedIn: [
+      { slug: "fleetsmart", name: "FleetSmart.ai" },
+      { slug: "hevy2garmin", name: "Hevy → Garmin" },
+    ],
   },
   {
     title: "PostgreSQL",
@@ -119,10 +136,13 @@ export const workbenchItems: WorkbenchItem[] = [
   {
     title: "Supabase",
     description:
-      "Postgres + auth + storage + realtime in one package. I used it to ship ShiftMD fast without babysitting infra.",
+      "Postgres + auth + storage + realtime in one package. The data layer behind gkos.dev (comments, reactions, wall, CV downloads) and ShiftMD.",
     imgSrc: sicon("supabase"),
     link: "https://supabase.com/",
     category: "Backend",
+    usedIn: [
+      { slug: "shiftmd", name: "ShiftMD" },
+    ],
   },
   {
     title: "Redis",
@@ -159,14 +179,25 @@ export const workbenchItems: WorkbenchItem[] = [
     imgSrc: sicon("typescript"),
     link: "https://www.typescriptlang.org/",
     category: "Frontend",
+    usedIn: [
+      { slug: "gkos-dev", name: "gkos.dev" },
+      { slug: "soma", name: "Soma" },
+      { slug: "fleetsmart", name: "FleetSmart.ai" },
+    ],
   },
   {
     title: "Next.js",
     description:
-      "Full-stack React framework behind FleetSmart.ai, ShiftMD, XpensAI, and Soma. App Router, server components, the whole thing.",
+      "Full-stack React framework. App Router, server components, the whole thing.",
     imgSrc: sicon("nextdotjs"),
     link: "https://nextjs.org/",
     category: "Frontend",
+    usedIn: [
+      { slug: "fleetsmart", name: "FleetSmart.ai" },
+      { slug: "shiftmd", name: "ShiftMD" },
+      { slug: "xpensai", name: "XpensAI" },
+      { slug: "soma", name: "Soma" },
+    ],
   },
   {
     title: "React",
@@ -187,10 +218,13 @@ export const workbenchItems: WorkbenchItem[] = [
   {
     title: "Astro",
     description:
-      "The framework powering this very site. Static by default, React islands where I need them, fast builds, minimal JS.",
+      "The framework powering this very site. Static by default, React islands where I need them.",
     imgSrc: sicon("astro"),
     link: "https://astro.build/",
     category: "Frontend",
+    usedIn: [
+      { slug: "gkos-dev", name: "gkos.dev (this site)" },
+    ],
   },
   {
     title: "Framer Motion",
@@ -259,6 +293,12 @@ export const workbenchItems: WorkbenchItem[] = [
     imgSrc: sicon("vercel"),
     link: "https://vercel.com/",
     category: "Cloud & Infra",
+    usedIn: [
+      { slug: "gkos-dev", name: "gkos.dev" },
+      { slug: "hevy2garmin", name: "Hevy → Garmin" },
+      { slug: "soma", name: "Soma" },
+      { slug: "python-search-engine", name: "Python Search Engine" },
+    ],
   },
   {
     title: "GitHub Actions",

@@ -1,10 +1,12 @@
 ---
-const { paper, code, arxiv, size = "sm" } = Astro.props;
+const { paper, code, arxiv, huggingface, projectSlug, size = "sm" } = Astro.props;
 const sz = size === "xs" ? "text-xs" : "text-sm";
 const items = [
   paper && { label: "Paper", href: paper },
   code && { label: "Code", href: code },
   arxiv && { label: "arXiv", href: arxiv },
+  huggingface && { label: "Checkpoints", href: huggingface },
+  projectSlug && { label: "Project", href: `/projects#project-${projectSlug}` },
 ].filter(Boolean) as { label: string; href: string }[];
 ---
 
@@ -13,8 +15,8 @@ const items = [
     {items.map((it) => (
       <a
         href={it.href}
-        target="_blank"
-        rel="noopener noreferrer"
+        target={it.href.startsWith("/") ? "_self" : "_blank"}
+        rel={it.href.startsWith("/") ? undefined : "noopener noreferrer"}
         class:list={["flex items-center font-medium text-indigo-600 hover:underline", sz]}
       >
         <span class="leading-6">{it.label}</span>

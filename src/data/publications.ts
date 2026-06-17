@@ -11,6 +11,11 @@ export interface Publication {
   link?: string;
   code?: string;
   arxiv?: string;
+  /** HuggingFace model / dataset URL for checkpoints + artifacts tied to this paper. */
+  huggingface?: string;
+  /** Slug of the matching `/projects` card. Adds a "See it as a project" link
+   *  so a reader of the paper can jump to the practitioner-facing view. */
+  projectSlug?: string;
   /** Optional explicit date. When omitted, the RSS feed derives Dec 31 of `year`. */
   publishedAt?: Date;
 }
@@ -40,6 +45,8 @@ export const publications: Publication[] = [
       "Masked image modeling (MIM) methods typically operate in either raw pixel space (reconstructing masked patches) or latent feature space (aligning with a pre-trained teacher). We present MEDiC (Multi-objective Exploration of Distillation from CLIP), a framework that combines both spaces in a single pipeline through three complementary objectives: patch-level token distillation from a frozen CLIP encoder, global CLS alignment, and pixel reconstruction via a lightweight decoder. We conduct a systematic investigation of the design space surrounding this multi-objective framework. First, we show that all three objectives provide complementary information, with the full combination reaching 73.9% kNN accuracy on ImageNet-1K. Second, we introduce hierarchical clustering with relative position bias for evolved masking and find that, despite producing more semantically coherent masks than prior methods, evolved masking does not outperform simple block masking in the teacher-guided distillation setting, a finding we attribute to the teacher's inherent semantic awareness. Third, we reveal that optimal scalar loss weights are extremely fragile, with small perturbations causing drops of up to 17 percentage points in kNN accuracy. Our framework achieves 73.9% kNN and 85.1% fine-tuning accuracy with ViT-Base at 300 epochs.",
     arxiv: "https://arxiv.org/abs/2603.29009",
     code: "https://github.com/aicip/MEDiC",
+    huggingface: "https://huggingface.co/drkostas/MEDiC-ViT-Base",
+    projectSlug: "medic",
   },
   {
     slug: "trustworthy-ai-dementia-2025",
@@ -118,6 +125,7 @@ export const publications: Publication[] = [
       "Remote sensing images present unique challenges to image analysis due to the extensive geographic coverage, hardware limitations, and misaligned multi-scale images. This paper revisits the classical multi-scale representation learning problem but under the general framework of self-supervised learning for remote sensing image understanding. We present Cross-Scale MAE, a self-supervised model built upon the Masked Auto-Encoder (MAE). During pre-training, Cross-Scale MAE employs scale augmentation techniques and enforces cross-scale consistency constraints through both contrastive and generative losses to ensure consistent and meaningful representations well-suited for a wide range of downstream tasks. Further, our implementation leverages the xFormers library to accelerate network pre-training on a single GPU while maintaining the quality of learned representations. Experimental evaluations demonstrate that Cross-Scale MAE exhibits superior performance compared to standard MAE and other state-of-the-art remote sensing MAE methods.",
     link: "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&sortby=pubdate&authuser=1&citation_for_view=b___QQ8AAAAJ:d1gkVwhDpl0C",
     code: "https://github.com/aicip/Cross-Scale-MAE",
+    projectSlug: "cross-scale-mae",
   },
   {
     slug: "mcl-lc-aerial-segmentation-2023",
