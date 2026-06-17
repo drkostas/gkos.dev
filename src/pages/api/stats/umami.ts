@@ -8,7 +8,7 @@ import {
   getTopBrowsers,
   getTopDevices,
   getTopOS,
-} from "@/lib/umami";
+} from "@/lib/posthog";
 
 export const prerender = false;
 

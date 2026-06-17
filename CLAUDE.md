@@ -111,29 +111,11 @@ Sterile, voiceless writing is as obvious as slop. Good writing has a human behin
 
 ### Stage 3 — Final edit pass (humanizer + anti-slop)
 
-Before declaring the draft done, scan against these flags:
+_See [`~/.claude/CLAUDE.md`](file:///Users/gkos/.claude/CLAUDE.md) § "Voice — Generated Artifacts" for the canonical anti-slop rules (em-dash ban, AI vocab blocklist, promotional language, copula avoidance, negative parallelism, rule-of-three, filler phrases, sycophantic closers, sentence case, straight quotes, no decorative emojis)._
 
-**Em dash overuse** — the single biggest LLM tell. Most em dashes should be commas, periods, or parentheses. Keep only the ones that genuinely earn their emphasis.
-
-**AI vocabulary to strip**: *delve, pivotal, testament, landscape (abstract), vibrant, underscore, emphasize, foster, showcase, tapestry, interplay, intricate, enduring, Additionally, crucial (as filler)*.
-
-**Copula avoidance** — replace *serves as, stands as, marks, represents* with a plain *is/are*.
-
-**Negative parallelism** — *"It's not just X, it's Y"*, *"Not only... but..."* — pick one side.
-
-**Rule-of-three overuse** — break up forced triplets that don't earn their shape.
-
-**Promotional / real-estate-listing language**: *boasts, nestled, stunning, breathtaking, groundbreaking, must-visit, renowned, rich (figurative)*.
-
-**Anti-slop buzzwords**: *leverage* → *use*; *synergistic* → *cooperative*; *paradigm shift* → *major change*; *seamless, intuitive, powerful* → pick the specific one.
-
-**Filler phrases**: *in order to* → *to*; *has the ability to* → *can*; *at this point in time* → *now*; *it is important to note that* → delete.
-
-**Collaborative / sycophantic artifacts**: kill *"I hope this helps!"*, *"Certainly!"*, *"Great question!"*, *"Let me know if..."*.
-
-**Generic positive conclusions** — vague upbeat endings ("exciting times ahead", "a step in the right direction") → replace with one concrete fact or next step.
-
-**Style nits**: straight quotes (`"..."`) not curly (`"..."`); sentence case in headings (not Title Case); no decorative emojis in headings or bullets; inline code (backticks) for file names, commands, and technical identifiers.
+Blog-specific additions on top of the global rules:
+- Inline code (backticks) for file names, commands, and technical identifiers.
+- Generic positive conclusions ("exciting times ahead", "a step in the right direction") → replace with one concrete fact or next step.
 
 ### Triggers
 
