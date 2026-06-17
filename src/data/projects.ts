@@ -123,6 +123,18 @@ export const projects: Project[] = [
 
   // ---- Products ----
   {
+    slug: "hevy2garmin",
+    name: "Hevy → Garmin Sync",
+    image: "https://i.imgur.com/8IvJcY3.png",
+    description:
+      "Web tool that pulls strength workouts from Hevy and writes them into Garmin Connect with exercise names, sets, reps, weights, HR overlay, and calorie estimation. Solves a real gap in both apps' APIs. 36 stars, 109 forks — the most-forked project I have.",
+    tags: ["Python", "FastAPI", "Garmin", "Hevy", "OAuth"],
+    category: "Products",
+    featured: true,
+    source_code: "https://github.com/drkostas/hevy2garmin",
+    demo: "https://hevy2garmin-demo.gkos.dev",
+  },
+  {
     slug: "fleetsmart",
     name: "FleetSmart.ai",
     image: "https://i.imgur.com/8IvJcY3.png",
@@ -130,6 +142,7 @@ export const projects: Project[] = [
       "AI-powered fleet management platform for vessel tracking, compliance monitoring, and operational analytics.",
     tags: ["FastAPI", "Next.js", "GCP", "LLM", "PostgreSQL"],
     category: "Products",
+    featured: true,
     live: "https://fleetsmart.ai",
   },
   {
@@ -165,6 +178,17 @@ export const projects: Project[] = [
   },
 
   // ---- Tools (PyPI) ----
+  {
+    slug: "python-search-engine",
+    name: "Python Search Engine",
+    image: "https://i.imgur.com/skFXu8Z.png",
+    description:
+      "A search engine for the Gutenberg Project archive, written in Python with a Flask front-end. Inverted-index lookup, ranked retrieval, query suggestions.",
+    tags: ["Python", "Flask", "IR", "Search"],
+    category: "Tools",
+    source_code: "https://github.com/drkostas/python_search_engine",
+    live: "https://search.gkos.dev",
+  },
   {
     slug: "garmin-auth",
     name: "Garmin Auth",
