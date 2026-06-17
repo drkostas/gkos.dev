@@ -234,6 +234,7 @@ export const POST: APIRoute = async ({ request }) => {
       authorName: comment.authorName,
       body: comment.body,
       entityId: comment.id,
+      ip: ipHash,
       visitor: {
         country: visitor.country,
         city: visitor.city,

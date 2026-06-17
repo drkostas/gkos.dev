@@ -491,6 +491,78 @@ export async function getRecentModerationBlocks(
 }
 
 // ----------------------------------------------------------------------------
+// Cross-engagement history for a single IP hash. Used by every notification
+// email so I can tell at a glance whether the person who just downloaded the
+// CV (or commented, reacted, posted a wall note) has engaged with the site
+// before, and how. The IP hash is the same value the API routes already
+// compute via hashIp() — so this lookup is a cheap join on existing tables.
+// ----------------------------------------------------------------------------
+
+export interface EngagementHistory {
+  cvDownloads: number;
+  reactions: number;
+  comments: number;
+  wallNotes: number;
+  firstSeen: string | null; // ISO timestamp of the earliest engagement of any kind
+  isReturning: boolean;     // true if this is NOT the first time we've seen this IP
+}
+
+/** Aggregate counts of prior engagement from this IP, across all tables. */
+export async function getEngagementHistory(ipHash: string): Promise<EngagementHistory> {
+  const zero: EngagementHistory = {
+    cvDownloads: 0,
+    reactions: 0,
+    comments: 0,
+    wallNotes: 0,
+    firstSeen: null,
+    isReturning: false,
+  };
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return zero;
+
+  // Run 4 count queries + 4 created_at-min queries in parallel. Cheap on Supabase
+  // because each table has an ip_hash index already (created in the schema files).
+  const [cv, reactions, comments, walls, firstCv, firstReact, firstComment, firstWall] =
+    await Promise.all([
+      supabase.from("cv_downloads").select("id", { count: "exact", head: true }).eq("ip_hash", ipHash),
+      supabase.from("reactions").select("id", { count: "exact", head: true }).eq("ip_hash", ipHash),
+      supabase.from("blog_comments").select("id", { count: "exact", head: true }).eq("ip_hash", ipHash),
+      supabase.from("wall_messages").select("id", { count: "exact", head: true }).eq("ip_hash", ipHash),
+      supabase.from("cv_downloads").select("created_at").eq("ip_hash", ipHash).order("created_at", { ascending: true }).limit(1),
+      supabase.from("reactions").select("created_at").eq("ip_hash", ipHash).order("created_at", { ascending: true }).limit(1),
+      supabase.from("blog_comments").select("created_at").eq("ip_hash", ipHash).order("created_at", { ascending: true }).limit(1),
+      supabase.from("wall_messages").select("created_at").eq("ip_hash", ipHash).order("created_at", { ascending: true }).limit(1),
+    ]);
+
+  const cvCount = cv.count ?? 0;
+  const reactionsCount = reactions.count ?? 0;
+  const commentsCount = comments.count ?? 0;
+  const wallCount = walls.count ?? 0;
+
+  const candidateDates = [
+    firstCv.data?.[0]?.created_at,
+    firstReact.data?.[0]?.created_at,
+    firstComment.data?.[0]?.created_at,
+    firstWall.data?.[0]?.created_at,
+  ].filter(Boolean) as string[];
+  const firstSeen = candidateDates.length
+    ? candidateDates.sort()[0]
+    : null;
+
+  // "Returning" means: more than just the event that just landed.
+  // Conservatively: > 1 total prior engagements means we've seen them before.
+  const total = cvCount + reactionsCount + commentsCount + wallCount;
+  return {
+    cvDownloads: cvCount,
+    reactions: reactionsCount,
+    comments: commentsCount,
+    wallNotes: wallCount,
+    firstSeen,
+    isReturning: total > 1,
+  };
+}
+
+// ----------------------------------------------------------------------------
 // Country-aggregation views (populated by the demographics-migration.sql)
 // ----------------------------------------------------------------------------
 

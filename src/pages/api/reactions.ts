@@ -119,6 +119,7 @@ export const POST: APIRoute = async ({ request }) => {
         emoji,
         postTotalAfter: total,
         entityId: reactionId ?? undefined,
+        ip: ipHash,
         visitor: {
           country: visitor.country,
           city: visitor.city,

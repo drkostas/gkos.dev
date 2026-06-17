@@ -88,7 +88,21 @@ export const GET: APIRoute = async ({ request, redirect }) => {
     if (shouldNotify(ipHash)) {
       void notify({
         kind: "cv",
-        data: { ip: ipHash, country, userAgent: ua, referrer },
+        data: {
+          ip: ipHash,
+          visitor: {
+            country: visitor.country,
+            city: visitor.city,
+            region: visitor.region,
+            device: visitor.deviceType,
+            browser: visitor.browserFamily,
+            browserVersion: visitor.browserVersion,
+            os: visitor.osFamily,
+            userAgent: visitor.userAgent,
+            referrer,
+            language: visitor.acceptLanguage,
+          },
+        },
       });
     }
   }

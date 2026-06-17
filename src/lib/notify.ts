@@ -9,6 +9,7 @@
 
 import { Resend } from "resend";
 import { hideUrl } from "@/lib/admin-tokens";
+import { getEngagementHistory, type EngagementHistory } from "@/lib/supabase";
 
 type NotifyKind = "comment" | "reaction" | "wall" | "cv" | "moderation_digest";
 
@@ -32,6 +33,7 @@ interface CommentPayload {
   body: string;
   entityId?: string; // row id — enables one-click "hide" link
   visitor?: VisitorBlock;
+  ip?: string;       // hashed; used to look up engagement history
 }
 interface ReactionPayload {
   postSlug: string;
@@ -39,6 +41,7 @@ interface ReactionPayload {
   postTotalAfter: number;
   entityId?: string;
   visitor?: VisitorBlock;
+  ip?: string;
 }
 interface WallPayload {
   name: string;
@@ -46,12 +49,11 @@ interface WallPayload {
   color: string;
   entityId?: string;
   visitor?: VisitorBlock;
+  ip?: string;
 }
 interface CvPayload {
   ip: string;
-  country?: string | null;
-  userAgent?: string | null;
-  referrer?: string | null;
+  visitor?: VisitorBlock;
 }
 interface ModerationDigestPayload {
   windowHours: number;
@@ -170,6 +172,52 @@ function visitorBlock(v?: VisitorBlock): string {
   `;
 }
 
+/**
+ * Engagement-history block: tells me at a glance whether the person triggering
+ * this notification is a first-timer or has interacted with the site before.
+ * Empty when there's no prior engagement (so first events stay clean).
+ */
+function historyBlock(h?: EngagementHistory | null): string {
+  if (!h) return "";
+  const total = h.cvDownloads + h.reactions + h.comments + h.wallNotes;
+  if (total <= 1) return ""; // 0 or 1 = the event we're notifying about
+  const rows: { label: string; value: string }[] = [];
+  if (h.cvDownloads > 0) rows.push({ label: "CV downloads", value: String(h.cvDownloads) });
+  if (h.reactions > 0)   rows.push({ label: "Reactions",    value: String(h.reactions) });
+  if (h.comments > 0)    rows.push({ label: "Comments",     value: String(h.comments) });
+  if (h.wallNotes > 0)   rows.push({ label: "Wall notes",   value: String(h.wallNotes) });
+  if (h.firstSeen)       rows.push({ label: "First seen",   value: h.firstSeen.slice(0, 10) });
+  const badge = h.isReturning
+    ? `<span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; background: #ede9fe; color: #5b21b6; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;">Returning</span>`
+    : "";
+  return `
+    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+      <p style="margin: 0 0 8px 0; font-size: 11px; color: #9ca3af; font-family: ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.08em;">History from this IP ${badge}</p>
+      <table style="font-size: 12px; color: #4b5563; line-height: 1.5; border-collapse: collapse;">
+        ${rows
+          .map(
+            (r) =>
+              `<tr><td style="padding: 2px 12px 2px 0; color: #9ca3af; vertical-align: top; white-space: nowrap;">${escapeHtml(r.label)}</td><td style="padding: 2px 0;">${escapeHtml(r.value)}</td></tr>`,
+          )
+          .join("")}
+      </table>
+    </div>
+  `;
+}
+
+function historyBlockText(h?: EngagementHistory | null): string {
+  if (!h) return "";
+  const total = h.cvDownloads + h.reactions + h.comments + h.wallNotes;
+  if (total <= 1) return "";
+  const parts: string[] = [];
+  if (h.cvDownloads > 0) parts.push(`CV downloads: ${h.cvDownloads}`);
+  if (h.reactions > 0)   parts.push(`Reactions: ${h.reactions}`);
+  if (h.comments > 0)    parts.push(`Comments: ${h.comments}`);
+  if (h.wallNotes > 0)   parts.push(`Wall notes: ${h.wallNotes}`);
+  if (h.firstSeen)       parts.push(`First seen: ${h.firstSeen.slice(0, 10)}`);
+  return "\n\nHistory from this IP" + (h.isReturning ? " (Returning)" : "") + ":\n" + parts.join("\n");
+}
+
 /** Plain-text visitor block for the text/plain MIME part. */
 function visitorBlockText(v?: VisitorBlock): string {
   if (!v) return "";
@@ -187,7 +235,10 @@ function visitorBlockText(v?: VisitorBlock): string {
   return lines.length ? "\n\n" + lines.join("\n") : "";
 }
 
-function render(payload: NotifyPayload): { subject: string; html: string; text: string } {
+function render(
+  payload: NotifyPayload,
+  history?: EngagementHistory | null,
+): { subject: string; html: string; text: string } {
   switch (payload.kind) {
     case "comment": {
       const { postSlug, authorName, body, entityId, visitor } = payload.data;
@@ -201,9 +252,10 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
             `<div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: #fafafa;">${escapeHtml(preview)}</div>` +
             footer(link, "Open the post") +
             adminAction("comment", entityId) +
-            visitorBlock(visitor),
+            visitorBlock(visitor) +
+            historyBlock(history),
         ),
-        text: `${author} commented on /${postSlug}\n\n${preview}\n\n${link}${visitorBlockText(visitor)}`,
+        text: `${author} commented on /${postSlug}\n\n${preview}\n\n${link}${visitorBlockText(visitor)}${historyBlockText(history)}`,
       };
     }
     case "reaction": {
@@ -217,9 +269,10 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
             `<p style="margin: 0; font-size: 15px; color: #1f2937;">Total reactions on this post: <strong>${postTotalAfter}</strong></p>` +
             footer(link, "Open the post") +
             adminAction("reaction", entityId) +
-            visitorBlock(visitor),
+            visitorBlock(visitor) +
+            historyBlock(history),
         ),
-        text: `${label} on /${postSlug}\nTotal reactions: ${postTotalAfter}\n${link}${visitorBlockText(visitor)}`,
+        text: `${label} on /${postSlug}\nTotal reactions: ${postTotalAfter}\n${link}${visitorBlockText(visitor)}${historyBlockText(history)}`,
       };
     }
     case "wall": {
@@ -234,26 +287,25 @@ function render(payload: NotifyPayload): { subject: string; html: string; text: 
             `<p style="margin: 12px 0 0 0; font-size: 12px; color: #9ca3af;">Color: ${escapeHtml(color)}</p>` +
             footer(link, "Open the wall") +
             adminAction("wall", entityId) +
-            visitorBlock(visitor),
+            visitorBlock(visitor) +
+            historyBlock(history),
         ),
-        text: `${name} left a wall note\n\n${preview}\n\nColor: ${color}\n${link}${visitorBlockText(visitor)}`,
+        text: `${name} left a wall note\n\n${preview}\n\nColor: ${color}\n${link}${visitorBlockText(visitor)}${historyBlockText(history)}`,
       };
     }
     case "cv": {
-      const { ip, country, userAgent, referrer } = payload.data;
+      const { ip, visitor } = payload.data;
+      const country = visitor?.country ?? null;
       const flag = countryFlag(country);
       return {
-        subject: `[gkos.dev] Resume PDF was downloaded${country ? ` (${country})` : ""}`,
+        subject: `[gkos.dev] Resume PDF was downloaded${country && country !== "XX" ? ` (${country})` : ""}`,
         html: frame(
           header(`${flag ? flag + " " : ""}Someone fetched the resume`, "CV download") +
-            `<table style="font-size: 13px; color: #4b5563; line-height: 1.6;">
-              ${country ? `<tr><td style="padding-right: 12px; color: #9ca3af;">Country</td><td>${escapeHtml(country)}</td></tr>` : ""}
-              ${referrer ? `<tr><td style="padding-right: 12px; color: #9ca3af;">Referrer</td><td>${escapeHtml(referrer)}</td></tr>` : ""}
-              ${userAgent ? `<tr><td style="padding-right: 12px; color: #9ca3af; vertical-align: top;">User-Agent</td><td style="word-break: break-all;">${escapeHtml(userAgent.slice(0, 200))}</td></tr>` : ""}
-              <tr><td style="padding-right: 12px; color: #9ca3af;">IP hash</td><td><code>${escapeHtml(ip)}</code></td></tr>
-            </table>`,
+            `<p style="margin: 0 0 8px 0; font-size: 13px; color: #6b7280;">IP hash: <code>${escapeHtml(ip)}</code></p>` +
+            visitorBlock(visitor) +
+            historyBlock(history),
         ),
-        text: `CV PDF download${country ? `\nCountry: ${country}` : ""}${referrer ? `\nReferrer: ${referrer}` : ""}${userAgent ? `\nUA: ${userAgent.slice(0, 200)}` : ""}\nIP hash: ${ip}`,
+        text: `CV PDF download\nIP hash: ${ip}${visitorBlockText(visitor)}${historyBlockText(history)}`,
       };
     }
     case "moderation_digest": {
@@ -294,9 +346,25 @@ export async function notify(payload: NotifyPayload): Promise<void> {
   const from = envVar("RESEND_FROM_EMAIL") ?? "Kostas <contact@gkos.dev>";
   const to = envVar("RESEND_TO_EMAIL") ?? "gkos.mldev@gmail.com";
 
+  // Pull the hashed IP from whichever payload field has it. This is the same
+  // value the API routes computed when storing the row — used to look up the
+  // person's prior engagement across cv_downloads / reactions / blog_comments
+  // / wall_messages so the email can show "returning visitor (Nth time)".
+  const ipHash =
+    payload.kind === "cv" ? payload.data.ip : payload.data.ip;
+
+  let history: EngagementHistory | null = null;
+  if (ipHash) {
+    try {
+      history = await getEngagementHistory(ipHash);
+    } catch (err) {
+      console.warn(`[notify:${payload.kind}] history lookup failed:`, err);
+    }
+  }
+
   try {
     const resend = new Resend(apiKey);
-    const { subject, html, text } = render(payload);
+    const { subject, html, text } = render(payload, history);
     const { error } = await resend.emails.send({ from, to, subject, html, text });
     if (error) {
       console.error(`[notify:${payload.kind}] Resend error:`, error);
