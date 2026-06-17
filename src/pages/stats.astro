@@ -7,7 +7,7 @@ import { getCollection } from "astro:content";
 import { getWallMessageCount } from "@/lib/supabase";
 import { SiteViewsCardReact } from "@/components/SiteViewsCardReact";
 import { CvDownloadsCardReact } from "@/components/CvDownloadsCardReact";
-import { UmamiStatsReact } from "@/components/UmamiStatsReact";
+import { TrafficStatsReact } from "@/components/TrafficStatsReact";
 import { GitHubStatsReact, PyPIStatsReact, CoffeeCupsReact } from "@/components/LiveStatsReact";
 import { ReactionsStatsCardReact } from "@/components/ReactionsStatsCardReact";
 import { CommentsStatsCardReact } from "@/components/CommentsStatsCardReact";
@@ -373,7 +373,7 @@ const revampDateLabel = longDate.format(REVAMP_DATE);
           title="Visitors and referrers"
           subtitle="Live from PostHog."
         />
-        <UmamiStatsReact client:load />
+        <TrafficStatsReact client:load />
       </GridWrapper>
     </section>
 

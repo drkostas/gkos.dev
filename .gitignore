@@ -43,3 +43,6 @@ tests/diff-*.png
 .history/
 editor-data.json
 .env*.local
+
+# Claude Code session-local lock
+.claude/scheduled_tasks.lock

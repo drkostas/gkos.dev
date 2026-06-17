@@ -1,7 +1,7 @@
 /**
  * Top viewed (or top reacted) blog posts card for /stats.
  *
- * `mode="views"`     → calls /api/stats/umami and reads topBlogPosts.
+ * `mode="views"`     → calls /api/stats/traffic and reads topBlogPosts.
  * `mode="reactions"` → calls /api/reactions?view=top.
  */
 import { useEffect, useState } from "react";
@@ -15,7 +15,7 @@ export function TopArticlesCardReact({ mode }: { mode: "views" | "reactions" }) 
 
   useEffect(() => {
     let cancelled = false;
-    const url = mode === "views" ? "/api/stats/umami" : "/api/reactions?view=top";
+    const url = mode === "views" ? "/api/stats/traffic" : "/api/reactions?view=top";
     fetch(url)
       .then((r) => r.json())
       .then((data) => {

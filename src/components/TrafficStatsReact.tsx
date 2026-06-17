@@ -1,22 +1,22 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
-type UmamiMetric = { x: string; y: number };
-type UmamiStats = {
+type TrafficMetric = { x: string; y: number };
+type TrafficStatsType = {
   pageviews: number;
   visitors: number;
   visits: number;
   bounces: number;
   totaltime: number;
 };
-type UmamiData = {
-  stats: UmamiStats | null;
-  topPages: UmamiMetric[];
-  topReferrers: UmamiMetric[];
-  topCountries: UmamiMetric[];
-  topBrowsers?: UmamiMetric[];
-  topDevices?: UmamiMetric[];
-  topOS?: UmamiMetric[];
+type TrafficData = {
+  stats: TrafficStatsType | null;
+  topPages: TrafficMetric[];
+  topReferrers: TrafficMetric[];
+  topCountries: TrafficMetric[];
+  topBrowsers?: TrafficMetric[];
+  topDevices?: TrafficMetric[];
+  topOS?: TrafficMetric[];
 };
 
 // Two-letter ISO → flag emoji. Each codepoint = 0x1F1E6 + (letter - 'A').
@@ -44,18 +44,18 @@ function formatPath(path: string): string {
 }
 
 /**
- * Renders top pages, visitors, referrers from Umami Cloud API.
- * Fetches /api/stats/umami on mount (edge-cached for 5 min).
+ * Renders top pages, visitors, referrers from PostHog (via the server-side
+ * /api/stats/traffic endpoint, edge-cached for 5 min).
  * Pass `demoData` to bypass the fetch (used by the /widgets catalog).
  */
-export function UmamiStatsReact({ demoData }: { demoData?: UmamiData } = {}) {
-  const [data, setData] = useState<UmamiData | null>(demoData ?? null);
+export function TrafficStatsReact({ demoData }: { demoData?: TrafficData } = {}) {
+  const [data, setData] = useState<TrafficData | null>(demoData ?? null);
   const [isLoading, setIsLoading] = useState(!demoData);
 
   useEffect(() => {
     if (demoData) return; // Skip network in demo mode.
     let cancelled = false;
-    fetch("/api/stats/umami")
+    fetch("/api/stats/traffic")
       .then((r) => r.json())
       .then((json) => {
         if (!cancelled) setData(json);
@@ -239,9 +239,9 @@ function BreakdownCard({
 }: {
   title: string;
   loading: boolean;
-  items: UmamiMetric[];
+  items: TrafficMetric[];
   emptyLabel: string;
-  renderLabel: (item: UmamiMetric) => React.ReactNode;
+  renderLabel: (item: TrafficMetric) => React.ReactNode;
   totalForPct: number;
 }) {
   const max = items.length > 0 ? Math.max(...items.map((i) => i.y)) : 1;
