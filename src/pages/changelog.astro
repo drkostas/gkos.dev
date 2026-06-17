@@ -56,13 +56,17 @@ function formatRelative(date: Date) {
 
     <div class="relative mx-auto max-w-4xl">
       {/* Animated rail — desktop position (right of date column).
-          top/bottom values aim to align the rail's endpoints with the first and last
-          marker dots (which are now vertically centered in their entry box). */}
-      <div class="pointer-events-none absolute z-20 -translate-x-1/2 hidden md:block" style="left:220px; top:7%; bottom:7%; width:6px;">
+          top/bottom are FIXED pixels matched to the first/last entry dot's
+          vertical center. Each entry uses py-6 + variable content; dots are at
+          top:50% of the entry. ~96px is half an entry's typical height — close
+          enough to land the rail's endpoints exactly under those dots without
+          needing JS measurement. Was 7%/7% but that scaled with parent height
+          and walked AWAY from the dots as more entries were added. */}
+      <div class="pointer-events-none absolute z-20 -translate-x-1/2 hidden md:block" style="left:220px; top:96px; bottom:96px; width:6px;">
         <ChangelogRailReact client:visible />
       </div>
       {/* Animated rail — mobile position (far left) */}
-      <div class="pointer-events-none absolute z-20 -translate-x-1/2 md:hidden" style="left:20px; top:7%; bottom:7%; width:6px;">
+      <div class="pointer-events-none absolute z-20 -translate-x-1/2 md:hidden" style="left:20px; top:96px; bottom:96px; width:6px;">
         <ChangelogRailReact client:visible />
       </div>
 
