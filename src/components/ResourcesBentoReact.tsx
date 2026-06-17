@@ -37,7 +37,6 @@ export function ResourcesBentoReact({
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-border-primary/20"
-            data-umami-event={`resource-${r.name.toLowerCase().replace(/\s+/g, "-")}`}
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-border-primary/20">
               <img

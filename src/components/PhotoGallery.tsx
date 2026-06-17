@@ -155,6 +155,7 @@ export function PhotoGallery({
       zIndex: 50,
       direction: "left" as Direction,
       src: "/kostas_neurips_square.jpg",
+      alt: "Kostas at a NeurIPS poster session",
     },
     {
       id: 2,
@@ -164,6 +165,7 @@ export function PhotoGallery({
       zIndex: 40,
       direction: "left" as Direction,
       src: "/kostas_speaking.jpg",
+      alt: "Kostas presenting at a conference",
     },
     {
       id: 3,
@@ -173,6 +175,7 @@ export function PhotoGallery({
       zIndex: 30,
       direction: "right" as Direction,
       src: "/kostas_igarss.jpg",
+      alt: "Kostas at the IGARSS conference",
     },
     {
       id: 4,
@@ -182,6 +185,7 @@ export function PhotoGallery({
       zIndex: 20,
       direction: "right" as Direction,
       src: "/kostas_poster.jpg",
+      alt: "Kostas with a research poster",
     },
     {
       id: 5,
@@ -191,6 +195,7 @@ export function PhotoGallery({
       zIndex: 10,
       direction: "left" as Direction,
       src: "/kostas_photo_2.jpg",
+      alt: "Portrait of Kostas",
     },
   ];
 
@@ -225,7 +230,7 @@ export function PhotoGallery({
                   width={220}
                   height={220}
                   src={photo.src}
-                  alt="Family photo"
+                  alt={photo.alt}
                   direction={photo.direction}
                 />
               </motion.div>

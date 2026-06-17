@@ -100,7 +100,6 @@ export function BookshelfBentoReact({
                 href={book.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                data-umami-event={`bookshelf-${book.title.toLowerCase().replace(/\s+/g, "-").slice(0, 30)}`}
               >
                 {spine}
               </a>

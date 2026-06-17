@@ -72,7 +72,7 @@ export function CurrentlyReadingBentoReact({
       target="_blank"
       rel="noopener noreferrer"
       className="block h-full"
-      data-umami-event="currently-reading-click"
+
     >
       {content}
     </a>

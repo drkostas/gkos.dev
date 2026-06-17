@@ -35,7 +35,7 @@ export function AnimatedMobilePhotos({ delay }: Props) {
             <img
               className="absolute left-0 top-2 h-[245px] w-[163px] rotate-[-5deg] rounded-lg object-cover"
               src="/kostas_speaking.jpg"
-              alt="A headshot"
+              alt="Kostas presenting at a conference"
             />
           </motion.div>
           <motion.div
@@ -48,7 +48,7 @@ export function AnimatedMobilePhotos({ delay }: Props) {
             <img
               className="absolute left-0 top-0 h-[280px] w-[190px] rotate-[-8deg] rounded-lg object-cover shadow-lg shadow-black/20"
               src="/kostas_neurips_square.jpg"
-              alt="A headshot"
+              alt="Kostas at a NeurIPS poster session"
             />
           </motion.div>
           <motion.div
@@ -61,7 +61,7 @@ export function AnimatedMobilePhotos({ delay }: Props) {
             <img
               className="absolute left-0 top-0 h-[245px] w-[163px] rotate-[10deg] rounded-lg object-cover shadow-lg shadow-black/20"
               src="/kostas_photo_2.jpg"
-              alt="A headshot"
+              alt="Portrait of Kostas"
             />
           </motion.div>
         </div>

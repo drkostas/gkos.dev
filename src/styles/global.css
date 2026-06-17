@@ -38,7 +38,7 @@ body.modal-open {
   --color-purple-secondary: 230 226 249;
   --color-text-primary: 15 23 42;
   --color-text-secondary: 94 95 110;
-  --color-text-tertiary: 165 174 184;
+  --color-text-tertiary: 120 130 145;   /* darkened from 165/174/184 to meet ≥3:1 contrast on placeholders & captions */
   --color-surface: 255 255 255;
   --color-surface-secondary: 237 238 240;
 }

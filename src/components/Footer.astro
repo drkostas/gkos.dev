@@ -38,7 +38,7 @@ const currentYear = new Date().getFullYear();
 <div class="relative mt-20 max-w-7xl border-border-primary/50 md:mt-24">
   <GridWrapper>
     <div class="max-w-6xl divide-y px-4 lg:mx-auto lg:flex lg:divide-x lg:px-4 xl:px-0">
-      <div class="flex w-full py-6 text-sm">
+      <div class="flex w-full flex-col gap-6 py-6 text-sm md:flex-row">
         <div>
           <div class="flex-grow space-y-6">
             <a class="inline-block" href="/">
@@ -49,7 +49,7 @@ const currentYear = new Date().getFullYear();
               />
             </a>
             <p class="w-60 leading-5 text-gray-500">
-              I&apos;m Kostas - a PhD ML Engineer building AI systems
+              I&apos;m Kostas: a PhD ML Engineer building AI systems
               that ship to production. Thanks for visiting!
             </p>
           </div>
@@ -57,7 +57,7 @@ const currentYear = new Date().getFullYear();
             &copy; {currentYear} Kostas Georgiou
           </p>
         </div>
-        <div class="flex w-full items-end justify-end pr-16">
+        <div class="flex w-full items-start justify-start md:items-end md:justify-end md:pr-16">
           <SocialPill />
         </div>
       </div>

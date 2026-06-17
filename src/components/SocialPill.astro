@@ -6,7 +6,7 @@ const isContactActive = currentPath === "/contact" || currentPath.startsWith("/c
 ---
 
 <div class="z-30 flex place-items-center space-x-1 rounded-full border border-border-primary bg-white px-3 py-1.5 dark:border-zinc-700 dark:bg-slate-900">
-  <a href={siteMetadata.linkedin} aria-label="LinkedIn" data-umami-event="social-linkedin">
+  <a href={siteMetadata.linkedin} aria-label="LinkedIn">
     <svg
       class="h-6 w-6 text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-gray-300"
       viewBox="0 0 24 24"
@@ -46,7 +46,7 @@ const isContactActive = currentPath === "/contact" || currentPath.startsWith("/c
     </svg>
     <span class="sr-only">LinkedIn</span>
   </a>
-  <a href={siteMetadata.github} aria-label="GitHub" data-umami-event="social-github">
+  <a href={siteMetadata.github} aria-label="GitHub">
     <svg
       class="h-6 w-6 text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-gray-300"
       viewBox="0 0 24 24"
@@ -68,7 +68,7 @@ const isContactActive = currentPath === "/contact" || currentPath.startsWith("/c
     </svg>
     <span class="sr-only">GitHub</span>
   </a>
-  <a href={siteMetadata.twitter} aria-label="Twitter / X" data-umami-event="social-twitter">
+  <a href={siteMetadata.twitter} aria-label="Twitter / X">
     <svg
       class="h-6 w-6 text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-gray-300"
       viewBox="0 0 24 24"
@@ -84,7 +84,7 @@ const isContactActive = currentPath === "/contact" || currentPath.startsWith("/c
     </svg>
     <span class="sr-only">Twitter</span>
   </a>
-  <a href="/contact" aria-label="Contact" aria-current={isContactActive ? "page" : undefined} data-umami-event="social-contact">
+  <a href="/contact" aria-label="Contact" aria-current={isContactActive ? "page" : undefined}>
     <svg
       class:list={[
         "h-6 w-6 transition-colors",

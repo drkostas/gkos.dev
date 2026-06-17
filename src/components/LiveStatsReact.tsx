@@ -51,12 +51,13 @@ function CountUp({ target, label }: { target: number; label: string }) {
   );
 }
 
+// Purple ramp matched to the site palette (was GitHub-green).
 const LEVEL_COLORS = [
   "bg-gray-200 dark:bg-[#1e2740]",
-  "bg-emerald-200 dark:bg-[#0e4429]",
-  "bg-emerald-400 dark:bg-[#006d32]",
-  "bg-emerald-500 dark:bg-[#26a641]",
-  "bg-emerald-600 dark:bg-[#39d353]",
+  "bg-purple-200 dark:bg-[#2d1b4e]",
+  "bg-purple-400 dark:bg-[#5b21b6]",
+  "bg-purple-500 dark:bg-[#8b5cf6]",
+  "bg-purple-600 dark:bg-[#a78bfa]",
 ];
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];

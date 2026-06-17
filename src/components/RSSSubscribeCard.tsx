@@ -146,7 +146,7 @@ export function RSSSubscribeCard({
             type="button"
             onClick={handleCopy}
             disabled={!anySelected}
-            data-umami-event="rss-feed-copy"
+
             className="inline-flex items-center justify-center gap-2 rounded-full bg-indigo-100 px-5 py-3 text-sm font-medium text-indigo-700 transition hover:bg-indigo-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-indigo-500 dark:text-white dark:hover:bg-indigo-600"
           >
             {copied ? (

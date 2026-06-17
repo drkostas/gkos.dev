@@ -131,7 +131,7 @@ export function ReactionPickerReact({ postSlug }: { postSlug: string }) {
               <span aria-hidden className="text-base leading-none">
                 {symbol}
               </span>
-              <span className="font-medium">{label}</span>
+              <span className="hidden font-medium sm:inline">{label}</span>
               <span className="rounded-full bg-border-primary/40 px-2 py-0.5 font-mono text-[11px] tabular-nums">
                 {counts[type]}
               </span>

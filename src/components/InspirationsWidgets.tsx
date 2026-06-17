@@ -132,7 +132,6 @@ export function BookshelfGridReact({ books = DEFAULT_BOOKS }: { books?: Book[] }
             href={book.url}
             target="_blank"
             rel="noopener noreferrer"
-            data-umami-event={`bookshelf-${book.title.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}`}
             className="group/book relative block"
           >
             <motion.div
@@ -208,7 +207,6 @@ export function PeopleAvatarGridReact({
               href={person.url}
               target="_blank"
               rel="noopener noreferrer"
-              data-umami-event={`inspirations-people-${person.name.toLowerCase().replace(/\s+/g, "-")}`}
               className="block"
             >
               {inner}
@@ -259,7 +257,6 @@ export function IconRowsBentoReact({
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            data-umami-event={`inspirations-${accent}-${item.name.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}`}
             className="block"
           >
             <div className="group/row flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-border-primary/20">

@@ -95,7 +95,6 @@ export function PeopleGridBentoReact({
               target="_blank"
               rel="noopener noreferrer"
               className="block"
-              data-umami-event={`people-${person.name.toLowerCase().replace(/\s+/g, "-")}`}
             >
               {inner}
             </a>

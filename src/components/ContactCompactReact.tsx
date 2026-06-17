@@ -55,9 +55,13 @@ const SOCIALS = [
 export function ContactCompactReact({
   title = "Let's get in touch",
   description = "Drop me a message about anything.",
+  showSocials = true,
 }: {
   title?: string;
   description?: string;
+  /** Set to false on pages that already render their own social list
+   *  (e.g. /contact, which has a dedicated "Where to find me" grid). */
+  showSocials?: boolean;
 }) {
   const [status, setStatus] = useState<FormStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -167,7 +171,7 @@ export function ContactCompactReact({
             <button
               type="submit"
               disabled={status === "loading"}
-              data-umami-event="contact-form-submit"
+
               className="inline-flex items-center justify-center gap-2 rounded-full bg-indigo-100 px-5 py-3 text-sm font-medium text-indigo-700 transition hover:bg-indigo-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-indigo-500 dark:text-white dark:hover:bg-indigo-600"
             >
               {status === "loading" ? (
@@ -188,20 +192,22 @@ export function ContactCompactReact({
               )}
             </button>
 
-            <div className="flex items-center gap-1.5">
-              {SOCIALS.map((s) => (
-                <a
-                  key={s.label}
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={s.label}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border-primary bg-bg-primary text-text-secondary transition-colors hover:border-indigo-500 hover:text-indigo-600"
-                >
-                  {s.svg}
-                </a>
-              ))}
-            </div>
+            {showSocials && (
+              <div className="flex items-center gap-1.5">
+                {SOCIALS.map((s) => (
+                  <a
+                    key={s.label}
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={s.label}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border-primary bg-bg-primary text-text-secondary transition-colors hover:border-indigo-500 hover:text-indigo-600"
+                  >
+                    {s.svg}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </form>
       )}

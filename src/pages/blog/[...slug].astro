@@ -53,9 +53,9 @@ function formatDate(date: Date) {
       {post.data.imageName && (
         <GridWrapper>
           <img
-            class="blog-hero-img drama-shadow mb-12 w-full rounded-xl object-cover"
+            class="blog-hero-img drama-shadow mb-12 w-full rounded-xl object-contain max-h-[40vh] md:max-h-[50vh]"
             src={`/blog/${post.data.imageName}`}
-            alt=""
+            alt={post.data.imageAlt ?? post.data.title}
           />
         </GridWrapper>
       )}
@@ -95,7 +95,7 @@ function formatDate(date: Date) {
       <div class="wrapper">
         <div class="prose prose-lg max-w-none prose-p:leading-8 prose-p:text-text-secondary prose-a:text-purple-primary prose-a:font-medium prose-headings:tracking-tighter prose-headings:font-medium prose-headings:scroll-mt-24 prose-strong:font-medium prose-code:text-sm prose-img:drama-shadow prose-img:rounded-xl">
           <Content />
-          <ReactionPickerReact postSlug={slug} client:visible />
+          <ReactionPickerReact postSlug={slug} client:load />
           <BlogCommentsReact postSlug={slug} client:visible />
         </div>
       </div>

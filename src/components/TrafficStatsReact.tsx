@@ -172,8 +172,9 @@ export function TrafficStatsReact({ demoData }: { demoData?: TrafficData } = {})
         </div>
       </div>
 
-      {/* Countries */}
-      <div className="md:col-span-4">
+      {/* Countries / Devices / Browsers / OS — equal 3-col split so the OS card
+          doesn't orphan on its own row. 3+3+3+3 = 12. */}
+      <div className="md:col-span-3">
         <BreakdownCard
           title={`Countries (${topCountries.length})`}
           loading={isLoading}
@@ -190,7 +191,7 @@ export function TrafficStatsReact({ demoData }: { demoData?: TrafficData } = {})
       </div>
 
       {/* Devices */}
-      <div className="md:col-span-4">
+      <div className="md:col-span-3">
         <BreakdownCard
           title="Devices"
           loading={isLoading}
@@ -202,7 +203,7 @@ export function TrafficStatsReact({ demoData }: { demoData?: TrafficData } = {})
       </div>
 
       {/* Browsers */}
-      <div className="md:col-span-4">
+      <div className="md:col-span-3">
         <BreakdownCard
           title="Browsers"
           loading={isLoading}
@@ -214,7 +215,7 @@ export function TrafficStatsReact({ demoData }: { demoData?: TrafficData } = {})
       </div>
 
       {/* OS */}
-      <div className="md:col-span-4">
+      <div className="md:col-span-3">
         <BreakdownCard
           title="Operating systems"
           loading={isLoading}
