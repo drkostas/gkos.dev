@@ -89,7 +89,7 @@ export function UmamiStatsReact({ demoData }: { demoData?: UmamiData } = {}) {
           <div className="relative z-20 flex h-full flex-col">
             <h2 className="mb-1 font-medium text-text-primary">Unique Visitors</h2>
             <p className="text-xs uppercase tracking-wider text-text-tertiary">
-              Last 30 days · via Umami
+              Last 30 days · via PostHog
             </p>
             <p className="mt-auto text-3xl font-semibold tabular-nums tracking-tight text-purple-primary">
               {isLoading ? "—" : (stats?.visitors ?? 0).toLocaleString()}

@@ -121,7 +121,7 @@ export function SiteViewsCardReact({ demoData }: { demoData?: ViewsData } = {}) 
           )}
         </div>
         <p className="text-xs uppercase tracking-wider text-text-tertiary">
-          Last 30 days · via Cloudflare
+          Last 30 days · via PostHog
         </p>
         <motion.p
           key={data?.pageViews ?? 0}
