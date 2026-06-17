@@ -33,7 +33,7 @@ interface CommentPayload {
   body: string;
   entityId?: string; // row id — enables one-click "hide" link
   visitor?: VisitorBlock;
-  ip?: string;       // hashed; used to look up engagement history
+  history?: EngagementHistory | null;
 }
 interface ReactionPayload {
   postSlug: string;
@@ -41,7 +41,7 @@ interface ReactionPayload {
   postTotalAfter: number;
   entityId?: string;
   visitor?: VisitorBlock;
-  ip?: string;
+  history?: EngagementHistory | null;
 }
 interface WallPayload {
   name: string;
@@ -49,11 +49,12 @@ interface WallPayload {
   color: string;
   entityId?: string;
   visitor?: VisitorBlock;
-  ip?: string;
+  history?: EngagementHistory | null;
 }
 interface CvPayload {
   ip: string;
   visitor?: VisitorBlock;
+  history?: EngagementHistory | null;
 }
 interface ModerationDigestPayload {
   windowHours: number;
@@ -346,21 +347,13 @@ export async function notify(payload: NotifyPayload): Promise<void> {
   const from = envVar("RESEND_FROM_EMAIL") ?? "Kostas <contact@gkos.dev>";
   const to = envVar("RESEND_TO_EMAIL") ?? "gkos.mldev@gmail.com";
 
-  // Pull the hashed IP from whichever payload field has it. This is the same
-  // value the API routes computed when storing the row — used to look up the
-  // person's prior engagement across cv_downloads / reactions / blog_comments
-  // / wall_messages so the email can show "returning visitor (Nth time)".
-  const ipHash =
-    payload.kind === "cv" ? payload.data.ip : payload.data.ip;
-
-  let history: EngagementHistory | null = null;
-  if (ipHash) {
-    try {
-      history = await getEngagementHistory(ipHash);
-    } catch (err) {
-      console.warn(`[notify:${payload.kind}] history lookup failed:`, err);
-    }
-  }
+  // History is now passed IN via the payload (pre-fetched by the caller in
+  // parallel with the row insert), so this function stays a single awaited
+  // Resend call. Previously notify() did its own Supabase lookup, which
+  // pushed total async work past Vercel's fire-and-forget grace window and
+  // caused emails to silently drop.
+  const history: EngagementHistory | null =
+    payload.kind === "moderation_digest" ? null : (payload.data.history ?? null);
 
   try {
     const resend = new Resend(apiKey);

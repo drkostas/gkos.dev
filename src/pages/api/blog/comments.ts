@@ -18,6 +18,7 @@ import {
   getTotalCommentCount,
   logModerationBlock,
   deleteOwnComment,
+  getEngagementHistory,
 } from "@/lib/supabase";
 import { checkContent } from "@/lib/moderation";
 import { getVisitorInfo } from "@/lib/visitor";
@@ -217,13 +218,12 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   // (DELETE method handler defined below.)
-  const comment = await addComment(
-    postSlug,
-    author || null,
-    commentBody,
-    ipHash,
-    visitor,
-  );
+  // Run the insert + history lookup in parallel so the response stays snappy
+  // and notify() below ships in a single fire-and-forget Resend roundtrip.
+  const [comment, history] = await Promise.all([
+    addComment(postSlug, author || null, commentBody, ipHash, visitor),
+    getEngagementHistory(ipHash),
+  ]);
   if (!comment) return json({ error: "Could not save comment" }, 500);
 
   // Fire-and-forget notification email — never block the response on it.
@@ -234,7 +234,7 @@ export const POST: APIRoute = async ({ request }) => {
       authorName: comment.authorName,
       body: comment.body,
       entityId: comment.id,
-      ip: ipHash,
+      history,
       visitor: {
         country: visitor.country,
         city: visitor.city,

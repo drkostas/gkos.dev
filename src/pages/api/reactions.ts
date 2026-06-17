@@ -21,6 +21,7 @@ import {
   getReactionCounts,
   getTopReactedPosts,
   getTotalReactions,
+  getEngagementHistory,
   EMOJI_TYPES,
   type EmojiType,
 } from "@/lib/supabase";
@@ -103,7 +104,12 @@ export const POST: APIRoute = async ({ request }) => {
   const ipHash = hashIp(ip, ua);
   const visitor = getVisitorInfo(request);
 
-  const result = await addReaction(post, emoji, ipHash, visitor);
+  // Run insert + history lookup in parallel so the notify() call below stays
+  // a fast fire-and-forget Resend roundtrip after the response is returned.
+  const [result, history] = await Promise.all([
+    addReaction(post, emoji, ipHash, visitor),
+    getEngagementHistory(ipHash),
+  ]);
   if (!result) {
     return json({ error: "Could not record reaction" }, 500);
   }
@@ -119,7 +125,7 @@ export const POST: APIRoute = async ({ request }) => {
         emoji,
         postTotalAfter: total,
         entityId: reactionId ?? undefined,
-        ip: ipHash,
+        history,
         visitor: {
           country: visitor.country,
           city: visitor.city,

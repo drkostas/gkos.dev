@@ -4,6 +4,7 @@ import {
   getSupabasePublic,
   getSupabaseAdmin,
   logModerationBlock,
+  getEngagementHistory,
   type WallMessage,
 } from "@/lib/supabase";
 import { checkContent } from "@/lib/moderation";
@@ -403,6 +404,10 @@ export const POST: APIRoute = async ({ request }) => {
     });
   }
 
+  // Pre-fetch engagement history before the fire-and-forget notify so the
+  // email body has it ready without blocking serverless cleanup.
+  const history = await getEngagementHistory(ipHash);
+
   // Fire-and-forget notification email.
   void notify({
     kind: "wall",
@@ -411,7 +416,7 @@ export const POST: APIRoute = async ({ request }) => {
       message,
       color,
       entityId: data?.id,
-      ip: ipHash,
+      history,
       visitor: {
         country: visitor.country,
         city: visitor.city,

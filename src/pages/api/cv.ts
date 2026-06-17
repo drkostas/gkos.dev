@@ -14,7 +14,7 @@ import type { APIRoute } from "astro";
 import { createHash } from "node:crypto";
 import { getCountry, getVisitorInfo } from "@/lib/visitor";
 import { notify } from "@/lib/notify";
-import { addCvDownload } from "@/lib/supabase";
+import { addCvDownload, getEngagementHistory } from "@/lib/supabase";
 
 export const prerender = false;
 
@@ -69,19 +69,22 @@ export const GET: APIRoute = async ({ request, redirect }) => {
 
   // Don't count bots in either the notification or the Supabase counter.
   if (!isLikelyBot(ua)) {
-    // Persist every non-bot download. The unique index on (ip_hash, day_bucket)
-    // dedups same-day refreshes for free, so the count reflects unique
-    // visitor-days, not raw fetch count.
+    // Persist every non-bot download AND pull engagement history in parallel,
+    // so the notify call below ships in a single awaited Resend roundtrip
+    // (which Vercel's fire-and-forget reliably completes after the response).
     const visitor = getVisitorInfo(request);
-    void addCvDownload(
-      ipHash,
-      {
-        country: visitor.country,
-        deviceType: visitor.deviceType,
-        browserFamily: visitor.browserFamily,
-      },
-      referrer,
-    );
+    const [, history] = await Promise.all([
+      addCvDownload(
+        ipHash,
+        {
+          country: visitor.country,
+          deviceType: visitor.deviceType,
+          browserFamily: visitor.browserFamily,
+        },
+        referrer,
+      ),
+      getEngagementHistory(ipHash),
+    ]);
 
     // Notify only on the first download from this IP within the in-process
     // cooldown window (10 min). Cheaper than hitting Supabase to dedup.
@@ -90,6 +93,7 @@ export const GET: APIRoute = async ({ request, redirect }) => {
         kind: "cv",
         data: {
           ip: ipHash,
+          history,
           visitor: {
             country: visitor.country,
             city: visitor.city,
