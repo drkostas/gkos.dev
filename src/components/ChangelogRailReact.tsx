@@ -23,15 +23,14 @@ export function ChangelogRailReact({ variant = "desktop" }: Props = {}) {
   // Re-position the OUTER wrapper so its top/bottom land exactly on the first
   // and last entry dots' vertical centers. Without this the rail "floats" away
   // from the dots when entry heights vary (which they always do).
+  // NB: ref.current.parentElement is the <astro-island>, not the wrapper —
+  // we query by class to find the right .changelog-rail-* wrapper.
   function repositionWrapper() {
-    if (!ref.current) return;
-    const wrapper = ref.current.parentElement as HTMLElement | null;
+    const wrapperClass = variant === "desktop" ? "changelog-rail-desktop" : "changelog-rail-mobile";
+    const wrapper = document.querySelector<HTMLElement>(`.${wrapperClass}`);
     if (!wrapper) return;
     const container = wrapper.parentElement as HTMLElement | null;
     if (!container) return;
-    // Match the dot column. Desktop dots: visible under md, hidden on mobile.
-    // We pick all `.entry` rows in the timeline and grab their *first* nested
-    // marker matching the active variant.
     const entries = container.querySelectorAll<HTMLElement>("li.entry");
     if (entries.length === 0) return;
     const firstEntry = entries[0];
@@ -75,8 +74,10 @@ export function ChangelogRailReact({ variant = "desktop" }: Props = {}) {
       recompute();
     });
     if (ref.current) ro.observe(ref.current);
-    // Also observe the parent container so we re-position on entry-list growth.
-    const container = ref.current?.parentElement?.parentElement;
+    // Also observe the timeline container (parent of the rail wrapper) so we
+    // re-position when entry-list grows or any entry's content reflows.
+    const wrapperClass = variant === "desktop" ? "changelog-rail-desktop" : "changelog-rail-mobile";
+    const container = document.querySelector(`.${wrapperClass}`)?.parentElement;
     if (container) ro.observe(container);
     window.addEventListener("resize", () => {
       repositionWrapper();
