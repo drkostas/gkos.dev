@@ -125,24 +125,22 @@ export const projects: Project[] = [
   {
     slug: "gkos-dev",
     name: "gkos.dev (this site)",
-    image: "https://i.imgur.com/QUZHpLd.png",
+    image: "/projects/gkos-dev-hero.png",
     description:
       "The personal portfolio + blog you're on right now. Astro + Tailwind + React islands + Supabase + PostHog. Built to ship fast, stay light, and own its own analytics.",
     tags: ["Astro", "Tailwind", "React", "Supabase", "PostHog", "Vercel"],
     category: "Products",
-    featured: true,
     source_code: "https://github.com/drkostas/gkos.dev",
     live: "https://gkos.dev",
   },
   {
     slug: "hevy2garmin",
     name: "Hevy → Garmin Sync",
-    image: "https://i.imgur.com/8IvJcY3.png",
+    image: "/projects/hevy2garmin-hero.png",
     description:
       "Web tool that pulls strength workouts from Hevy and writes them into Garmin Connect with exercise names, sets, reps, weights, HR overlay, and calorie estimation. Solves a real gap in both apps' APIs. 36 stars, 109 forks — the most-forked project I have.",
     tags: ["Python", "FastAPI", "Garmin", "Hevy", "OAuth"],
     category: "Products",
-    featured: true,
     source_code: "https://github.com/drkostas/hevy2garmin",
     demo: "https://hevy2garmin-demo.gkos.dev",
   },
@@ -154,7 +152,6 @@ export const projects: Project[] = [
       "AI-powered maritime decision engine. Helps shipowners make profitable positioning decisions: which vessel goes where, when to reposition, how to bid on cargo. Role: technical lead on a contract build — backend, LLM agent layer, data pipelines, cloud infra. Closed-source (commercial product), live in production with paying customers.",
     tags: ["FastAPI", "Next.js", "GCP", "LLM", "Agents", "PostgreSQL"],
     category: "Products",
-    featured: true,
     live: "https://fleetsmart.ai",
   },
   {
