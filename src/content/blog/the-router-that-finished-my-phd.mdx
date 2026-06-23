@@ -1,0 +1,65 @@
+---
+title: "The router that finished my PhD"
+publishedAt: "2026-06-23T12:00:00"
+summary: "ExPLoRe is out: ECCV 2026, the last paper of my PhD. Soft-MoE dispatch weights repurposed as per-patch loss coefficients. What it does and why I'm relieved it works."
+imageName: "the-router-that-finished-my-phd/hero.png"
+imageAlt: "The Key Results and Mechanism Isolation tables from the ExPLoRe README on GitHub, showing ImageNet-1K numbers and the detach ablation."
+categories: ["research", "machine-learning", "personal"]
+draft: false
+---
+
+## The paper from the stuck-section is out
+
+A week ago I wrote about [six things I'd do differently in my PhD](/blog/what-the-phd-gave-me). One of them, the section on what I do when I'm stuck, alluded to a paper that was in review. The paper is in. The code is up. The repo is [aicip/ExPLoRe](https://github.com/aicip/ExPLoRe). ECCV 2026.
+
+This post is the long version of that footnote.
+
+## What ExPLoRe is trying to fix
+
+[MEDiC](https://github.com/aicip/MEDiC), the predecessor I shipped before this, combined three learning signals at once for masked image modeling: token distillation from a frozen [CLIP](https://arxiv.org/abs/2103.00020) teacher, global CLS alignment, and pixel reconstruction. The framework works. The numbers are competitive. But the way it weighs the three losses is, frankly, a hack: one scalar coefficient per loss, hand-tuned on a held-out subset.
+
+The problem with that is that it pretends every patch of every image needs the same blend of losses. A patch with a textured surface might want more pixel-reconstruction signal. A patch with semantic content might want more CLIP-token distillation. A blank-sky patch maybe doesn't really care. The global scalars don't know any of that. They give every patch the same loss recipe.
+
+I spent most of a year trying to make the global scalars work harder. Attention-based masking. Per-objective scheduling. [GradNorm](https://arxiv.org/abs/1711.02257) for auto-balancing. Hand-tuning fifty configurations and refreshing [Weights & Biases](https://wandb.ai/) every few hours. The numbers stayed flat. That was the W\&B-tab-open year I described in the PhD post.
+
+## The mechanism
+
+The pivot came from looking at what Soft-MoE ([Puigcerver et al., 2023](https://arxiv.org/abs/2308.00951)) was already producing inside the network. Soft Mixture of Experts dispatches each input patch to multiple experts with a softmax-normalized weight matrix `D ∈ R^{B×N×E}` (batch × patches × experts). The dispatch weights are differentiable. The router is learned.
+
+The trick: the same dispatch matrix that decides which expert sees which patch can also be reused as which patch gets which loss. For E experts and L losses, you reserve one expert per loss (or a learned mapping), and weight each loss term for each patch by the corresponding dispatch weight. The router decides, per patch, what loss recipe to optimize.
+
+The thing that makes this actually work, and the part I'd never seen done before, is **loss-coupling**: you let loss gradients flow back through the dispatch weights to the router itself. The router isn't just trained by the task. It's trained by *which loss combinations actually help each patch*. Content-dependent specialization, learned end-to-end.
+
+## The detach ablation
+
+The risk with any new mechanism is that you can't tell whether you've discovered something real or just added capacity. ExPLoRe with E=2 experts has 116M parameters versus MEDiC's 86M. Maybe the extra 30M is doing all the work and the routing is incidental.
+
+The way to find out: detach the loss gradient from the dispatch weights, so the router only learns from task gradients (the usual MoE objective) and not from how its routing decisions affect loss balance. Same architecture, same parameters, same compute. Only the gradient path is cut.
+
+Result: k-NN accuracy drops from 75.4% to 73.8%. That 1.6-point gap is small, but the right shape. Without loss-coupling, the MoE still helps a bit (capacity), but the bulk of the improvement is gone. With combine weights instead of dispatch weights (an earlier variant I tried), the model collapses entirely: 2.1% k-NN, because combine weights have a degeneracy that lets the router zero out everything.
+
+The detach ablation is the moment the paper started feeling real to me. Up to that point I had a plausible story. After the detach result, I had a falsifiable one, and it didn't fall.
+
+## What's in the repo
+
+The repo has two configs. A 2-expert "practical" recipe (116M params, about a day on 4× H100) and a 64-expert "SOTA" recipe (1.86B params, about a week). The SOTA one hits 80.6% linear probe and 85.3% finetune on ImageNet-1K. The practical one is the closer-to-honest version: comparable params to MEDiC, the routing trick paying for itself rather than the parameter count.
+
+I also wrote three adaptation recipes that mattered more than I expected: Freeze Routing, Expert Dropout, and Freeze Attention. The vanilla MoE finetune was actually *worse* than the non-MoE baseline on [ADE20K](https://paperswithcode.com/dataset/ade20k) segmentation, which I didn't initially understand. Letting the router update during finetuning was breaking the specialization the router had learned during pre-training. Freezing it, plus a couple of related tricks, closed a 2.5–2.9 mIoU gap. That sub-paper inside the paper is what I'd point a reader at if they want to use ExPLoRe for downstream transfer.
+
+## What I'm less sure about
+
+A few honest caveats so I don't oversell.
+
+The 2-expert version doesn't beat MEDiC on finetune. It wins on linear probe by a meaningful margin (+3.4 points), and the k-NN is comparable. So "ExPLoRe replaces MEDiC" isn't quite the right framing. It's more like: ExPLoRe is what you want if you care about feature linearity and downstream transfer, and the dispatch matrices give you something interpretable to look at.
+
+I also haven't done the multi-seed runs I'd ideally want. Compute budget on the H100 cluster is what it is. The numbers in the table are single-seed for the SOTA recipe. The trends are clear and the detach ablation is the load-bearing claim, so I think it holds. If I had unlimited GPUs I'd report mean ± std.
+
+The combine-weights-degenerate finding is the result I'm proudest of after the main mechanism, partly because it took a couple of months to figure out *why* the model was collapsing. I almost stopped pursuing this whole line of work after that early failure. The pivot to dispatch weights was the right one, but I'd be lying if I said I knew that at the time.
+
+## What's next
+
+I defended in April. I joined an Amazon Robotics team in Berlin a few weeks ago. ExPLoRe is the last paper I'll publish from the lab. The next year of work is mostly going to be language models for robotics, which is a different game from masked image modeling on ImageNet.
+
+If you're working on multi-objective pre-training and want to try the dispatch-weight trick, the repo has a smoke-test config that runs in about 15 minutes on a single GPU. Issues are open. If anything in the paper or code reads wrong, file one. I'm faster on GitHub than email.
+
+The paper link will go up once the proceedings are out. Until then, the README is the canonical reference and the code is the source of truth.
