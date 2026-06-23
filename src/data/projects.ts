@@ -21,6 +21,17 @@ export interface Project {
 export const projects: Project[] = [
   // ---- Machine Learning ----
   {
+    slug: "explore",
+    name: "ExPLoRe",
+    image: "/projects/explore-hero.png",
+    description:
+      "Official PyTorch implementation of the ECCV 2026 ExPLoRe paper. Repurposes Soft-MoE dispatch weights as learned, per-patch loss coefficients for multi-objective masked image modeling — loss-coupling lets gradients flow through dispatch to the router for content-dependent specialization. ViT-Base + CLIP-B/16 teacher hits 80.6% linear probe and 85.3% finetune on ImageNet-1K.",
+    tags: ["PyTorch", "Self-Supervised", "Soft-MoE", "MIM", "CLIP", "Computer-Vision", "ECCV-2026"],
+    category: "Machine Learning",
+    featured: true,
+    source_code: "https://github.com/aicip/ExPLoRe",
+  },
+  {
     slug: "medic",
     name: "MEDiC",
     image: "https://i.imgur.com/R6FkX4x.png",
@@ -40,7 +51,6 @@ export const projects: Project[] = [
       "Official code for the paper 'Cross-Scale MAE: A Tale of Multi-Scale Exploitation in Remote Sensing'. Self-supervised learning for multi-scale geospatial imagery.",
     tags: ["PyTorch", "MIM", "Computer-Vision"],
     category: "Machine Learning",
-    featured: true,
     source_code: "https://github.com/aicip/Cross-Scale-MAE",
     scholar:
       "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=b___QQ8AAAAJ&authuser=1&citation_for_view=b___QQ8AAAAJ:d1gkVwhDpl0C",

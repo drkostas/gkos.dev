@@ -36,6 +36,7 @@ export const workbenchItems: WorkbenchItem[] = [
     link: "https://pytorch.org/",
     category: "ML & Research",
     usedIn: [
+      { slug: "explore", name: "ExPLoRe" },
       { slug: "medic", name: "MEDiC" },
       { slug: "maskdistill-pytorch", name: "MaskDistill-PyTorch" },
       { slug: "cross-scale-mae", name: "Cross-Scale MAE" },
