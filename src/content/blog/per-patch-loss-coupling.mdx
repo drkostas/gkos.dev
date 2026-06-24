@@ -1,8 +1,8 @@
 ---
-title: "The router that finished my PhD"
+title: "Per-patch loss-coupling, in plain words"
 publishedAt: "2026-06-24T12:00:00"
 summary: "ExPLoRe is out: ECCV 2026, the last paper of my PhD. Soft-MoE dispatch weights repurposed as per-patch loss coefficients. The mechanism, the surprises, and the reviewer pushback I'm grateful for."
-imageName: "the-router-that-finished-my-phd/expert-dispatch.png"
+imageName: "per-patch-loss-coupling/expert-dispatch.png"
 imageAlt: "Two input images (dogs and birds) overlaid with per-patch dispatch weights from a trained 2-expert ExPLoRe model. Expert 1 puts warm weight on foreground regions, Expert 2 on background and context."
 categories: ["research", "machine-learning", "personal"]
 draft: false
@@ -14,7 +14,7 @@ About a week ago I wrote [six things I'd do differently in my PhD](/blog/what-th
 
 This post is the longer version of that footnote, and I want to lead with the punchline image because it is genuinely the one moment of the whole project that surprised me in a clean, visual way.
 
-![Dispatch weights from a 2-expert ExPLoRe model overlaid on input images of dogs and birds. Expert 1 concentrates weight on foreground (faces, bodies); Expert 2 spreads weight to background and context.](/blog/the-router-that-finished-my-phd/expert-dispatch.png)
+![Dispatch weights from a 2-expert ExPLoRe model overlaid on input images of dogs and birds. Expert 1 concentrates weight on foreground (faces, bodies); Expert 2 spreads weight to background and context.](/blog/per-patch-loss-coupling/expert-dispatch.png)
 
 What you are looking at is a 2-expert router that nobody told where the foreground was. The model trained from scratch on ImageNet patches with one signal: a frozen CLIP teacher's per-patch features. The router decides, per patch and per loss, who pays attention to what. After 300 epochs it learned that one expert wants to weight the loss heavily on the animal, and the other wants to weight it on the background. I did not write that down anywhere. There is no foreground-vs-background supervision in the loss. It just falls out of letting loss gradients update the router.
 
@@ -39,7 +39,7 @@ I had been reading Soft-MoE ([Puigcerver et al., 2023](https://arxiv.org/abs/230
 
 The full architecture sits inside the student encoder at alternating ViT blocks {1, 3, 5, 7, 9, 11}. Six MoE blocks, six vanilla blocks, about 1.5× the compute of a vanilla ViT-Base. The frozen CLIP teacher hands down per-patch features, the student's MoE blocks process the visible patches, and the dispatch weights at the last MoE block (block 11) get reused as per-patch loss coefficients for the distillation and CLS objectives.
 
-![ExPLoRe architecture. The student ViT has six MoE blocks alternating with six vanilla blocks. Each MoE block has a router producing dispatch weights, with the last block's weights serving as per-patch loss coefficients for the distillation and reconstruction objectives.](/blog/the-router-that-finished-my-phd/architecture.png)
+![ExPLoRe architecture. The student ViT has six MoE blocks alternating with six vanilla blocks. Each MoE block has a router producing dispatch weights, with the last block's weights serving as per-patch loss coefficients for the distillation and reconstruction objectives.](/blog/per-patch-loss-coupling/architecture.png)
 
 The trick is to make the dispatch weights, not the combine weights, do the loss weighting. For E experts and K loss objectives, you reserve one expert per objective (or learn a mapping) and weight that objective's per-patch loss by the corresponding dispatch weight. The router decides, per patch, what loss recipe matters.
 
@@ -61,7 +61,7 @@ The clean test is to cut just the gradient path. Compute the loss with the dispa
 
 Result: k-NN drops from 75.4% to 73.8%. A 1.6-point gap is small, but the right shape. Without loss-coupling, the MoE still helps a bit through pure capacity, but the bulk of the improvement is gone. The cleaner version of the same point comes from looking at the unweighted MoE, where dispatch weights are computed but not used as loss coefficients at all. That variant lands at 74.1% k-NN, which is *worse* than the 75.7% no-MoE baseline. MoE without loss-coupling is not just neutral compared to a vanilla ViT. It is actively harmful at this scale. The whole mechanism, not just the parameter increment, is what makes it work.
 
-![Block-9 dispatch weights for four images, comparing the loss-coupled model (left two columns: Expert 0 and Expert 1) against the detach variant (right two columns). The coupled model shows spatially coherent, content-dependent routing. The detach model's routing looks closer to noise.](/blog/the-router-that-finished-my-phd/coupled-vs-detach-heatmaps.png)
+![Block-9 dispatch weights for four images, comparing the loss-coupled model (left two columns: Expert 0 and Expert 1) against the detach variant (right two columns). The coupled model shows spatially coherent, content-dependent routing. The detach model's routing looks closer to noise.](/blog/per-patch-loss-coupling/coupled-vs-detach-heatmaps.png)
 
 The figure above is the visual version of the same finding. Each row is a different image. The left two columns show Expert 0 and Expert 1 dispatch weights from the loss-coupled model. You can see structure: spatially coherent, content-dependent routing. The right two columns are the detach variant. Same backbone, same training schedule, no gradient path. The dispatch weights are noisier, less spatially coherent, and look closer to noise than to signal. The router still routes, because the forward MoE gradient still tells it to. It just routes without learning that some patches matter more to the loss than others.
 
@@ -89,7 +89,7 @@ R1's central pushback was that we report +35% more parameters at the 2-expert sc
 
 The thing that R1's pushback forced us to do is plot the same table on the FLOPs axis. Soft-MoE with one slot per expert decouples parameter count from inference cost in a way that vanilla MoE does not. Each MoE layer routes all `N` patch tokens into `E` expert slots, the expert MLPs process those `E` slots rather than `N` inputs, and only the routing projections scale with `E`. The 64-expert configuration has 1.86 billion parameters but only 13.86 GFLOPs of inference cost, which is *less* than the 17.45 GFLOPs of vanilla ViT-Base/16. The 2-expert version is 11.93 GFLOPs, 32% cheaper than every comparator in our table.
 
-![Cost-vs-quality on ViT-Base/16. ExPLoRe E=2 and E=64 sit at the top-left: high linear probe accuracy at substantially lower inference FLOPs than every other published method, all of which sit at vanilla ViT-Base's 17.45 GFLOPs.](/blog/the-router-that-finished-my-phd/cost-quality.png)
+![Cost-vs-quality on ViT-Base/16. ExPLoRe E=2 and E=64 sit at the top-left: high linear probe accuracy at substantially lower inference FLOPs than every other published method, all of which sit at vanilla ViT-Base's 17.45 GFLOPs.](/blog/per-patch-loss-coupling/cost-quality.png)
 
 The plot above is what came out of that rebuttal exchange. Every other published method we compare against is bunched at 17.45 GFLOPs because they all use vanilla ViT-Base/16. We sit at the top-left because the Soft-MoE structure with one slot per expert is genuinely a different inference profile, and the parameter count is a misleading proxy for cost on this architecture. The reviewer was right that the parameter framing is not impressive. The compute framing is the one that actually answers the question, and we should have led with it.
 
@@ -97,7 +97,7 @@ I am grateful for that pushback the same way I was grateful for an advisor who o
 
 ## How it scales, and where it does not
 
-![(a) k-NN trajectories across epochs 200-300 for the no-MoE baseline and 2/16/32/64-expert configurations. Stars mark per-configuration peaks. More experts give higher final k-NN, monotonically. (b) Loss weighting effect, isolated. Comparing weighted vs unweighted at matched expert counts: +1.3% at 2 experts, +0.9% at 64 experts. The weighting trick pays for itself at both scales, not just one.](/blog/the-router-that-finished-my-phd/expert-scaling.png)
+![(a) k-NN trajectories across epochs 200-300 for the no-MoE baseline and 2/16/32/64-expert configurations. Stars mark per-configuration peaks. More experts give higher final k-NN, monotonically. (b) Loss weighting effect, isolated. Comparing weighted vs unweighted at matched expert counts: +1.3% at 2 experts, +0.9% at 64 experts. The weighting trick pays for itself at both scales, not just one.](/blog/per-patch-loss-coupling/expert-scaling.png)
 
 Panel (a) shows the scaling curve. Each line is a different expert count, evaluated on k-NN every 10 epochs from 200 to 300. The shape is monotonic: more experts give higher final k-NN, with 64-expert peaking at 76.2%. Panel (b) isolates the loss-coupling contribution at fixed expert count. The weighted-vs-unweighted gap is +1.3% at 2 experts and +0.9% at 64 experts. The mechanism is not just a small-model effect that disappears at scale.
 

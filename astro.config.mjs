@@ -31,6 +31,9 @@ export default defineConfig({
   adapter: vercel({
     imageService: true,
   }),
+  redirects: {
+    "/blog/the-router-that-finished-my-phd": "/blog/per-patch-loss-coupling",
+  },
   vite: {
     server: {
       // Allow ngrok / tunnel hosts so the dev server is reachable from a phone.
