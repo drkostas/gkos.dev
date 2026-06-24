@@ -142,8 +142,13 @@ const displayedPosts = showFeatured
   ? categoryFiltered.filter((p) => !featuredIds.has(p.id))
   : categoryFiltered;
 
+// Acronym-aware: "ml" renders as "ML", everything else gets first-letter
+// capitalization. Add other acronyms here as needed (e.g. "ai", "ux", "api").
+const CATEGORY_LABELS: Record<string, string> = {
+  ml: "ML",
+};
 function capitalize(cat: string) {
-  return cat.charAt(0).toUpperCase() + cat.slice(1);
+  return CATEGORY_LABELS[cat] ?? cat.charAt(0).toUpperCase() + cat.slice(1);
 }
 
 function heroH1(cat: string) {
@@ -388,8 +393,9 @@ function formatDate(date: Date) {
     const ACTIVE_CLASSES = ["is-active", "border-zinc-900", "bg-zinc-900", "text-white", "dark:border-zinc-100", "dark:bg-zinc-100", "dark:text-zinc-900"];
     const INACTIVE_CLASSES = ["border-border-primary", "text-text-secondary", "hover:border-purple-primary", "hover:text-purple-primary"];
 
+    const CATEGORY_LABELS = { ml: "ML" };
     function capitalize(s) {
-      return s.charAt(0).toUpperCase() + s.slice(1);
+      return CATEGORY_LABELS[s] || (s.charAt(0).toUpperCase() + s.slice(1));
     }
 
     function applyFilter(cat) {
