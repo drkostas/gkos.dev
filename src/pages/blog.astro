@@ -265,8 +265,6 @@ function formatDate(date: Date) {
             <li
               data-post-item
               data-categories={(post.data.categories || []).map((c: string) => c.toLowerCase()).join(",")}
-              data-featured={featuredIds.has(post.id) ? "true" : "false"}
-              class:list={[featuredIds.has(post.id) ? "blog-post-featured-dup hidden" : ""]}
             >
               <a
                 href={`/blog/${post.id}`}
@@ -421,18 +419,15 @@ function formatDate(date: Date) {
       // Featured row: hide when a filter is active
       if (featured) featured.classList.toggle("hidden", Boolean(cat));
 
-      // Post list visibility
+      // Post list visibility. Show all posts that match the active filter
+      // (or all posts when no filter); the featured row stays at the top and
+      // simply doubles up the pinned ones, which is what the user expects.
       let visibleCount = 0;
       postList.querySelectorAll("[data-post-item]").forEach((li) => {
         const cats = (li.dataset.categories || "").split(",");
-        const isFeaturedDup = li.dataset.featured === "true";
-        // When no filter + featured row is visible, duplicates stay hidden.
-        // When a filter is on, featured row hides, so dup-hidden posts can show.
         const matches = cat ? cats.includes(cat) : true;
-        const suppressAsDup = isFeaturedDup && !cat;
-        const visible = matches && !suppressAsDup;
-        li.classList.toggle("hidden", !visible);
-        if (visible) visibleCount++;
+        li.classList.toggle("hidden", !matches);
+        if (matches) visibleCount++;
       });
 
       // Empty state
