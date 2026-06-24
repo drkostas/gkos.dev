@@ -9,7 +9,7 @@ import { FeaturedBlogCardReact } from "@/components/FeaturedBlogCardReact";
 import { getCollection } from "astro:content";
 import { siteMetadata } from "@/data/siteMetadata";
 
-const FEATURED_COUNT = 4;
+const FEATURED_COUNT = 3;
 const WORDS_PER_MINUTE = 200;
 
 /**
@@ -25,6 +25,13 @@ const SUBTITLE_MATRIX: Record<string, readonly string[]> = {
     "Longer than a tweet, looser than a paper.",
     "Write-ups, walkthroughs, and occasional rabbit holes.",
     "ML, research, side projects, and the tools in between.",
+  ],
+  ml: [
+    "Informal notes on papers, models, and the math underneath.",
+    "ML stuff I'd tell you over coffee.",
+    "Longer than a Twitter thread, looser than a paper.",
+    "Paper notes, builds, and occasional rabbit holes.",
+    "Papers, code, and what I learned along the way.",
   ],
   personal: [
     "Informal write-ups of whatever's on my mind.",
@@ -117,7 +124,7 @@ for (const post of decoratedPosts) {
 }
 // Sort by defined matrix order (personal, meta, builds, papers, guides) so
 // the visible pills follow a stable left-to-right sequence, not frontmatter order.
-const MATRIX_ORDER = ["personal", "meta", "builds", "papers", "guides"];
+const MATRIX_ORDER = ["ml", "personal", "meta", "builds", "papers", "guides"];
 const visibleCategories = MATRIX_ORDER.filter((c) => categoryCounts.has(c));
 
 const currentCategory = (Astro.url.searchParams.get("category") || "").toLowerCase();
