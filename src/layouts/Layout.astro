@@ -11,6 +11,7 @@ import Navbar from "@/components/Navbar.astro";
 import Footer from "@/components/Footer.astro";
 import { BackToTop } from "@/components/BackToTop";
 import Analytics from "@vercel/analytics/astro";
+import SpeedInsights from "@vercel/speed-insights/astro";
 import { siteMetadata } from "@/data/siteMetadata";
 
 interface Props {
@@ -105,9 +106,11 @@ const isProd = import.meta.env.PROD;
     </main>
     <BackToTop client:load />
     {/* Vercel Web Analytics — pageviews + visitor counts in the Vercel dashboard.
-        Runs alongside PostHog (different beacon). The component is a no-op in dev,
-        so no PROD gating needed here. */}
+        Vercel Speed Insights — Core Web Vitals (LCP, INP, CLS) per page.
+        Both run alongside PostHog (different beacons). Components are no-ops
+        in dev, so no isProd gating needed here. */}
     <Analytics />
+    <SpeedInsights />
     {
       isProd && posthogKey && (
         <script is:inline define:vars={{ posthogKey, posthogHost }}>
