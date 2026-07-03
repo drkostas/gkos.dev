@@ -1,32 +1,28 @@
 ---
 title: "Per-patch loss-coupling, in plain words"
 publishedAt: "2026-06-24T12:00:00"
-summary: "ExPLoRe is out: ECCV 2026, the last paper of my PhD. Soft-MoE dispatch weights repurposed as per-patch loss coefficients. The mechanism, the surprises, and the reviewer pushback I'm grateful for."
+summary: "A walkthrough of ExPLoRe, our ECCV 2026 paper: per-patch loss weighting for masked image modeling, learned by a Soft-MoE router. The idea, the ablations, and the parts I'm still unsure about."
 imageName: "per-patch-loss-coupling/expert-dispatch.png"
 imageAlt: "Two input images (dogs and birds) overlaid with per-patch dispatch weights from a trained 2-expert ExPLoRe model. Expert 1 puts warm weight on foreground regions, Expert 2 on background and context."
 categories: ["research", "ml"]
 draft: false
 ---
 
-## The paper from the stuck-section is out
+## Start with the picture
 
-About a week ago I wrote [six things I'd do differently in my PhD](/blog/what-the-phd-gave-me). One section talked about what I do when I get stuck, and I alluded to a paper that was in review. The paper is in. The code is at [aicip/ExPLoRe](https://github.com/aicip/ExPLoRe). ECCV 2026.
-
-This post is the longer version of that footnote, and I want to lead with the punchline image because it is genuinely the one moment of the whole project that surprised me in a clean, visual way.
+ExPLoRe is a method we published at ECCV 2026, with Maofeng Tang and my advisor Hairong Qi. It targets a specific problem in masked image modeling: when you pretrain with several losses at once, existing methods weight them with one global number per loss. ExPLoRe lets the model learn a separate weight for every image patch instead, by reusing the routing weights that a Soft-MoE already computes. The [paper](https://arxiv.org/abs/2606.31201) and [code](https://github.com/aicip/ExPLoRe) are written for reviewers. This post is the version I'd tell a colleague.
 
 ![Dispatch weights from a 2-expert ExPLoRe model overlaid on input images of dogs and birds. Expert 1 concentrates weight on foreground (faces, bodies); Expert 2 spreads weight to background and context.](/blog/per-patch-loss-coupling/expert-dispatch.png)
 
 What you are looking at is a 2-expert router that nobody told where the foreground was. The model trained from scratch on ImageNet patches with one signal: a frozen CLIP teacher's per-patch features. The router decides, per patch and per loss, who pays attention to what. After 300 epochs it learned that one expert wants to weight the loss heavily on the animal, and the other wants to weight it on the background. I did not write that down anywhere. There is no foreground-vs-background supervision in the loss. It just falls out of letting loss gradients update the router.
 
-The rest of the post is about why that happens, why it took me a year and a half to find it, the reviewer pushback I am grateful for, and the parts I still think we got wrong.
-
-## Why I needed something other than scalar loss weights
+## Why global scalars fall short
 
 The paper before this, MEDiC, combined three masked-image-modeling signals into one student encoder: CLIP token distillation, CLS alignment, and pixel reconstruction. The framework worked. The numbers were competitive. But the way it weighted the three losses was a hack and I always knew it. One scalar per loss. Hand-tuned on a held-out subset of ImageNet. Same scalars for every image, every patch, every epoch.
 
 The thing that bothered me about that, which I could not at first articulate, is that an image is not uniform. A patch full of texture, like grass or fur, has very different reconstruction error than a patch on a face. A patch with strong semantic content, the eye of a bird for example, has very different distillation signal than a patch of sky. If you weight all three losses with one scalar per loss, you are pretending the optimal blend is the same everywhere on the image. It is not.
 
-I spent most of a year trying to make the global scalars work harder. I tried attention-based masking, which biases which patches the model has to reconstruct. I tried per-objective scheduling so that the three losses come in at different epochs. I tried GradNorm to auto-balance gradient magnitudes across objectives. I hand-tuned around fifty configurations and kept a Weights & Biases tab open in the browser, refreshing it every few hours to see if the k-NN line had moved. It mostly had not. That was the W&B-tab-open year I described in the PhD post.
+I spent most of a year trying to make the global scalars work harder. I tried attention-based masking, which biases which patches the model has to reconstruct. I tried per-objective scheduling so that the three losses come in at different epochs. I tried GradNorm to auto-balance gradient magnitudes across objectives. I hand-tuned around fifty configurations and spent close to a year refreshing a Weights & Biases tab every few hours to see if the k-NN line had moved. It mostly had not. (I wrote about that stretch in [a separate post on the PhD](/blog/what-the-phd-gave-me).)
 
 The thing that actually killed the global-scalar hope, though, was running [GradNorm](https://arxiv.org/abs/1711.02257) carefully. GradNorm is the principled answer to the question "how do I weight competing objectives in multi-task learning". It normalizes gradient magnitudes across tasks and adapts per step. On our Token+CLS setup it landed at 72.8% k-NN, which is worse than the static-weight baseline at 74.2%. On Token+Pixel it collapsed entirely to 32.5%. Not a regression, a collapse. That number is in the paper because I wanted reviewers to see what we saw. A principled global method, run with extensive hyperparameter search, underperforming its own static baseline. The lesson I took from that is that the failure was not about which scalar value to pick. It was about scalars being the wrong shape.
 
@@ -81,7 +77,7 @@ What I did not expect is how knife-edge that equilibrium is. At λ=0.01 the mode
 
 The other surprise is that the optimal λ is expert-count dependent. λ=0.5 is best for 2 experts and degrades 64-expert performance. λ=5.0 is best for 64 and barely affects 2. With more experts, the per-expert dispatch budget gets smaller, so each expert has less room to specialize without crossing the collapse threshold. The regularization has to push harder. The hyperparameter you would tune on the small model is not the one you want on the big model. I wish I had known that from day one.
 
-## The reviewer pushback I am grateful for
+## What the reviewers caught
 
 Three reviewers, eight major weaknesses, six minor ones. I want to write about one of them, because the rebuttal made the paper better in a way I would not have arrived at on my own.
 
@@ -121,7 +117,7 @@ The 64-expert configuration is something I am genuinely conflicted about. It wor
 
 The thing I keep coming back to, more than any individual finding, is that I should have built the mechanism-isolation comparisons in week 3, not month 8. The detach ablation, the unweighted-MoE baseline, the dispatch-vs-combine comparison. Every one of those is a small experiment that costs a fraction of a pretraining run. If I had built them at the start, I would have known by month 2 whether the dispatch-weight reuse was real or whether I was looking at parameter inflation. I would have stopped tweaking entropy weights for weeks at the wrong λ region. I would have caught the combine-weight degeneracy in a 2-day sanity check instead of a multi-month detour.
 
-That is the same lesson as the W&B-tab thing from the PhD post, just sharper. When you build the right diagnostic experiment, you stop guessing. When you do not, you spend a year refreshing curves.
+When you build the right diagnostic experiment, you stop guessing. When you do not, you spend a year refreshing curves.
 
 The other thing I would do differently is plot on the FLOPs axis from day one. Looking at the cost-quality figure now, the story is obviously a per-FLOP story, and the parameter-axis framing makes ExPLoRe look weaker than it is on the actual axis it competes on. Reviewers caught that in week one of the rebuttal. I had been staring at the wrong axis for the whole project.
 
