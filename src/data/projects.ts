@@ -30,6 +30,7 @@ export const projects: Project[] = [
     category: "Machine Learning",
     featured: true,
     source_code: "https://github.com/aicip/ExPLoRe",
+    scholar: "https://doi.org/10.1007/978-3-032-37314-4_16",
   },
   {
     slug: "medic",
