@@ -189,7 +189,7 @@ export function ImageLibrary({ folders }: { folders: string[] }) {
 
       {editing && (
         <ImageEditModal
-          image={{ ...editing, supportsAlignment: false }}
+          image={editing}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); refresh(); }}
         />

@@ -1,0 +1,21 @@
+name: Type check
+
+# astro build does not type-check, so a type error in a page or a component reaches main unnoticed.
+# This keeps `astro check` at zero errors on every pull request.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  astro-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx astro check
