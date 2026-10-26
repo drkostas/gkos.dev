@@ -1,4 +1,6 @@
-import { test, expect, Page } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Full undo/redo coverage for the editor. Runs against the dev server
@@ -11,8 +13,16 @@ import { test, expect, Page } from "@playwright/test";
  * independent of cursor positioning / zoom level.
  */
 
-const BASE = "http://localhost:4321/editor";
+const BASE = "http://localhost:4321/explore-editor";
 const scene = () => `window.__EDITOR_GAME__.scene.getScene('EditorScene')`;
+
+// The editor loads editor-data.json, which is generated and not committed.
+// Without it the page shows "Failed to load editor data" and never boots.
+test.beforeAll(() => {
+  if (!existsSync("editor-data.json")) {
+    execFileSync("node", ["scripts/editor-data-export.mjs"], { stdio: "inherit" });
+  }
+});
 
 async function boot(page: Page) {
   await page.goto(BASE);

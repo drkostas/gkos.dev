@@ -197,11 +197,9 @@ export function PostEditor({ slug, initialFrontmatter, initialBody, knownCategor
   // Refs that shadow state so toolbar closures (inside mdxeditor's plugin
   // system, which doesn't re-run on React re-renders) can read the latest
   // values. Declared BEFORE the sync assignments below.
-  const alignmentRef = useRef(alignmentByPath);
   const selectedSrcRef = useRef<string | null>(null);
   const spacingRef = useRef(spacingByPath);
   const widthRef = useRef(widthByPath);
-  alignmentRef.current = alignmentByPath;
   selectedSrcRef.current = selectedImageSrc;
   spacingRef.current = spacingByPath;
   widthRef.current = widthByPath;
@@ -644,11 +642,6 @@ export function PostEditor({ slug, initialFrontmatter, initialBody, knownCategor
       if (!m) return;
       e.preventDefault();
       const [, imgSlug, imgName] = m;
-      const fullPath = `/blog/${imgSlug}/${imgName}`;
-      // Read current alignment from our out-of-band map (the editor itself
-      // doesn't preserve the class attribute). Use a ref so the one-time-mounted
-      // listener always sees the latest state.
-      const current: Alignment = alignmentRef.current[fullPath] ?? "none";
 
       // Fetch persisted crop metadata so the modal can restore the region.
       let meta;
@@ -669,8 +662,6 @@ export function PostEditor({ slug, initialFrontmatter, initialBody, knownCategor
         mtime: Date.now(),
         hasOriginal,
         meta,
-        supportsAlignment: true,
-        currentAlignment: current,
       });
     }
 
@@ -695,14 +686,15 @@ export function PostEditor({ slug, initialFrontmatter, initialBody, knownCategor
 
     host.addEventListener("dblclick", onDbl);
     host.addEventListener("click", onClick);
-    // Clear selection when clicking outside the editor entirely.
-    function onDocClick(e: MouseEvent) {
+    // Clear selection when clicking outside the editor entirely. An arrow
+    // function, not a hoisted declaration, so `host` stays narrowed to non-null.
+    const onDocClick = (e: MouseEvent) => {
       const t = e.target as Node | null;
       if (!t) return;
       const inHost = host.contains(t);
       const inAlignmentToolbar = (t instanceof HTMLElement) && t.closest("[data-align-toolbar]");
       if (!inHost && !inAlignmentToolbar) setSelectedImageSrc(null);
-    }
+    };
     document.addEventListener("click", onDocClick);
     return () => {
       host.removeEventListener("dblclick", onDbl);
@@ -711,8 +703,10 @@ export function PostEditor({ slug, initialFrontmatter, initialBody, knownCategor
     };
   }, []);
 
-  function handleImageEdited(info: { path: string; alignment: Alignment; alignmentTouched: boolean }) {
-    // 1. Refresh the file-on-disk changes visually.
+  // Alignment is set from the toolbar on a selected image (alignmentByPath);
+  // the crop modal only changes the file on disk.
+  function handleImageEdited() {
+    // Refresh the file-on-disk changes visually.
     const host = editorHostRef.current;
     if (host && editingImage) {
       const { slug: s, name: n } = editingImage;
@@ -721,16 +715,6 @@ export function PostEditor({ slug, initialFrontmatter, initialBody, knownCategor
         if ((img.getAttribute("src") || "").startsWith(pattern)) {
           img.src = `${pattern}?t=${Date.now()}`;
         }
-      });
-    }
-
-    // 2. Remember the alignment; stamped into markdown at post-save time.
-    if (info.alignmentTouched) {
-      setAlignmentByPath((prev) => {
-        const next = { ...prev };
-        if (info.alignment === "none") delete next[info.path];
-        else next[info.path] = info.alignment;
-        return next;
       });
     }
 
@@ -1004,7 +988,7 @@ export function PostEditor({ slug, initialFrontmatter, initialBody, knownCategor
 /** Inserts a `<div class="clear-wrap" />` at the cursor so text after the
  *  aligned image falls BELOW instead of wrapping. Always visible in the
  *  toolbar because "I want to stop wrap here" may happen anywhere. */
-function BreakWrapButton({ editorRef }: { editorRef: React.RefObject<MDXEditorMethods> }) {
+function BreakWrapButton({ editorRef }: { editorRef: React.RefObject<MDXEditorMethods | null> }) {
   return (
     <button
       type="button"
