@@ -1,0 +1,11 @@
+kind: card
+name: realvisits
+line: "Sort the visits a website records into people, bots and the site's own checks."
+accent: amber
+footer: github.com/drkostas/realvisits
+diagram:
+  - globe
+  - arrow: visits
+  - gate
+  - arrow: people
+  - user: {accent: true}

@@ -211,6 +211,17 @@ export const projects: Project[] = [
 
   // ---- Tools (PyPI) ----
   {
+    slug: "realvisits",
+    name: "realvisits",
+    image: "/projects/cards/realvisits.png",
+    description:
+      "Sorts the visits a website records into people, bots and the site's own checks, using only the user agent, address and referrer a visit counter already keeps. It decides when the visits are read, so a better list corrects the whole history. I wrote it after I found that a jump in visitors on one of my demos was my own test runs.",
+    tags: ["Python", "CLI", "Analytics", "Bots", "Self-hosted"],
+    category: "Tools",
+    source_code: "https://github.com/drkostas/realvisits",
+    addedAt: new Date("2026-10-26T19:30:00"),
+  },
+  {
     slug: "weekpage",
     name: "weekpage",
     image: "/projects/cards/weekpage.png",
