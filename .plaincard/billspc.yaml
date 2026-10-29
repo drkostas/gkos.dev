@@ -1,0 +1,11 @@
+kind: card
+name: billspc
+line: "A self-hosted cloud filesystem for a Mac, with Google Drive as storage and rclone behind an allowlist."
+accent: violet
+footer: github.com/drkostas/billspc
+diagram:
+  - laptop: {shows: lines}
+  - arrow: rclone
+  - gate: {label: allowlist}
+  - arrow: copy
+  - cloud: {label: drive}

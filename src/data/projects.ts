@@ -211,6 +211,17 @@ export const projects: Project[] = [
 
   // ---- Tools (PyPI) ----
   {
+    slug: "billspc",
+    name: "billspc",
+    image: "/projects/cards/billspc.png",
+    description:
+      "A self-hosted cloud filesystem for my Mac, with Google Drive as the storage and rclone doing the copying. Every rclone command passes an allowlist first, so a sync, move or delete can never run by mistake, and a Google sign-in is checked against the right account before its token is kept. The name is from Pokémon, where Bill's PC is the storage box you can reach from any Pokémon Center.",
+    tags: ["Python", "CLI", "rclone", "Google Drive", "macOS"],
+    category: "Tools",
+    source_code: "https://github.com/drkostas/billspc",
+    addedAt: new Date("2026-10-29T15:00:00"),
+  },
+  {
     slug: "realvisits",
     name: "realvisits",
     image: "/projects/cards/realvisits.png",
