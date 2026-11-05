@@ -1,0 +1,11 @@
+kind: card
+name: ditto-code
+line: "Run Claude Code on a local model, the largest one that fits in the memory free right now."
+accent: rose
+footer: github.com/drkostas/ditto-code
+diagram:
+  - terminal: {label: claude code}
+  - arrow: request
+  - gate: {label: proxy, accent: false}
+  - arrow: fits
+  - panes: {rows: 3, cols: 1, highlight: [1, 0], label: model sizes}

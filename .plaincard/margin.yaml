@@ -1,0 +1,11 @@
+kind: card
+name: margin
+line: "Publish a repository's markdown to a self-hosted Outline, and bring each comment back to an AI agent."
+accent: amber
+footer: github.com/drkostas/margin
+diagram:
+  - folder: {label: repo}
+  - arrow: patches
+  - doc: {label: outline, accent: true}
+  - arrow: comments
+  - terminal: {label: agent}
