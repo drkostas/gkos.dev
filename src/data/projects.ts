@@ -211,6 +211,30 @@ export const projects: Project[] = [
 
   // ---- Tools (PyPI) ----
   {
+    slug: "bambu-local",
+    name: "bambu.local",
+    image: "/projects/cards/bambu-local.png",
+    description:
+      "Talks to a Bambu Lab printer over the local network, with no cloud account and no dependencies. It reads the printer's whole state over MQTT, sends it commands, and puts files on its storage over FTPS, where it checks that the printer lists each file at the same size. It is tested on a Bambu Lab X2D.",
+    tags: ["PyPi", "Python", "Bambu Lab", "MQTT", "3D-printing"],
+    category: "Tools",
+    source_code: "https://github.com/drkostas/bambu.local",
+    pypi: "https://pypi.org/project/bambu-local/",
+    addedAt: new Date("2026-11-05T10:46:00"),
+  },
+  {
+    slug: "print-tortoise",
+    name: "print-tortoise",
+    image: "/projects/cards/print-tortoise.png",
+    description:
+      "A PDF printed from HTML can look right in one PDF engine and wrong in another (a CSS glow that MuPDF draws as a glow can become a solid block in Apple's Preview). print-tortoise draws each page with MuPDF, Ghostscript and Apple's engine, outlines where they disagree, and refuses a page with the partly transparent fills that cause it. The name is from Rick and Morty, where the Truth Tortoise shows you everything.",
+    tags: ["PyPi", "Python", "PDF", "MuPDF", "CLI"],
+    category: "Tools",
+    source_code: "https://github.com/drkostas/print-tortoise",
+    pypi: "https://pypi.org/project/print-tortoise/",
+    addedAt: new Date("2026-11-05T10:45:00"),
+  },
+  {
     slug: "margin",
     name: "margin",
     image: "/projects/cards/margin.png",
