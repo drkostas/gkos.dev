@@ -228,9 +228,10 @@ export const projects: Project[] = [
     image: "/projects/cards/ditto-code.png",
     description:
       "Runs Claude Code on a local model through Ollama, with the same tools, skills and MCP servers as any other chat. I keep several sizes of a model, and for each request it uses the largest one that fits in the memory the machine can free right now, so a chat on a laptop does not push the other programs into swap. The name is from Pokémon, where Ditto can turn into any other Pokémon.",
-    tags: ["Python", "Claude-Code", "Ollama", "Local-LLM", "Proxy"],
+    tags: ["PyPi", "Python", "Claude-Code", "Ollama", "Local-LLM"],
     category: "Tools",
     source_code: "https://github.com/drkostas/ditto-code",
+    pypi: "https://pypi.org/project/ditto-code/",
     addedAt: new Date("2026-11-05T10:30:00"),
   },
   {
