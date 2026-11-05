@@ -211,6 +211,29 @@ export const projects: Project[] = [
 
   // ---- Tools (PyPI) ----
   {
+    slug: "margin",
+    name: "margin",
+    image: "/projects/cards/margin.png",
+    description:
+      "Publishes the markdown in my repositories to a self-hosted Outline wiki, where I read it on my phone and comment on a sentence, and brings each comment back to an AI agent such as Claude Code. The agent answers in the thread and changes the file. Changes go to Outline as small patches, so a comment stays on its words when the file around it changes. The name is for the notes you write in a page's margin.",
+    tags: ["PyPi", "Python", "Outline", "Claude-Code", "CLI"],
+    category: "Tools",
+    source_code: "https://github.com/drkostas/margin",
+    pypi: "https://pypi.org/project/margin/",
+    addedAt: new Date("2026-11-05T10:31:00"),
+  },
+  {
+    slug: "ditto-code",
+    name: "ditto-code",
+    image: "/projects/cards/ditto-code.png",
+    description:
+      "Runs Claude Code on a local model through Ollama, with the same tools, skills and MCP servers as any other chat. I keep several sizes of a model, and for each request it uses the largest one that fits in the memory the machine can free right now, so a chat on a laptop does not push the other programs into swap. The name is from Pokémon, where Ditto can turn into any other Pokémon.",
+    tags: ["Python", "Claude-Code", "Ollama", "Local-LLM", "Proxy"],
+    category: "Tools",
+    source_code: "https://github.com/drkostas/ditto-code",
+    addedAt: new Date("2026-11-05T10:30:00"),
+  },
+  {
     slug: "billspc",
     name: "billspc",
     image: "/projects/cards/billspc.png",
