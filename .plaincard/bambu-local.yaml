@@ -1,0 +1,9 @@
+kind: card
+name: bambu.local
+line: "Read a Bambu Lab printer and put files on it over your own network, with no cloud account."
+accent: clay
+footer: github.com/drkostas/bambu.local
+diagram:
+  - terminal: {label: python}
+  - arrow: lan
+  - box: {text: printer, accent: true}

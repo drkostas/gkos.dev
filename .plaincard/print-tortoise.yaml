@@ -1,0 +1,9 @@
+kind: card
+name: print-tortoise
+line: "Find the PDF page one engine draws wrong, before it prints."
+accent: green
+footer: github.com/drkostas/print-tortoise
+diagram:
+  - doc: {label: pdf}
+  - arrow: draw
+  - panes: {rows: 1, cols: 3, highlight: [0, 2], label: three engines}
